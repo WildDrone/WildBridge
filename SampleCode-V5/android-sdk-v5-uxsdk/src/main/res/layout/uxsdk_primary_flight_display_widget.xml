@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    tools:parentTag="dji.v5.ux.core.widget.hsi.PrimaryFlightDisplayWidget">
+
+    <dji.v5.ux.core.ui.hsi.AircraftAttitudeView
+        android:id="@+id/fpv_attitude"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:layout_centerHorizontal="true"
+        android:layout_centerVertical="true"
+        app:uxsdk_actual_height="@dimen/uxsdk_252_dp"
+        app:uxsdk_actual_width="@dimen/uxsdk_252_dp" />
+
+    <View
+        android:id="@+id/fpv_attitude_place_holder"
+        android:layout_width="@dimen/uxsdk_187_dp"
+        android:layout_height="@dimen/uxsdk_187_dp"
+        android:layout_centerHorizontal="true"
+        android:layout_centerVertical="true" />
+
+    <dji.v5.ux.core.widget.hsi.SpeedDisplayFpvWidget
+        android:id="@+id/fpv_speed_value_tv"
+        android:layout_width="wrap_content"
+        android:layout_height="match_parent"
+        android:layout_centerVertical="true"
+        android:textColor="@color/uxsdk_green_in_dark"
+        android:layout_toStartOf="@+id/fpv_attitude_place_holder"/>
+
+    <dji.v5.ux.core.widget.hsi.AttitudeDisplayFpvWidget
+        android:id="@+id/fpv_height_value_tv"
+        android:layout_width="wrap_content"
+        android:layout_height="match_parent"
+        android:layout_centerVertical="true"
+        android:layout_toEndOf="@+id/fpv_attitude_place_holder" />
+
+
+</RelativeLayout>

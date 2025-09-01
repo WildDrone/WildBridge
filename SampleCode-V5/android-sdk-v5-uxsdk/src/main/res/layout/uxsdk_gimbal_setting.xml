@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:gravity="center"
+    android:orientation="vertical">
+
+    <Button
+        android:id="@+id/setting_menu_gimbal_reset_param"
+        style="@style/Widget.AppCompat.Button.Borderless.Colored"
+        android:layout_width="match_parent"
+        android:layout_height="@dimen/uxsdk_56_dp"
+        android:gravity="center"
+        android:text="@string/uxsdk_setting_menu_title_gimbal_reset_param"
+        android:textAllCaps="false"
+        android:textColor="@color/uxsdk_setting_ui_btn_hover"
+        android:textSize="@dimen/uxsdk_14_dp" />
+
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="@dimen/uxsdk_divider_size_medium"
+        android:layout_marginTop="@dimen/uxsdk_vertical_margin_minimal"
+        android:background="@color/uxsdk_dic_color_c20_divider"
+        />
+
+    <Button
+        android:id="@+id/setting_menu_gimbal_calibration"
+        style="@style/Widget.AppCompat.Button.Borderless.Colored"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center"
+        android:text="@string/uxsdk_setting_menu_title_gimbal_calibration"
+        android:textAllCaps="false"
+        android:textColor="@color/uxsdk_setting_ui_btn_hover"
+        android:textSize="@dimen/uxsdk_14_dp" />
+
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="@dimen/uxsdk_divider_size_medium"
+        android:layout_marginTop="@dimen/uxsdk_vertical_margin_minimal"
+        android:background="@color/uxsdk_dic_color_c20_divider"
+        />
+
+
+    <Button
+        android:id="@+id/setting_menu_gimbal_adjust"
+        style="@style/Widget.AppCompat.Button.Borderless.Colored"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center"
+        android:text="@string/setting_menu_title_gimbal_fine_tune"
+        android:textAllCaps="false"
+        android:textColor="@color/uxsdk_setting_ui_btn_hover"
+        android:textSize="@dimen/uxsdk_14_dp" />
+
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="@dimen/uxsdk_divider_size_medium"
+        android:layout_marginTop="@dimen/uxsdk_vertical_margin_minimal"
+        android:background="@color/uxsdk_dic_color_c20_divider"
+        />
+
+
+
+</LinearLayout>

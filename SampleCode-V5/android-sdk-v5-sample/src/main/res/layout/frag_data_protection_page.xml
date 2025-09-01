@@ -1,0 +1,110 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/white">
+
+    <com.github.pedrovgs.lynx.LynxView xmlns:lynx="http://schemas.android.com/apk/res-auto"
+        android:id="@+id/lynx_logcat"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        app:layout_constraintLeft_toLeftOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintBottom_toTopOf="@+id/list_btn"
+        lynx:filter="V5"
+        lynx:max_traces_to_show="1500"
+        lynx:text_size="10sp" />
+
+    <LinearLayout
+        android:id="@+id/list_btn"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="@color/uxsdk_white"
+        android:orientation="vertical"
+        app:layout_constraintWidth_percent="0.2"
+        app:layout_constraintLeft_toLeftOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/lynx_logcat"
+        app:layout_constraintBottom_toBottomOf="parent">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content">
+
+            <Switch
+                android:id="@+id/product_improvement_switch"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:switchTextAppearance="@style/SwitchTextAppearance"
+                android:textOff="@string/switch_product_improvement_off"
+                android:textOn="@string/switch_product_improvement_on"
+                tools:ignore="UseSwitchCompatOrMaterialXml" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/switch_product_improvement"
+                android:textColor="@android:color/black"
+                android:textSize="11sp" />
+
+            <Switch
+                android:id="@+id/msdk_log_switch"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:switchTextAppearance="@style/SwitchTextAppearance"
+                android:textOff="@string/switch_product_improvement_off"
+                android:textOn="@string/switch_product_improvement_on"
+                tools:ignore="UseSwitchCompatOrMaterialXml" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/switch_msdk_log"
+                android:textColor="@android:color/black"
+                android:textSize="11sp" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="match_parent">
+
+            <TextView
+                android:id="@+id/log_path_tv"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textSize="11sp" />
+
+            <Button
+                android:id="@+id/btn_open_log_path"
+                style="@style/main_fragment_btn"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="open" />
+
+            <Button
+                android:id="@+id/btn_clear_log"
+                style="@style/main_fragment_btn"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="clear log" />
+
+            <Button
+                android:id="@+id/btn_export_and_zip_log"
+                style="@style/main_fragment_btn"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="export+zip Log" />
+
+            <Button
+                android:id="@+id/btn_ping"
+                style="@style/main_fragment_btn"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="ping" />
+
+        </LinearLayout>
+
+    </LinearLayout>
+
+</androidx.constraintlayout.widget.ConstraintLayout>

@@ -1,0 +1,105 @@
+<?xml version="1.0" encoding="utf-8"?>
+<merge xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    tools:layout_height="432dp"
+    tools:parentTag="androidx.constraintlayout.widget.ConstraintLayout">
+
+    <dji.v5.ux.core.ui.hsi.dashboard.AttitudeDashBoard
+        android:id="@+id/pfd_attitude_dash_board"
+        android:layout_width="wrap_content"
+        android:layout_height="match_parent"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        app:uxsdk_avoidance_indicator_width="4.5dp"
+        app:uxsdk_avoidance_max_height="@dimen/uxsdk_55_dp"
+        app:uxsdk_barrier_distance_text_size="@dimen/uxsdk_8_dp"
+        app:uxsdk_barrier_drawable_down="@drawable/uxsdk_fpv_pfd_show_barrier_down"
+        app:uxsdk_barrier_drawable_up="@drawable/uxsdk_fpv_pfd_show_barrier_up"
+        app:uxsdk_barrier_indicator_height="@dimen/uxsdk_2_dp"
+        app:uxsdk_calibration_framework_padding_start="@dimen/uxsdk_52_dp"
+        app:uxsdk_calibration_text_padding="@dimen/uxsdk_4_dp"
+        app:uxsdk_calibration_text_size="@dimen/uxsdk_8_dp"
+        app:uxsdk_current_calibration_text_size="@dimen/uxsdk_16_dp"
+        app:uxsdk_current_value_color="@color/uxsdk_green_in_dark"
+        app:uxsdk_current_value_padding="@dimen/uxsdk_8_dp"
+        app:uxsdk_dash_board_align="left"
+        app:uxsdk_degree_line_long="@dimen/uxsdk_8_dp"
+        app:uxsdk_degree_line_short="@dimen/uxsdk_5_dp"
+        app:uxsdk_distance_predict_line_width="2.4dp"
+        app:uxsdk_framework_height="@dimen/uxsdk_136_dp"
+        app:uxsdk_framework_width="@dimen/uxsdk_9_dp"
+        app:uxsdk_name="ALT"
+        app:uxsdk_name_text_size="@dimen/uxsdk_7_dp"
+        app:uxsdk_offset_per_unit="5"
+        app:uxsdk_padding="@dimen/uxsdk_8_dp"
+        app:uxsdk_pointer_divider_bottom_width="@dimen/uxsdk_29_dp"
+        app:uxsdk_pointer_divider_top_width="@dimen/uxsdk_37_dp"
+        app:uxsdk_pointer_height="@dimen/uxsdk_24_dp"
+        app:uxsdk_pointer_line_inner_width="@dimen/uxsdk_5_dp"
+        app:uxsdk_pointer_line_outer_width="@dimen/uxsdk_7_dp"
+        app:uxsdk_pointer_width="@dimen/uxsdk_70_dp"
+        app:uxsdk_return_to_home_indicator_width="@dimen/uxsdk_13_dp"
+        app:uxsdk_show_border="true"
+        app:uxsdk_unit_text_size="@dimen/uxsdk_7_dp" />
+
+    <Space
+        android:id="@+id/anchor"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
+
+    <dji.v5.ux.core.ui.component.StrokeTextView
+        android:id="@+id/pfd_vs_text"
+        style="@style/Widget.TextView.Pfd"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="4.2dp"
+        android:text="VS"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="@+id/pfd_attitude_dash_board"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintVertical_bias="0.43" />
+
+    <dji.v5.ux.core.ui.component.StrokeTextView
+
+        android:id="@+id/pfd_vs_value"
+        style="@style/Widget.TextView.Pfd"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginEnd="2.5dp"
+        android:text="@string/uxsdk_not_a_num"
+        app:layout_constraintEnd_toStartOf="@id/pfd_vs_text"
+        app:layout_constraintTop_toTopOf="@+id/pfd_vs_text" />
+
+    <dji.v5.ux.core.ui.component.StrokeTextView
+        android:id="@+id/pfd_asl_text"
+        style="@style/Widget.TextView.Pfd"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="2.5dp"
+        android:layout_marginTop="@dimen/uxsdk_71_dp"
+        android:layout_marginEnd="@dimen/uxsdk_23_dp"
+        android:text="ASL"
+        app:layout_constraintStart_toEndOf="@id/pfd_asl_value"
+        app:layout_constraintTop_toBottomOf="@+id/anchor" />
+
+    <dji.v5.ux.core.ui.component.StrokeTextView
+        android:id="@+id/pfd_asl_value"
+        style="@style/Widget.TextView.Pfd"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="@dimen/uxsdk_52_dp"
+        android:text="@string/uxsdk_not_a_num"
+        app:layout_constraintEnd_toStartOf="@id/pfd_asl_text"
+        app:layout_constraintHorizontal_bias="1"
+        app:layout_constraintStart_toStartOf="@id/pfd_attitude_dash_board"
+        app:layout_constraintTop_toTopOf="@id/pfd_asl_text" />
+
+
+</merge>

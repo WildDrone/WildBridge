@@ -1,0 +1,473 @@
+<!--
+  ~ Copyright (c) 2018-2020 DJI
+  ~
+  ~ Permission is hereby granted, free of charge, to any person obtaining a copy
+  ~ of this software and associated documentation files (the "Software"), to deal
+  ~ in the Software without restriction, including without limitation the rights
+  ~ to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+  ~ copies of the Software, and to permit persons to whom the Software is
+  ~ furnished to do so, subject to the following conditions:
+  ~
+  ~ The above copyright notice and this permission notice shall be included in all
+  ~ copies or substantial portions of the Software.
+  ~
+  ~ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+  ~ IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+  ~ FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+  ~ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+  ~ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+  ~ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+  ~ SOFTWARE.
+  ~
+  -->
+
+<resources>
+    <style name="UXSDKDialogWindowAnim"  mce_bogus="1">
+        <item name="android:windowEnterAnimation">@android:anim/fade_in</item>
+        <item name="android:windowExitAnimation">@android:anim/fade_out</item>
+    </style>
+    <style name="UXSDKDisableSeekBar" parent="@android:style/Theme">
+        <item name="android:disabledAlpha">1.0</item>
+    </style>
+
+    <style name="UXSDKBatteryWidgetVoltageDefault">
+        <item name="android:textSize">@dimen/uxsdk_text_size_between_small_tiny</item>
+        <item name="android:textColor">@color/uxsdk_battery_healthy</item>
+        <item name="android:background">@drawable/uxsdk_background_battery_voltage_bg_normal</item>
+        <item name="android:text">@string/uxsdk_string_default_value</item>
+        <item name="android:layout_marginLeft">3dp</item>
+        <item name="android:layout_marginStart">3dp</item>
+        <item name="android:paddingLeft">4dp</item>
+        <item name="android:paddingRight">4dp</item>
+    </style>
+
+    <style name="UXSDKBatteryWidgetPercentageDefault">
+        <item name="android:textSize">@dimen/uxsdk_text_size_between_small_tiny</item>
+        <item name="android:textColor">@color/uxsdk_battery_healthy</item>
+        <item name="android:text">@string/uxsdk_string_default_value</item>
+        <item name="android:layout_marginLeft">3dp</item>
+        <item name="android:layout_marginStart">3dp</item>
+    </style>
+
+    <style name="UXSDKRadarWidgetDistanceText">
+        <item name="android:background">@drawable/uxsdk_distance_bg</item>
+        <item name="android:textColor">@color/uxsdk_white</item>
+        <item name="android:textStyle">bold</item>
+        <item name="android:textAllCaps">true</item>
+        <item name="android:gravity">center</item>
+        <item name="android:padding">2dp</item>
+    </style>
+
+    <style name="UXSDKSatelliteStatusItem">
+        <item name="android:layout_width">wrap_content</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:paddingLeft">18dp</item>
+        <item name="android:paddingRight">8dp</item>
+        <item name="android:paddingTop">12dp</item>
+        <item name="android:textColor">@color/uxsdk_white</item>
+        <item name="android:textSize">12sp</item>
+    </style>
+
+    <style name="UXSDKRTKSatelliteStatusItemRowDivider">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">1dp</item>
+        <item name="android:layout_marginTop">12dp</item>
+        <item name="android:background">@color/uxsdk_white_10_percent</item>
+    </style>
+
+    <style name="UXSDKRTKSatelliteStatusItemColumnDivider">
+        <item name="android:layout_height">0dp</item>
+        <item name="android:layout_width">1dp</item>
+        <item name="android:background">@color/uxsdk_white_10_percent</item>
+    </style>
+
+    <style name="UXSDKAirSenseWarningDialogTheme" parent="Theme.AppCompat.Light.Dialog.Alert">
+        <item name="colorAccent">@color/uxsdk_blue</item>
+    </style>
+
+    <style name="UXSDKDialogTheme" parent="Theme.AppCompat.Dialog.Alert">
+        <item name="colorAccent">@color/uxsdk_blue</item>
+        <item name="android:background">@color/uxsdk_black_70_percent</item>
+    </style>
+
+    <style name="UXSDKAircraftBatteryTemperatureListItem">
+        <item name="uxsdk_list_item_icon">@drawable/uxsdk_ic_aircraft_battery_temperature</item>
+        <item name="uxsdk_list_item_title">@string/uxsdk_list_item_aircraft_battery_temp</item>
+    </style>
+
+    <style name="UXSDKEMMCStatusListItem">
+        <item name="uxsdk_list_item_icon">@drawable/uxsdk_ic_emmc</item>
+        <item name="uxsdk_list_item_title">@string/uxsdk_list_item_emmc</item>
+        <item name="uxsdk_list_item_button_text">@string/uxsdk_list_item_format_button</item>
+    </style>
+
+    <style name="UXSDKFlightModeListItem">
+        <item name="uxsdk_list_item_icon">@drawable/uxsdk_ic_flight_mode_list_item</item>
+        <item name="uxsdk_list_item_title">@string/uxsdk_list_item_flight_mode_title</item>
+    </style>
+
+    <style name="UXSDKMaxAltitudeListItem">
+        <item name="uxsdk_list_item_icon">@drawable/uxsdk_ic_max_flight_altitude</item>
+        <item name="uxsdk_list_item_title">@string/uxsdk_list_item_max_flight_altitude</item>
+    </style>
+
+    <style name="UXSDKMaxFlightDistanceListItem">
+        <item name="uxsdk_list_item_icon">@drawable/uxsdk_ic_max_flight_distance</item>
+        <item name="uxsdk_list_item_title">@string/uxsdk_list_item_max_flight_distance</item>
+    </style>
+
+    <style name="UXSDKNoviceModeListItem">
+        <item name="uxsdk_list_item_icon">@drawable/uxsdk_ic_system_status_list_novice_mode</item>
+        <item name="uxsdk_list_item_title">@string/uxsdk_list_item_novice_mode</item>
+    </style>
+
+    <style name="UXSDKOverviewListItem">
+        <item name="uxsdk_list_item_icon">@drawable/uxsdk_ic_overview_status</item>
+        <item name="uxsdk_list_item_title">@string/uxsdk_list_item_overview_status</item>
+    </style>
+
+    <style name="UXSDKRadioQualityListItem">
+        <item name="uxsdk_list_item_icon">@drawable/uxsdk_ic_radio_quality</item>
+        <item name="uxsdk_list_item_title">@string/uxsdk_list_item_radio_quality</item>
+    </style>
+
+    <style name="UXSDKRCBatteryListItem">
+        <item name="uxsdk_list_item_icon">@drawable/uxsdk_ic_rc_battery</item>
+        <item name="uxsdk_list_item_title">@string/uxsdk_list_item_rc_battery</item>
+    </style>
+
+    <style name="UXSDKRCStickModeListItem">
+        <item name="uxsdk_list_item_icon">@drawable/uxsdk_ic_rc_list_item</item>
+        <item name="uxsdk_list_item_title">@string/uxsdk_list_item_rc_stick_mode</item>
+    </style>
+
+    <style name="UXSDKObstacleAvoidanceListItemWidget">
+        <item name="uxsdk_list_item_icon">@drawable/uxsdk_ic_rc_list_item</item>
+        <item name="uxsdk_list_item_title">@string/uxsdk_obstacle_action_type</item>
+    </style>
+
+    <style name="UXSDKReturnToHomeAltitudeListItem">
+        <item name="uxsdk_list_item_icon">@drawable/uxsdk_ic_return_home_altitude</item>
+        <item name="uxsdk_list_item_title">@string/uxsdk_list_item_max_return_to_home_altitude</item>
+    </style>
+
+    <style name="UXSDKSDCardStatusListItem">
+        <item name="uxsdk_list_item_icon">@drawable/uxsdk_ic_sdcard</item>
+        <item name="uxsdk_list_item_title">@string/uxsdk_list_item_sd_card</item>
+        <item name="uxsdk_list_item_button_text">@string/uxsdk_list_item_format_button</item>
+    </style>
+
+    <style name="UXSDKSSDStatusListItem">
+        <item name="uxsdk_list_item_icon">@drawable/uxsdk_ic_ssd</item>
+        <item name="uxsdk_list_item_title">@string/uxsdk_list_item_ssd</item>
+        <item name="uxsdk_list_item_button_text">@string/uxsdk_list_item_format_button</item>
+    </style>
+
+    <style name="UXSDKTravelModeListItem">
+        <item name="uxsdk_list_item_icon">@drawable/uxsdk_ic_return_home_altitude</item>
+        <item name="uxsdk_list_item_title">@string/uxsdk_list_item_travel_mode</item>
+    </style>
+
+    <style name="UXSDKUnitModeListItem">
+        <item name="uxsdk_list_item_icon">@drawable/uxsdk_ic_unit_type</item>
+        <item name="uxsdk_list_item_title">@string/uxsdk_list_item_unit_mode</item>
+    </style>
+
+    <style name="UXSDKAMSLAltitudeWidget">
+        <item name="uxsdk_label_string">@string/uxsdk_amsl_altitude_title</item>
+    </style>
+
+    <style name="UXSDKAGLAltitudeWidget">
+        <item name="uxsdk_label_string">@string/uxsdk_agl_title</item>
+    </style>
+
+    <style name="UXSDKHorizontalVelocityWidget">
+        <item name="uxsdk_label_string">@string/uxsdk_horizontal_velocity_title</item>
+    </style>
+
+    <style name="UXSDKDistanceRCWidget">
+        <item name="uxsdk_label_string">@string/uxsdk_distance_rc_title</item>
+    </style>
+
+    <style name="UXSDKDistanceHomeWidget">
+        <item name="uxsdk_label_string">@string/uxsdk_distance_home_title</item>
+    </style>
+
+    <style name="UXSDKVerticalVelocityWidget">
+        <item name="uxsdk_label_string">@string/uxsdk_vertical_velocity_title</item>
+    </style>
+
+    <style name="UXSDKVPSWidget">
+        <item name="uxsdk_label_string">@string/uxsdk_vps_title</item>
+    </style>
+
+    <style name="UXSDKLocationWidget">
+        <item name="uxsdk_widget_icon">@drawable/uxsdk_ic_telemetry_location</item>
+        <item name="uxsdk_label_visibility">false</item>
+        <item name="uxsdk_unit_visibility">false</item>
+        <item name="uxsdk_value_gravity">center_vertical|left</item>
+    </style>
+
+    <style name="uxsdk_camera_exposure_settings_title">
+        <item name="android:textColor">@color/uxsdk_white</item>
+        <item name="android:gravity">bottom</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:layout_width">wrap_content</item>
+    </style>
+
+    <style name="UXSDKTakeOffDialogTheme" parent="Theme.AppCompat.Dialog">
+        <item name="colorAccent">@color/uxsdk_blue</item>
+        <item name="android:textColorSecondary">@color/uxsdk_blue</item>
+    </style>
+
+    <style name="UXSDKMapWidgetTheme" parent="@style/Base.Theme.AppCompat.Light.Dialog.Alert">
+        <item name="colorAccent">@color/uxsdk_blue</item>
+        <item name="android:textColorSecondary">@color/uxsdk_blue</item>
+    </style>
+
+    <!-- Base application theme. -->
+    <style name="AppTheme" parent="Theme.AppCompat.Light.NoActionBar">
+        <!-- Customize your theme here. -->
+        <item name="android:windowBackground">@color/uxsdk_background_blue</item>
+        <item name="colorPrimary">@color/uxsdk_colorPrimary</item>
+        <item name="colorPrimaryDark">@color/uxsdk_colorPrimaryDark</item>
+        <item name="colorAccent">@color/uxsdk_colorAccent</item>
+        <item name="android:windowFullscreen">true</item>
+    </style>
+
+    <style name="MapTheme" parent="AppTheme">
+        <item name="android:textColorSecondary">@color/uxsdk_colorAccent</item>
+    </style>
+
+    <!--RTK-->
+    <style name="uxsdk_setting_menu_rtk_input_left_item_title">
+        <item name="android:textColor">@color/uxsdk_setting_menu_rtk_common_title_txt</item>
+        <item name="android:textSize">@dimen/uxsdk_text_size_normal_medium</item>
+        <item name="android:layout_width">0px</item>
+        <item name="android:padding">@dimen/uxsdk_5_dp</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:layout_weight">1</item>
+        <item name="android:gravity">left</item>
+    </style>
+
+    <style name="uxsdk_setting_menu_rtk_input_right_item_title">
+        <item name="android:textColor">@color/uxsdk_setting_menu_rtk_common_title_txt</item>
+        <item name="android:textSize">@dimen/uxsdk_text_size_normal_medium</item>
+        <item name="android:layout_width">0px</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:layout_weight">2</item>
+        <item name="android:background">@drawable/uxsdk_bg_setting_ui_rtk_edit</item>
+        <item name="android:paddingStart">@dimen/uxsdk_15_dp</item>
+        <item name="android:paddingTop">@dimen/uxsdk_5_dp</item>
+        <item name="android:paddingBottom">@dimen/uxsdk_5_dp</item>
+        <item name="android:layout_marginRight">@dimen/uxsdk_20_dp</item>
+        <item name="android:gravity">left</item>
+        <item name="android:inputType">textNoSuggestions</item>
+        <item name="android:imeOptions">flagNoExtractUi|flagNoFullscreen</item>
+    </style>
+
+        <!-- Caption -->
+    <style name="UXSDK_Caption">
+        <item name="android:paddingTop">0dp</item>
+        <item name="android:paddingBottom">0dp</item>
+    </style>
+
+    <style name="UXSDK_Caption.Caption1">
+        <item name="android:textSize">@dimen/uxsdk_12_dp</item>
+        <item name="lineHeight">@dimen/uxsdk_18_dp</item>
+    </style>
+
+    <style name="UXSDK_Caption.Caption1.Regular">
+        <item name="android:textStyle">normal</item>
+    </style>
+
+    <style name="UXSDK_Caption.Caption1.Regular.Light">
+        <item name="android:textColor">#F2000000</item>
+    </style>
+
+    <style name="UXSDK_Caption.Caption1.Regular.Light.Secondary">
+        <item name="android:textColor">#A5000000</item>
+    </style>
+
+    <!-- 带描边的TextView默认样式-->
+    <style name="Widget.StrokeTextView" parent="Widget.AppCompat.TextView">
+        <item name="uxsdk_textStrokeWidth">@dimen/uxsdk_1_dp</item>
+        <item name="uxsdk_textStrokeColor">@color/uxsdk_black_30_percent</item>
+    </style>
+
+    <style name="Widget.TextView.Pfd" parent="">
+        <item name="android:fontFamily">sans-serif-condensed</item>
+        <item name="android:textStyle">bold</item>
+        <item name="android:textSize">@dimen/uxsdk_10_dp</item>
+        <item name="android:textColor">@color/uxsdk_green_in_dark</item>
+        <item name="uxsdk_textStrokeColor">@color/uxsdk_black_60_percent</item>
+        <item name="uxsdk_textStrokeWidth">@dimen/uxsdk_0_5_dp</item>
+    </style>
+
+    <style name="Widget.TextView.Hsi" parent="Widget.TextView.Pfd">
+        <item name="android:textSize">@dimen/uxsdk_8_dp</item>
+        <item name="android:textColor">@color/uxsdk_white</item>
+    </style>
+
+    <style name="SimpleProgressDialog" parent="Theme.AppCompat.Dialog">
+        <item name="android:backgroundDimEnabled">false</item>
+        <item name="windowNoTitle">true</item>
+        <item name="android:windowBackground">@android:color/transparent</item>
+        <item name="colorAccent">@color/uxsdk_dic_color_c9_blue</item>
+    </style>
+
+
+    <style name="CameraStatusActionBarItem_TextView">
+        <item name="uxsdk_textStrokeColor">@color/uxsdk_black_30_percent</item>
+        <item name="uxsdk_textStrokeWidth">@dimen/uxsdk_1_dp</item>
+        <item name="android:fontFamily">sans-serif-condensed</item>
+        <item name="android:textSize">@dimen/uxsdk_10_dp</item>
+        <item name="android:textColor">@color/uxsdk_white_95_percent</item>
+        <item name="android:textStyle">bold</item>
+    </style>
+
+    <declare-styleable name="SegmentedButtonGroup">
+        <attr name="uxsdk_checkedItemBackgroundColor" format="color|reference"/>
+    </declare-styleable>
+
+    <!-- Segmented Button默认样式 -->
+    <style name="SegmentedButtonGroup" parent="">
+        <item name="android:background">#262626</item>
+        <item name="uxsdk_checkedItemBackgroundColor">#434343</item>
+    </style>
+
+    <declare-styleable name="RangeSeekBar">
+        <attr name="uxsdk_range_progressDrawable" format="reference" />
+        <attr name="uxsdk_range_backgroundDrawable" format="reference" />
+        <attr name="uxsdk_range_leftThumbDrawable" format="reference" />
+        <attr name="uxsdk_range_rightThumbDrawable" format="reference" />
+        <attr name="uxsdk_range_progressHeight" format="dimension|reference" />
+        <attr name="uxsdk_range_thumbSize" format="dimension|reference" />
+    </declare-styleable>
+
+    <style name="TextAppearance.Caption2" parent="">
+        <item name="android:textColor">@color/uxsdk_white_95_percent</item>
+        <item name="android:textSize">@dimen/uxsdk_10_dp</item>
+        <item name="android:textStyle">bold</item>
+        <item name="lineHeight">@dimen/uxsdk_14_dp</item>
+    </style>
+
+    <style name="Widget.TextView.BatteryInfoName" parent="">
+        <item name="android:minHeight">@dimen/uxsdk_24_dp</item>
+        <item name="android:gravity">center_vertical</item>
+        <item name="android:ellipsize">end</item>
+        <item name="android:maxLines">2</item>
+    </style>
+
+    <style name="uxsdk_setting_ui_item_txt">
+        <item name="android:layout_width">wrap_content</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:textColor">@color/uxsdk_setting_menu_rtk_common_title_txt</item>
+        <item name="android:textSize">@dimen/uxsdk_14_dp</item>
+    </style>
+
+    <style name="uxsdk_setting_ui_desc_txt">
+        <item name="android:layout_width">wrap_content</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:textColor">@color/uxsdk_dic_color_c24_white_Transparent6</item>
+        <item name="android:textSize">@dimen/uxsdk_dic_text_size_12sp</item>
+    </style>
+
+    <style name="NoTitleDialog" parent="@android:style/Theme.Dialog">
+        <item name="android:windowFrame">@null</item>
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:windowBackground">@null</item>
+        <item name="android:windowIsFloating">true</item>
+        <item name="android:windowContentOverlay">@null</item>
+        <item name="android:backgroundDimEnabled">true</item>
+        <item name="android:backgroundDimAmount">0.6</item>
+        <item name="colorAccent">@color/uxsdk_dic_color_c9_blue</item>
+    </style>
+
+    <style name="uxsdk_horizontal_divider_medium">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">@dimen/uxsdk_divider_size_medium</item>
+        <item name="android:background">@color/uxsdk_dic_color_c20_divider</item>
+    </style>
+
+    <style name="uxsdk_setting_circle">
+        <item name="android:layout_width">9dp</item>
+        <item name="android:layout_height">9dp</item>
+        <item name="android:layout_margin">5dp</item>
+        <item name="android:background">@drawable/uxsdk_selector_setting_circle</item>
+    </style>
+
+
+    <style name="MissionPanelTabStyle" parent="TextAppearance.Design.Tab">
+        <item name="android:textSize">@dimen/uxsdk_text_size_small</item>
+        <item name="android:textStyle">normal</item>
+        <item name="textAllCaps">false</item>
+    </style>
+
+    <style name="setting_ui_item_edittext">
+        <item name="android:layout_width">@dimen/uxsdk_140_dp</item>
+        <item name="android:layout_height">@dimen/uxsdk_30_dp</item>
+        <item name="android:singleLine">true</item>
+        <item name="android:textColor">@color/uxsdk_dic_color_c10_sea_blue</item>
+        <item name="android:textSize">@dimen/uxsdk_dic_text_size_18sp</item>
+        <item name="android:gravity">center</item>
+        <item name="android:textStyle">bold</item>
+        <item name="android:inputType">numberDecimal</item>
+        <item name="android:imeOptions">actionDone</item>
+        <item name="android:background">@drawable/uxsdk_setting_ui_item_edittext</item>
+    </style>
+
+    <style name="setting_ui_item_btn_big">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:layout_gravity">center</item>
+        <item name="android:textColor">@color/uxsdk_dic_color_c10_sea_blue_state</item>
+        <item name="android:textSize">@dimen/uxsdk_dic_text_size_18sp</item>
+        <item name="android:paddingBottom">1dp</item>
+    </style>
+
+    <style name="sg_radio_button">
+        <item name="android:textColor">@drawable/uxsdk_button_text_color</item>
+        <item name="android:textSize">12dp</item>
+        <item name="android:minHeight">33dp</item>
+        <item name="android:minWidth">70dp</item>
+        <item name="android:gravity">center</item>
+        <item name="android:button">@null</item>
+        <item name="android:paddingLeft">5dp</item>
+        <item name="android:paddingRight">5dp</item>
+    </style>
+
+    <style name="camera_raw_settings_sg_radio_button" parent="@style/sg_radio_button">
+        <item name="android:minHeight">@dimen/uxsdk_30_dp</item>
+    </style>
+
+    <style name="HorizontalDivider">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">1px</item>
+        <item name="android:background">#33ffffff</item>
+        <!--        <item name="android:contentDescription">@string/app_name</item>-->
+    </style>
+
+    <style name="setting_ui_txt_gray">
+        <item name="android:layout_width">wrap_content</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:textColor">@color/uxsdk_setting_ui_battery_txt_gray</item>
+        <item name="android:textSize">@dimen/uxsdk_14_dp</item>
+    </style>
+
+    <style name="setting_ui_txt">
+        <item name="android:layout_width">wrap_content</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:textColor">@color/uxsdk_dic_color_c8_white</item>
+        <item name="android:textSize">16sp</item>
+    </style>
+
+    <declare-styleable name="DJICalProgressBar">
+        <attr name="uxsdk_orientation_sb" format="enum">
+            <enum name="horizontal" value="0" />
+            <enum name="vertical" value="1" />
+        </attr>
+    </declare-styleable>
+
+
+</resources>
