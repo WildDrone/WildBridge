@@ -15,6 +15,20 @@ WildBridge is an open-source Android application that extends DJI's Mobile SDK V
   ![WildBridge Diagram](https://github.com/WildDrone/WildBridge/blob/main/WildBridgeDiagram.png "WildBridge System Architecture")
 </div>
 
+## Research and Citation
+
+This work is part of the WildDrone project, funded by the European Union's Horizon Europe Research Program (Grant Agreement No. 101071224).
+
+**Academic Papers**:
+```bibtex
+@inproceedings{rolland2025wildbridge,
+    title={WildBridge: Ground Station Interface for Lightweight Multi-Drone Control and Telemetry on DJI Platforms},
+    author={Rolland, Edouard G. A. and Meier, Kilian and Bronz, Murat and Shrikhande, Aditya M. and Richardson, Tom and Lundquist, Ulrik P. S. and Christensen, Anders L.},
+    year={2025},
+    note={Submitted for publication}
+}
+```
+
 ### Key Features
 
 - **Real-time Telemetry**: HTTP-based access to flight data, sensor readings, and drone status
@@ -292,7 +306,7 @@ ros2 topic pub /drone_1/command/goto_waypoint std_msgs/Float64MultiArray "{data:
 ros2 topic echo /drone_1/location
 ```
 
-This ROS implementation showcases how WildBridge's HTTP API can be wrapped for integration with existing robotics frameworks, enabling seamless multi-drone coordination in research applications.
+This ROS2 implementation showcases how WildBridge's HTTP API can be wrapped for integration with existing robotics frameworks, enabling seamless multi-drone coordination in research applications.
 
 ## Scientific Applications
 
@@ -315,7 +329,6 @@ WildBridge has been validated in multiple research domains:
 ### Operational Considerations
 - **Setup Time**: Multi-drone configurations require network setup
 - **Environmental Factors**: Performance affected by Wi-Fi interference
-- **Hardware Heating**: Extended operations may cause overheating
 - **Data Synchronization**: Post-mission data alignment requires planning
 
 ## Troubleshooting
@@ -348,31 +361,9 @@ ffplay rtsp://aaa:aaa@{RC_IP}:8554/streaming/live/1
 curl http://{RC_IP}:8080/aircraft/allStates
 ```
 
-## Research and Citation
-
-This work is part of the WildDrone project, funded by the European Union's Horizon Europe Research Program (Grant Agreement No. 101071224).
-
-**Academic Papers**:
-```bibtex
-@inproceedings{rolland2025wildbridge,
-    title={WildBridge: Ground Station Interface for Lightweight Multi-Drone Control and Telemetry on DJI Platforms},
-    author={Rolland, Edouard G. A. and Meier, Kilian and Bronz, Murat and Shrikhande, Aditya M. and Richardson, Tom and Lundquist, Ulrik P. S. and Christensen, Anders L.},
-    year={2025},
-    note={Submitted for publication}
-}
-```
-
 ## License
 
 This project is licensed under the MIT License - see the [LICENSE.txt](LICENSE.txt) file for details.
-
-## Acknowledgments
-
-- **WildDrone Consortium** - European research collaboration
-- **University of Bristol** - Lead development institution  
-- **University of Southern Denmark** - Multi-drone coordination
-- **DJI** - Mobile SDK V5 platform support
-- **Ultralytics** - YOLO detection models
 
 ## Contributing
 
