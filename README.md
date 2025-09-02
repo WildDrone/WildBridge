@@ -127,23 +127,18 @@ data = "49.306254,4.593728,20"  # lat,lon,alt
 requests.post(f"http://{rc_ip}:8080/send/gotoWP", data=data)
 ```
 
-#### 3. Launch Ground Control Interface
-```bash
-python GroundStation/mainLive.py
-```
-
 ## API Reference
 
 ### Telemetry Endpoints (HTTP GET)
 
-| Endpoint | Description | Response |
-|----------|-------------|----------|
-| `/aircraft/location` | GPS coordinates and altitude | JSON |
-| `/aircraft/attitude` | Pitch, roll, yaw values | JSON |
-| `/aircraft/speed` | Current velocity | JSON |
-| `/aircraft/heading` | Current heading | JSON |
-| `/aircraft/allStates` | Complete telemetry package | JSON |
-| `/aircraft/battery` | Battery level and status | JSON |
+| Endpoint | Description |
+|----------|-------------|
+| `/aircraft/location` | GPS coordinates and altitude |
+| `/aircraft/attitude` | Pitch, roll, yaw values |
+| `/aircraft/speed` | Current velocity |
+| `/aircraft/heading` | Current heading |
+| `/aircraft/allStates` | Complete telemetry package |
+| `/aircraft/battery` | Battery level and status |
 
 ### Control Endpoints (HTTP POST)
 
