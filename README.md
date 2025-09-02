@@ -1,8 +1,6 @@
 <div align="center">
   <img src="WildBridge_icon.png" alt="WildBridge App Icon" width="300" height="300">
-  
-  # WildBridge
-  
+    
   ![WildBridge Diagram](https://github.com/WildDrone/WildBridge/blob/main/WildBridgeDiagram.png "WildBridge System Architecture")
 </div>
 
@@ -12,6 +10,10 @@
 ## Overview
 
 WildBridge is an open-source Android application that extends DJI's Mobile SDK V5 to provide accessible telemetry, video streaming, and low-level control for scientific research applications. Running directly on the DJI remote controller, it exposes network interfaces (HTTP and RTSP) over a local area network, enabling seamless integration with ground stations and external research tools.
+
+<div align="center">    
+  ![WildBridge Diagram](https://github.com/WildDrone/WildBridge/blob/main/WildBridgeDiagram.png "WildBridge System Architecture")
+</div>
 
 ### Key Features
 
