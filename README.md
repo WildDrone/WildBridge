@@ -178,25 +178,45 @@ WildBridge/
 │   ├── android-sdk-v5-sample/    # Sample implementations
 │   └── android-sdk-v5-uxsdk/     # UI components
 ├── localisation_data/            # Research datasets
-└── paper.tex                     # Academic paper source
+source
 ```
 
 ## Development Guide
 
 ### Android App Development
 
-**Development Environment**:
-- Android Studio Koala 2024.1.1
-- DJI Mobile SDK V5
-- Kotlin/Java
+#### Step-by-Step Setup
 
-**Key Implementation**: [`VirtualStickFragment.kt`](SampleCode-V5/android-sdk-v5-as/src/main/java/dji/sampleV5/moduleaircraft/pages/VirtualStickFragment.kt)
+1. **Enable Developer Mode and USB Debugging on your Android Device**
+   - Put your Android device in developer mode (search "enable developer mode Android" for instructions).
+   - Enable USB debugging in developer options.
 
-**Building from Source**:
-1. Clone repository
-2. Open `SampleCode-V5/android-sdk-v5-as` in Android Studio
-3. Configure DJI SDK keys in `AndroidManifest.xml`
-4. Build and deploy to RC Pro
+2. **Install Android Studio**
+   - Download and install Android Studio Koala 2024.1.1:
+     [Download Android Studio Koala 2024.1.1](https://redirector.gvt1.com/edgedl/android/studio/ide-zips/2024.1.2.13/android-studio-2024.1.2.13-linux.tar.gz)
+
+3. **Clone the WildBridge Repository**
+   - Open a terminal and run:
+     ```bash
+     git clone https://github.com/WildDrone/WildBridge.git
+     ```
+
+4. **Open the Project in Android Studio**
+   - In Android Studio, select "Open" and choose:
+     ```
+     /workspace/WildBridge/SampleCode-V5/android-sdk-v5-as
+     ```
+
+5. **Build and Deploy the App**
+   - Build the app in Android Studio. Install any prompted dependencies.
+   - Deploy the app to your controller.
+
+6. **Start the HTTP Server on the Drone Controller**
+   - In WildBridge, click "Testing Tools".
+   - Open the "Virtual Stick" page.
+   - The HTTP server is now running. You can send commands, view RTSP videofeed, and retrieve telemetry.
+
+Refer to the code snippets in the Quick Start section for examples of sending commands and retrieving telemetry.
 
 ### Ground Station Development
 
@@ -222,6 +242,60 @@ detector = ObjectDetectionWorld(
     classes=["elephant", "rhino", "bird"]
 )
 ```
+
+### ROS 2 Integration
+
+WildBridge includes a complete ROS 2 implementation developed using **ROS Humble**, demonstrating how WildBridge HTTP requests can be seamlessly integrated into robotics applications.
+
+#### Features
+- **Multi-drone Support**: Simultaneous control of multiple DJI drones
+- **Real-time Telemetry**: Publishing drone states as ROS topics
+- **RTSP Video Streaming**: Live video feed integration with ROS Image messages
+- **Command Interface**: ROS service calls for drone control
+- **Dynamic Discovery**: Automatic drone detection via MAC address lookup
+
+#### Package Structure
+```
+GroundStation/ROS/
+├── dji_controller/          # Main drone control package
+│   ├── controller.py        # ROS node for drone commands and telemetry
+│   └── dji_interface.py     # HTTP interface wrapper
+├── drone_videofeed/         # RTSP video streaming package
+│   └── rtsp.py             # Video feed ROS node
+└── wildview_bringup/        # Launch configuration
+    └── swarm_connection.launch.py  # Multi-drone launch file
+```
+
+#### ROS Topics
+
+**Published Topics** (per drone):
+- `/drone_N/speed` - Current velocity magnitude
+- `/drone_N/location` - GPS coordinates (NavSatFix)
+- `/drone_N/attitude` - Pitch, roll, yaw
+- `/drone_N/battery_level` - Battery percentage
+- `/drone_N/video_frames` - Live camera feed (Image)
+
+**Subscribed Topics** (commands):
+- `/drone_N/command/takeoff` - Takeoff command
+- `/drone_N/command/goto_waypoint` - Navigate to coordinates
+- `/drone_N/command/gimbal_pitch` - Gimbal control
+
+#### Usage Example
+```bash
+# Launch multi-drone system
+ros2 launch wildview_bringup swarm_connection.launch.py
+
+# Send takeoff command
+ros2 topic pub /drone_1/command/takeoff std_msgs/Empty
+
+# Navigate to waypoint [lat, lon, alt, yaw]
+ros2 topic pub /drone_1/command/goto_waypoint std_msgs/Float64MultiArray "{data: [49.306254, 4.593728, 20.0, 90.0]}"
+
+# Monitor telemetry
+ros2 topic echo /drone_1/location
+```
+
+This ROS implementation showcases how WildBridge's HTTP API can be wrapped for integration with existing robotics frameworks, enabling seamless multi-drone coordination in research applications.
 
 ## Scientific Applications
 
@@ -261,10 +335,9 @@ WildBridge has been validated in multiple research domains:
 - Check network bandwidth for multiple streams
 - Verify firewall settings on ground station
 
-**Performance Issues**:
-- Reduce telemetry request frequency below 32Hz
-- Limit concurrent video streams to 6 or fewer
-- Use dedicated 5GHz Wi-Fi network when possible
+
+**Waypoint Navigation Issues**:
+- If you send a drone to a waypoint but it does not move, ensure that Virtual Stick is enabled. You can enable Virtual Stick in the DJI App or send a command to enable it. Once enabled, the drone should be able to move to the waypoint.
 
 ### Debug Commands
 ```bash
