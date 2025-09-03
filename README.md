@@ -15,7 +15,7 @@ WildBridge is an open-source Android application that extends DJI's Mobile SDK V
 
 ## Research and Citation
 
-This work is part of the WildDrone project, funded by the European Union's Horizon Europe Research Program (Grant Agreement No. 101071224).
+This work is part of the WildDrone project, funded by the European Union's Horizon Europe Research Program (Grant Agreement No. 101071224). The WildDrone project has also received funding in part from the EPSRC-funded Autonomous Drones for Nature Conservation Missions grant (EP/X029077/1).
 
 **Academic Papers**:
 ```bibtex
@@ -39,31 +39,18 @@ This work is part of the WildDrone project, funded by the European Union's Horiz
 ## Supported Hardware
 
 ### DJI Drones (Mobile SDK V5 Compatible)
-- **DJI Mini 3/Mini 3 Pro** - Consumer-grade platforms
-- **DJI Mini 4 Pro** - Enhanced imaging capabilities
-- **DJI Mavic 3 Enterprise Series** - Professional applications with thermal imaging
-- **DJI Matrice 30 Series (M30/M30T)** - Industrial platforms
-- **DJI Matrice 300 RTK** - High-precision surveying
-- **DJI Matrice 350 RTK** - Latest enterprise platform
+- **DJI Mini 3/Mini 3 Pro**
+- **DJI Mini 4 Pro**
+- **DJI Mavic 3 Enterprise Series**
+- **DJI Matrice 30 Series (M30/M30T)**
+- **DJI Matrice 300 RTK**
+- **DJI Matrice 350 RTK**
+- Full list [here](https://developer.dji.com/doc/mobile-sdk-tutorial/en/)
 
 ### Remote Controllers
 - **DJI RC Pro** - Primary supported controller
 - **DJI RC Plus** - Enterprise compatibility
 - **DJI RC-N3** - Standard controller (tested with smartphones)
-
-### System Requirements
-
-#### Ground Station
-- **OS**: Ubuntu 24.04+ / Windows 10+ / macOS 12+
-- **Python**: 3.8 or higher
-- **Network**: Wi-Fi 5 (802.11ac) or better
-- **Hardware**: Intel Tiger Lake CPU or equivalent
-
-#### Android App
-- **Android**: 7.0 (API level 24) or higher
-- **Development**: Android Studio Koala 2024.1.1
-- **RAM**: 4GB minimum, 8GB recommended
-- **Storage**: 2GB available space
 
 ## Performance Characteristics
 
@@ -71,8 +58,7 @@ Based on controlled experiments with consumer-grade hardware:
 
 ### Telemetry Performance
 - **Latency**: <113ms mean, <290ms 90th percentile (up to 10 drones at 32Hz)
-- **Scalability**: Optimal performance with up to 7 concurrent drones
-- **Payload**: ~500 bytes per `/aircraft/allStates` request
+- **Scalability**: Tested up to 10 concurrent drones
 
 ### Video Streaming Performance
 - **Latency**: 1.4-1.6s (1-4 drones), 1.8-1.9s (5-6 drones)
@@ -95,10 +81,14 @@ Based on controlled experiments with consumer-grade hardware:
    cd WildBridge
    ```
 
-3. **Python Dependencies**
+3. **Python GS Dependencies**
    ```bash
-   cd GroundStation
-   pip install ultralytics opencv-python matplotlib requests nicegui numpy pillow
+   pip install -r GroundStation/Python/requirements.txt
+   ```
+
+4. **ROS GS Dependencies**
+   ```bash
+   pip install -r GroundStation/ROS/requirements.txt
    ```
 
 ### Basic Usage
@@ -107,7 +97,8 @@ Based on controlled experiments with consumer-grade hardware:
 - Connect RC to local Wi-Fi network
 - Note the RC's IP address from network settings
 - Install and launch WildBridge app
-- Enable "Virtual Stick" mode
+- Navigate to "Testing Tools" -> "Virtual Stick"
+- When using control commands, press "Enable Virtual Stick"
 
 #### 2. Ground Station Connection
 
@@ -122,8 +113,10 @@ print(response.json())
 
 **Video Streaming** (OpenCV):
 ```python
+import requests
 import cv2
 
+rc_ip = "192.168.1.100"  # Your RC IP
 rtsp_url = f"rtsp://aaa:aaa@{rc_ip}:8554/streaming/live/1"
 cap = cv2.VideoCapture(rtsp_url)
 ret, frame = cap.read()
@@ -131,6 +124,9 @@ ret, frame = cap.read()
 
 **Control Commands**:
 ```python
+import requests
+
+rc_ip = "192.168.1.100"  # Your RC IP
 # Takeoff
 requests.post(f"http://{rc_ip}:8080/send/takeoff")
 
@@ -174,20 +170,17 @@ requests.post(f"http://{rc_ip}:8080/send/gotoWP", data=data)
 
 ```
 WildBridge/
-├── GroundStation/                  # Python ground control system
-│   ├── djiInterface.py            # Full DJI communication API
-│   ├── djiInterfaceLite.py        # Lightweight interface
-│   ├── mainLive.py               # Live mission control
-│   ├── objectDetection.py        # YOLO-based detection
-│   ├── objectPosition.py         # 3D position estimation
-│   ├── dataLogger.py             # Flight data logging
-│   └── utils/                    # Utility scripts
-├── SampleCode-V5/                 # Android application
-│   ├── android-sdk-v5-as/        # Main app project
-│   ├── android-sdk-v5-sample/    # Sample implementations
-│   └── android-sdk-v5-uxsdk/     # UI components
-├── localisation_data/            # Research datasets
-source
+├── GroundStation/                      # Ground Control System (GS)
+│   ├── Python/                         # Python GS
+│   │   └── djiInterface.py             # Full DJI communication API
+│   └── ROS/                            # ROS 2 integration
+│       ├── dji_controller/             # Main drone control package
+│       ├── drone_videofeed/            # RTSP video streaming package
+│       └── wildview_bringup/           # Launch configuration
+├── SampleCode-V5/                      # Android application
+│   ├── android-sdk-v5-as/              # Main app project
+│   ├── android-sdk-v5-sample/          # Sample implementations
+│   └── android-sdk-v5-uxsdk/           # UI components
 ```
 
 ## Development Guide
@@ -197,7 +190,7 @@ source
 #### Step-by-Step Setup
 
 1. **Enable Developer Mode and USB Debugging on your Android Device**
-   - Put your Android device in developer mode (search "enable developer mode Android" for instructions).
+   - Put your Android device in developer mode.
    - Enable USB debugging in developer options.
 
 2. **Install Android Studio**
@@ -220,37 +213,12 @@ source
    - Build the app in Android Studio. Install any prompted dependencies.
    - Deploy the app to your controller.
 
-6. **Start the HTTP Server on the Drone Controller**
+6. **Start the Server on the Drone Controller**
    - In WildBridge, click "Testing Tools".
    - Open the "Virtual Stick" page.
-   - The HTTP server is now running. You can send commands, view RTSP videofeed, and retrieve telemetry.
+   - The server is now running. You can send commands, view RTSP videofeed, and retrieve telemetry.
 
 Refer to the code snippets in the Quick Start section for examples of sending commands and retrieving telemetry.
-
-### Ground Station Development
-
-**Core APIs**:
-```python
-from GroundStation.djiInterfaceLite import DJIInterfaceLite
-
-# Initialize connection
-dji = DJIInterfaceLite("192.168.1.100")
-
-# Mission execution
-dji.requestSendTakeOff()
-waypoints = [(lat1, lon1, alt1), (lat2, lon2, alt2)]
-dji.requestSendNavigateTrajectory(waypoints, final_yaw)
-```
-
-**Adding Custom Detection**:
-```python
-from GroundStation.objectDetection import ObjectDetectionWorld
-
-detector = ObjectDetectionWorld(
-    droneInterface, 
-    classes=["elephant", "rhino", "bird"]
-)
-```
 
 ### ROS 2 Integration
 
@@ -335,14 +303,12 @@ WildBridge has been validated in multiple research domains:
 
 **Connection Problems**:
 - Verify RC IP address in network settings
-- Check Wi-Fi network compatibility (5GHz preferred)
 - Ensure WildBridge app is running and Virtual Stick enabled
 
 **Video Stream Issues**:
-- Test RTSP URL in VLC: `rtsp://aaa:aaa@{RC_IP}:8554/streaming/live/1`
+- Test RTSP URL in VLC: `rtsp://aaa:aaa@{RC_IP}:8554/streaming/live/1` (Open Network Protocol, Ctrl+N)
 - Check network bandwidth for multiple streams
 - Verify firewall settings on ground station
-
 
 **Waypoint Navigation Issues**:
 - If you send a drone to a waypoint but it does not move, ensure that Virtual Stick is enabled. You can enable Virtual Stick in the DJI App or send a command to enable it. Once enabled, the drone should be able to move to the waypoint.
@@ -365,12 +331,9 @@ This project is licensed under the MIT License - see the [LICENSE.txt](LICENSE.t
 
 ## Contributing
 
-Contributions are welcome! Please see our guidelines:
+Contributions are welcome! Please reach out!
 
 1. **Bug Reports**: Use GitHub issues with reproduction steps
 2. **Feature Requests**: Describe use case and scientific application
-3. **Code Standards**: Follow PEP 8 (Python) and Kotlin conventions
-4. **Testing**: Include unit tests for new features
-5. **Documentation**: Update README and code comments
 
 For questions or collaboration inquiries, please contact the WildDrone consortium at [https://wilddrone.eu](https://wilddrone.eu).

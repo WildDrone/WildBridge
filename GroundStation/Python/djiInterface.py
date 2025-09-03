@@ -1,10 +1,9 @@
+import cv2
 import requests
 import ast
-import sys
 from datetime import datetime
-import time
 
-# Aircraft state endpoints suffixes
+# Aircraft state endpoint suffixes
 # GETTER
 EP_BASE = "/"
 EP_SPEED = "/aircraft/speed"
@@ -15,13 +14,16 @@ EP_GIMBAL_ATTITUDE = "/aircraft/gimbalAttitude"
 EP_ALL_STATES = "/aircraft/allStates"
 EP_STICK_VALUES = "/aircraft/rcStickValues"
 EP_YAW_REACHED = "/status/yawReached"
+EP_ALTITUDE_REACHED = "/status/altitudeReached"
 EP_WP_REACHED = "/status/waypointReached"
+EP_HOME_LOCATION = "/home/location"
+EP_CAMERA_IS_RECORDING = "/status/camera/isRecording"
 
 # SETTER
-# expects a sting formated as: "<leftX>,<leftY>,<rightX>,<rightY>"
-EP_STICK = "/send/stick"
+EP_STICK = "/send/stick" # expects a formatted string: "<leftX>,<leftY>,<rightX>,<rightY>"
 EP_ZOOM = "/send/camera/zoom"
 EP_GIMBAL_SET_PITCH = "/send/gimbal/pitch"
+EP_GIMBAL_SET_YAW = "/send/gimbal/yaw"  # !!! This is the yaw joint angle !!!
 EP_TAKEOFF = "/send/takeoff"
 EP_LAND = "/send/land"
 EP_RTH = "/send/RTH"
@@ -30,25 +32,30 @@ EP_ABORT_MISSION = "/send/abortMission"
 EP_GOTO_WP = "/send/gotoWP"
 EP_GOTO_YAW = "/send/gotoYaw"
 EP_GOTO_WP_PID = "/send/gotoWPwithPID"
-EP_GOTO_ALTITUDE = "/send/gotoAltitude"
-EP_ALTITUDE_REACHED = "/status/altitudeReached"
 EP_GOTO_TRAJECTORY = "/send/navigateTrajectory"
-
-EP_CAMERA_IS_RECORDING = "/status/camera/isRecording"
+EP_GOTO_ALTITUDE = "/send/gotoAltitude"
 EP_CAMERA_START_RECORDING = "/send/camera/startRecording"
 EP_CAMERA_STOP_RECORDING = "/send/camera/stopRecording"
+EP_INTERMEDIARY_WP_REACHED = "/status/intermediaryWaypointReached"
+
+#PID Tuninng
+EP_TUNING = "/send/gotoWPwithPIDtuning"
 
 
-class DJIInterfaceLite:
-    def __init__(self, IP_RC):
+class DJIInterface:
+    def __init__(self, IP_RC=""):
         self.IP_RC = IP_RC
         self.baseTelemUrl = f"http://{IP_RC}:8080"
         self.videoSource = f"rtsp://aaa:aaa@{self.IP_RC}:8554/streaming/live/1"
 
     def getVideoSource(self):
+        if self.IP_RC == "":
+            return ""
         return self.videoSource
 
     def requestGet(self, endPoint, verbose=False):
+        if self.IP_RC == "":
+            return ""
         response = requests.get(self.baseTelemUrl + endPoint)
         if verbose:
             print("EP : " + endPoint + "\t" +
@@ -56,6 +63,10 @@ class DJIInterfaceLite:
         return response.content.decode('utf-8')
 
     def requestSend(self, endPoint, data, verbose=False):
+        if self.IP_RC == "":
+            print(
+                f"No IP_RC provided, returning empty string for request at {endPoint}")
+            return ""
         response = requests.post(self.baseTelemUrl + endPoint, str(data))
         if verbose:
             print("EP : " + endPoint + "\t" +
@@ -87,6 +98,9 @@ class DJIInterfaceLite:
     def requestSendGimbalPitch(self, pitch=0):
         return self.requestSend(EP_GIMBAL_SET_PITCH, f"0,{pitch},0")
 
+    def requestSendGimbalYaw(self, yaw=0):
+        return self.requestSend(EP_GIMBAL_SET_YAW, f"0,0,{yaw}")
+
     def requestSendZoomRatio(self, zoomRatio=1):
         return self.requestSend(EP_ZOOM, zoomRatio)
 
@@ -97,54 +111,41 @@ class DJIInterfaceLite:
         return self.requestSend(EP_LAND, "")
 
     def requestSendRTH(self):
-        self.requestAbortMission()
         return self.requestSend(EP_RTH, "")
 
     def requestSendGoToWP(self, latitude, longitude, altitude):
-        self.requestSendEnableVirtualStick()
         return self.requestSend(EP_GOTO_WP, f"{latitude},{longitude},{altitude}")
 
     def requestSendGoToWPwithPID(self, latitude, longitude, altitude, yaw):
-        self.requestSendEnableVirtualStick()
         return self.requestSend(EP_GOTO_WP_PID, f"{latitude},{longitude},{altitude},{yaw}")
+    
+    def requestSendGoToWPwithPIDtuning(self, latitude, longitude, altitude, yaw, kp_pos, ki_pos, kd_pos, kp_yaw, ki_yaw, kd_yaw):
+        return self.requestSend(EP_TUNING, f"{latitude},{longitude},{altitude},{yaw},{kp_pos},{ki_pos},{kd_pos},{kp_yaw},{ki_yaw},{kd_yaw}")
 
-    def requestSendNavigateTrajectory(self, waypoints: dict):
+    def requestSendNavigateTrajectory(self, waypoints, finalYaw):
         """
         :param waypoints: A list of triples (latitude, longitude, altitude) for each waypoint.
         :param finalYaw: The final yaw angle at the last waypoint.
         :return: The response from the server.
         """
-
         self.requestSendEnableVirtualStick()
-
         if not waypoints:
             raise ValueError("No waypoints provided")
 
-        if len(waypoints) == 1:
-            waypoint_data = waypoints[0]
-            self.requestSendGoToWPwithPID(waypoint_data.get('lat'), waypoint_data.get(
-                'lng'), waypoint_data.get('y'), waypoint_data.get('final_heading'))
+        # Build the message
+        # All waypoints except the last: "lat,lon,alt"
+        # Last waypoint: "lat,lon,alt,yaw"
+        segments = []
+        for i, (lat, lon, alt) in enumerate(waypoints):
+            if i < len(waypoints) - 1:
+                # Intermediary waypoint: lat,lon,alt
+                segments.append(f"{lat},{lon},{alt}")
+            else:
+                # Last waypoint: lat,lon,alt,yaw
+                segments.append(f"{lat},{lon},{alt},{finalYaw}")
 
-        else:
-            # Build the message
-            # All waypoints except the last: "lat,lon,alt"
-            # Last waypoint: "lat,lon,alt,yaw"
-            segments = []
-            for i, waypoint in enumerate(waypoints):
-                lat = waypoint.get('lat')
-                lon = waypoint.get('lng')
-                alt = waypoint.get('y')
-                finalYaw = waypoint.get('final_heading')
-
-                if i < len(waypoints) - 1:
-                    # Intermediary waypoint: lat,lon,alt
-                    segments.append(f"{lat},{lon},{alt}")
-                else:
-                    # Last waypoint: lat,lon,alt,yaw
-                    segments.append(f"{lat},{lon},{alt},{finalYaw}")
-
-            message = ";".join(segments)
-            return self.requestSend(EP_GOTO_TRAJECTORY, message)
+        message = ";".join(segments)
+        return self.requestSend(EP_GOTO_TRAJECTORY, message)
 
     def requestSticks(self):
         return self.requestGet(EP_STICK_VALUES, True)
@@ -154,6 +155,9 @@ class DJIInterfaceLite:
 
     def requestWaypointStatus(self):
         return self.requestGet(EP_WP_REACHED)
+
+    def requestIntermediaryWaypointStatus(self):
+        return self.requestGet(EP_INTERMEDIARY_WP_REACHED)
 
     def requestSendEnableVirtualStick(self):
         return self.requestSend(EP_ENABLE_VIRTUAL_STICK, "")
@@ -165,11 +169,19 @@ class DJIInterfaceLite:
         return self.requestSend(EP_GOTO_YAW, f"{yaw}")
 
     def requestSendGotoAltitude(self, altitude):
-        self.requestSendEnableVirtualStick()
         return self.requestSend(EP_GOTO_ALTITUDE, f"{altitude}")
 
     def requestAltitudeStatus(self):
         return self.requestGet(EP_ALTITUDE_REACHED)
+
+    def requestHomePosition(self):
+        response = self.requestGet(EP_HOME_LOCATION, False)
+        try:
+            # TODO: probably very unsafe!!!
+            home = ast.literal_eval(response)
+            return home
+        except:
+            return {}
 
     def requestCameraStartRecording(self):
         return self.requestSend(EP_CAMERA_START_RECORDING, "")
@@ -180,64 +192,23 @@ class DJIInterfaceLite:
     def requestCameraIsRecording(self):
         return self.requestGet(EP_CAMERA_IS_RECORDING) == "true"
 
-
-class DJIControllerLite():
-    def __init__(self, droneInterface):
-        self.droneInterface = droneInterface
-        self.GAIN_P = 1e-2
-
-    def center(self, xPixelOffset, yPixelOffset):
-        # image x axis is going from left to right,
-        # y is going from top to bottom,
-        # origin is at the center of image
-        ctrlX = xPixelOffset*self.GAIN_P
-        ctrlY = -yPixelOffset*self.GAIN_P
-        self.droneInterface.requestSendStick(rightX=ctrlX, rightY=ctrlY)
-
-    def gotoYaw(self, targetYaw):
-        if targetYaw > 179 or targetYaw < -179:
-            raise ValueError("Yaw must be in the range [-179, 179]")
-        self.droneInterface.requestSendGotoYaw(targetYaw)
-        while dji.requestYawStatus() == "false":  # Wait for the yaw to be reached
-            time.sleep(0.1)
-
-    def waitGPSFix(self):
-        # Wait for GPS fix before starting waypoint navigation
-        while True:
-            if self.droneInterface.requestAllStates(True)["location"]["latitude"] == 0:
-                print("Waiting for GPS fix...")
-            else:
-                break
-
-    def gotoWaypoint(self, latitude, longitude, altitude):
-        self.droneInterface.requestSendGoToWP(latitude, longitude, altitude)
-        while self.droneInterface.requestWaypointStatus() == "false":
-            time.sleep(0.1)
-        print("Waypoint reached")
-
-    def gotoWaypointwithPID(self, latitude, longitude, altitude, yaw):
-        self.droneInterface.requestSendGoToWPwithPID(
-            latitude, longitude, altitude, yaw)
-        while self.droneInterface.requestWaypointStatus() == "false":
-            time.sleep(0.1)
-        print("Waypoint reached")
-
-    def gotoAltitude(self, altitude):
-        self.droneInterface.requestSendGotoAltitude(altitude)
-        while self.droneInterface.requestAltitudeStatus() == "false":
-            time.sleep(0.1)
-        print("Altitude reached")
-
-
 if __name__ == '__main__':
-    if len(sys.argv) != 2:
-        print("Usage: python djiInterfaceLite.py <IP_RC>")
-    else:
-        IP_RC = sys.argv[1]
-        dji = DJIInterfaceLite(IP_RC)
-        dji.requestGet(EP_BASE, True)
+    IP_RC = "10.100.67.235" # REPLACE WITH YOUR RC IP
 
-        controller = DJIControllerLite(dji)
+    print(f"Connecting to {IP_RC}...")
+    dji = DJIInterface(IP_RC)
 
-        while True:
-            states = dji.requestAllStates(True)
+    print(f"Requesting all states...")
+    response = dji.requestAllStates()
+    for key, value in response.items():
+        print(f"{key}: {value}")
+
+    print(f"Sending takeoff command...")
+    dji.requestSendTakeOff()
+
+    print(f"Saving frame...")
+    cap = cv2.VideoCapture(dji.getVideoSource())
+    ret, frame = cap.read()
+    if ret:
+        cv2.imwrite("frame.jpg", frame)
+    cap.release()
