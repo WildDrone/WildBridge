@@ -177,10 +177,10 @@ WildBridge/
 │       ├── dji_controller/             # Main drone control package
 │       ├── drone_videofeed/            # RTSP video streaming package
 │       └── wildview_bringup/           # Launch configuration
-├── SampleCode-V5/                      # Android application
-│   ├── android-sdk-v5-as/              # Main app project
-│   ├── android-sdk-v5-sample/          # Sample implementations
-│   └── android-sdk-v5-uxsdk/           # UI components
+└── SampleCode-V5/                      # Android application
+    ├── android-sdk-v5-as/              # Main app project
+    ├── android-sdk-v5-sample/          # Sample implementations
+    └── android-sdk-v5-uxsdk/           # UI components
 ```
 
 ## Development Guide
@@ -206,7 +206,14 @@ WildBridge/
 4. **Open the Project in Android Studio**
    - In Android Studio, select "Open" and choose:
      ```
-     /workspace/WildBridge/SampleCode-V5/android-sdk-v5-as
+     WildBridge/SampleCode-V5/android-sdk-v5-as
+     ```
+
+5. **Become a DJI developer and get an API key**
+   - Register as a DJI developer and get an API key: [https://developer.dji.com/](https://developer.dji.com/)
+   - Past your API key in:
+     ```
+     WildBridge/SampleCode-V5/android-sdk-v5-as/local.properties 
      ```
 
 5. **Build and Deploy the App**
