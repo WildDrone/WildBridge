@@ -1,3 +1,17 @@
+"""
+WildBridge - DJI Interface Module
+
+A Python interface for controlling DJI drones through HTTP requests, providing
+seamless integration for drone operations, telemetry retrieval, and video streaming.
+
+Authors: Kilian Meier, Edouard G.A. Rolland
+Project: WildDrone - Autonomous Search and Rescue Operations
+Institution: University of Bristol, University of Southern Denmark (SDU)
+License: MIT
+
+For more information, visit: https://github.com/WildDrone/WildBridge
+"""
+
 import cv2
 import requests
 import ast
@@ -37,6 +51,8 @@ EP_GOTO_ALTITUDE = "/send/gotoAltitude"
 EP_CAMERA_START_RECORDING = "/send/camera/startRecording"
 EP_CAMERA_STOP_RECORDING = "/send/camera/stopRecording"
 EP_INTERMEDIARY_WP_REACHED = "/status/intermediaryWaypointReached"
+EP_GOTO_TRAJECTORY_DJI_NATIVE = "/send/navigateTrajectoryDJINative"
+EP_ABORT_DJI_NATIVE_MISSION = "/send/abort/DJIMission"
 
 #PID Tuninng
 EP_TUNING = "/send/gotoWPwithPIDtuning"
@@ -146,6 +162,26 @@ class DJIInterface:
 
         message = ";".join(segments)
         return self.requestSend(EP_GOTO_TRAJECTORY, message)
+    
+    def requestSendNavigateTrajectoryDJINative(self, waypoints):
+        """
+        Send waypoints to be executed using DJI's native waypoint mission system.
+        :param waypoints: A list of triples (latitude, longitude, altitude) for each waypoint.
+        :return: The response from the server.
+        """
+        if not waypoints:
+            raise ValueError("No waypoints provided")
+
+        # Build the message format: "lat,lon,alt; lat,lon,alt; ..."
+        segments = []
+        for lat, lon, alt in waypoints:
+            segments.append(f"{lat},{lon},{alt}")
+
+        message = ";".join(segments)
+        return self.requestSend(EP_GOTO_TRAJECTORY_DJI_NATIVE, message)
+    
+    def requestAbortDJINativeMission(self):
+        return self.requestSend(EP_ABORT_DJI_NATIVE_MISSION, "")
 
     def requestSticks(self):
         return self.requestGet(EP_STICK_VALUES, True)

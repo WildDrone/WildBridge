@@ -1,37 +1,43 @@
-package dji.sampleV5.moduleaircraft.controller
+package dji.sampleV5.aircraft.controller
 
 import android.os.Handler
 import android.os.Looper
-import dji.sampleV5.moduleaircraft.models.BasicAircraftControlVM
-import dji.sampleV5.moduleaircraft.models.SimulatorVM
-import dji.sampleV5.moduleaircraft.models.VirtualStickVM
+import dji.sampleV5.aircraft.models.BasicAircraftControlVM
+import dji.sampleV5.aircraft.models.VirtualStickVM
 import dji.v5.common.callback.CommonCallbacks
 import dji.v5.common.error.IDJIError
 import dji.v5.manager.aircraft.virtualstick.Stick
 import dji.sdk.keyvalue.value.common.EmptyMsg
 import dji.sdk.keyvalue.value.flightcontroller.*
-import dji.sampleV5.modulecommon.util.ToastUtils
+import dji.sampleV5.aircraft.util.ToastUtils
+import dji.sampleV5.moduleaircraft.controller.PID
 import dji.sdk.keyvalue.key.DJIKey
 import dji.sdk.keyvalue.key.FlightControllerKey
 import dji.sdk.keyvalue.value.common.LocationCoordinate3D
 import dji.v5.et.create
 import dji.v5.et.get
 import kotlin.math.*
-import dji.sampleV5.modulecommon.models.LiveStreamVM
-
+import com.dji.wpmzsdk.common.data.Template
+import com.dji.wpmzsdk.manager.WPMZManager
+import dji.sampleV5.aircraft.utils.wpml.WaypointInfoModel
+import dji.v5.manager.aircraft.waypoint3.WaypointMissionManager
+import dji.v5.utils.common.ContextUtil
+import dji.sdk.wpmz.value.mission.*
+import java.io.File
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+import java.util.zip.ZipEntry
+import java.util.zip.ZipFile
 
 object DroneController {
 
-    lateinit var basicAircraftControlVM: BasicAircraftControlVM
+    private lateinit var basicAircraftControlVM: BasicAircraftControlVM
     lateinit var virtualStickVM: VirtualStickVM
-    lateinit var simulatorVM: SimulatorVM
-    lateinit var LiveStreamVM: LiveStreamVM
 
-    fun init(basicVM: BasicAircraftControlVM, stickVM: VirtualStickVM, simVM: SimulatorVM, liveVM: LiveStreamVM ) {
+    fun init(basicVM: BasicAircraftControlVM, stickVM: VirtualStickVM ) {
         basicAircraftControlVM = basicVM
         virtualStickVM = stickVM
-        simulatorVM = simVM
-        LiveStreamVM = liveVM
     }
 
     //WAYPOINT MISSION
@@ -51,6 +57,18 @@ object DroneController {
     private var isYawReached = false
     private var isAltitudeReached = false
     private var isIntermediaryWaypointReached = false
+
+    // Keep track of last KMZ pushed/started
+    private var lastMissionNameNoExt: String = ""
+    private var lastMissionKmzPath: String = ""
+
+    // App-owned external files directory for KMZ output
+    private val kmzDir: String by lazy {
+        val ctx = ContextUtil.getContext()
+        val base = ctx.getExternalFilesDir(null)
+        val dir = File(base, "kmz").apply { mkdirs() }
+        dir.absolutePath + File.separator
+    }
 
     // STREAM STABILITY
     fun enableVirtualStick() {
@@ -143,6 +161,7 @@ object DroneController {
     }
 
     fun startTakeOff() {
+
         basicAircraftControlVM.startTakeOff(object : CommonCallbacks.CompletionCallbackWithParam<EmptyMsg> {
             override fun onSuccess(t: EmptyMsg?) {
                 ToastUtils.showToast("start takeOff onSuccess.")
@@ -424,112 +443,153 @@ object DroneController {
         })
     }
 
-    fun navigateTrajectory(waypoints: List<Triple<Double, Double, Double>>, finalYaw: Double) {
-        if (waypoints.isEmpty()) {
-            // No waypoints we do nothing.
-            return
-        }
+    fun navigateTrajectory(
+        waypoints: List<Triple<Double, Double, Double>>,
+        lookaheadDistance: Double = 5.5,
+        cruiseSpeed: Double = 5.0,
+        minSpeedFinal: Double = 1.0,
+        slowdownRadius: Double = 4.0
+    ) {
+        if (waypoints.size < 2) return
 
-        val updateIntervalMs = 100.0
-        val maxSpeed = 10.0
-        val maxYawRate = 30.0
+        val updateIntervalMs = 100L
 
-        // PID identical to navigateToWaypointWithPID, used only for the final waypoint
-        val distancePID = PID(kp = 0.65, ki = 0.0001, kd = 0.001, dt = updateIntervalMs / 1000.0, outputLimits = 0.0 to maxSpeed)
-        val yawPID = PID(kp = 3.0, ki = 0.0, kd = 0.0, dt = updateIntervalMs / 1000.0, outputLimits = -maxYawRate to maxYawRate)
-
-        virtualStickVM.enableVirtualStickAdvancedMode()
+        var currentIndex = 0
         isWaypointReached = false
         isIntermediaryWaypointReached = false
 
-        var currentIndex = 0
+        virtualStickVM.enableVirtualStickAdvancedMode()
         val controlLoop = Handler(Looper.getMainLooper())
+
+        // Helper: Compute great-circle distance (meters) between two lat/lon
+        fun calculateDistance(latA: Double, lonA: Double, latB: Double, lonB: Double): Double {
+            val earthR = 6371000.0
+            val phi1 = Math.toRadians(latA)
+            val phi2 = Math.toRadians(latB)
+            val deltaPhi = Math.toRadians(latB - latA)
+            val deltaLambda = Math.toRadians(lonB - lonA)
+            val a = Math.sin(deltaPhi/2) * Math.sin(deltaPhi/2) +
+                    Math.cos(phi1) * Math.cos(phi2) *
+                    Math.sin(deltaLambda/2) * Math.sin(deltaLambda/2)
+            val c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+            return earthR * c
+        }
+
+        // Helper: Compute bearing from (lat1, lon1) to (lat2, lon2)
+        fun calculateBearing(lat1: Double, lon1: Double, lat2: Double, lon2: Double): Double {
+            val phi1 = Math.toRadians(lat1)
+            val phi2 = Math.toRadians(lat2)
+            val deltaLambda = Math.toRadians(lon2 - lon1)
+            val y = Math.sin(deltaLambda) * Math.cos(phi2)
+            val x = Math.cos(phi1) * Math.sin(phi2) -
+                    Math.sin(phi1) * Math.cos(phi2) * Math.cos(deltaLambda)
+            val bearing = Math.toDegrees(Math.atan2(y, x))
+            return (bearing + 360) % 360
+        }
+
+        // Helper: Normalize angle to [-180, 180]
+        fun normalizeAngle(angle: Double): Double {
+            var a = angle % 360.0
+            if (a > 180.0) a -= 360.0
+            if (a < -180.0) a += 360.0
+            return a
+        }
+
+        // Helper: Progress along [A,B] segment (0=start, 1=end, >1=after end)
+        fun progressOnSegment(
+            A: Triple<Double, Double, Double>,
+            B: Triple<Double, Double, Double>,
+            pos: LocationCoordinate3D
+        ): Double {
+            val ax = A.first; val ay = A.second
+            val bx = B.first; val by = B.second
+            val px = pos.latitude; val py = pos.longitude
+            val dx = bx - ax; val dy = by - ay
+            val segLen2 = dx*dx + dy*dy
+            if (segLen2 == 0.0) return 0.0
+            val dot = ((px - ax) * dx + (py - ay) * dy)
+            return dot / segLen2 // 0=start, 1=end, >1=after end
+        }
 
         controlLoop.post(object : Runnable {
             override fun run() {
-                val currentPosition = getLocation3D()
+                val current = getLocation3D()
                 val currentYaw = getHeading()
-                // Current target waypoint
-                val targetWp = waypoints[currentIndex]
-                val targetLatitude = targetWp.first
-                val targetLongitude = targetWp.second
-                val targetAltitude = targetWp.third
 
-                // Distance to the current waypoint
-                val distance = calculateDistance(
-                        targetLatitude,
-                        targetLongitude,
-                        currentPosition.latitude,
-                        currentPosition.longitude
+                // Segment indices
+                val idxA = currentIndex
+                val idxB = (currentIndex + 1).coerceAtMost(waypoints.lastIndex)
+                val start = waypoints[idxA]
+                val end = waypoints[idxB]
+
+                // Progress along the segment [start, end]
+                val progress = progressOnSegment(start, end, current)
+                // Project drone onto the segment [start, end]
+                val segLen = calculateDistance(start.first, start.second, end.first, end.second)
+                val projRatio = progress.coerceIn(0.0, 1.0)
+                val projLat = start.first + (end.first - start.first) * projRatio
+                val projLon = start.second + (end.second - start.second) * projRatio
+                val projAlt = start.third + (end.third - start.third) * projRatio
+
+                // Pure pursuit: lookahead point further along the segment
+                val lookaheadRatio = ((segLen * projRatio) + lookaheadDistance) / segLen
+                val lookaheadRatioClamped = lookaheadRatio.coerceIn(0.0, 1.0)
+                val lookahead = Triple(
+                    start.first + (end.first - start.first) * lookaheadRatioClamped,
+                    start.second + (end.second - start.second) * lookaheadRatioClamped,
+                    start.third + (end.third - start.third) * lookaheadRatioClamped
                 )
 
-                // Compute yawError based on final Yaw
-                val yawError = normalizeAngle(finalYaw - currentYaw)
-                val angularVelocity = yawPID.update(yawError)
+                // Target altitude is smooth
+                val targetAlt = lookahead.third
 
-                // Movement direction
-                val movementDirection = calculateBearing(
-                        currentPosition.latitude,
-                        currentPosition.longitude,
-                        targetLatitude,
-                        targetLongitude
-                ).toDouble()
+                // --- Yaw Control: P controller for angular velocity ---
+                val targetYaw = calculateBearing(current.latitude, current.longitude, lookahead.first, lookahead.second)
+                val yawError = normalizeAngle(targetYaw - currentYaw)
+                val Kp_yaw = 1.0 // Tune as needed; 1.0 = 1 deg/s per deg error
+                val maxYawRate = 30.0 // degrees/sec, DJI safe max
+                val targetYawRate = (Kp_yaw * yawError).coerceIn(-maxYawRate, maxYawRate)
 
-                // Are we at the last waypoint?
-                val isLastWaypoint = (currentIndex == waypoints.size - 1)
+                // Move toward lookahead
+                val moveDir = targetYaw
+                val moveDirRel = normalizeAngle(moveDir - currentYaw)
+                var targetSpeed = cruiseSpeed
 
-                // Speed deduction: PID if we're moving towards the last waypoint.
-                val targetSpeed = if (isLastWaypoint) {
-                    // PID control for the last waypoint, we want the movement to be smooth.
-                    distancePID.update(distance)
-                } else {
-                    // Intermediary waypoint: we use a constant speed.
-                    maxSpeed
+                // Last segment: slow down as you approach the last waypoint
+                val isLastSegment = idxB == waypoints.lastIndex
+                if (isLastSegment) {
+                    val distToEnd = calculateDistance(current.latitude, current.longitude, end.first, end.second)
+                    if (distToEnd < slowdownRadius)
+                        targetSpeed = minSpeedFinal + (cruiseSpeed - minSpeedFinal) * (distToEnd / slowdownRadius)
                 }
 
-                // Direction of the Drone.
-                val movementDirectionRelative = normalizeAngle(movementDirection - currentYaw)
-                val pitch = targetSpeed * cos(Math.toRadians(movementDirectionRelative))
-                val roll = targetSpeed * sin(Math.toRadians(movementDirectionRelative))
+                val pitch = targetSpeed * Math.cos(Math.toRadians(moveDirRel))
+                val roll = targetSpeed * Math.sin(Math.toRadians(moveDirRel))
 
-                // Altitude
-                val altError = targetAltitude - currentPosition.altitude
+                // Stop criteria: last segment, close to endpoint, and altitude close
+                val reached = isLastSegment &&
+                        (calculateDistance(current.latitude, current.longitude, end.first, end.second) < 0.8) &&
+                        (Math.abs(targetAlt - current.altitude) < 1.0)
 
-                val distanceThresholdLast = 1
-                val distanceThresholdInter = 2.0
-                val yawThreshold = 4
-                val altitudeThreshold = 1.5
-
-                val waypointReached = if (isLastWaypoint) {
-                    // Strict criterias if it's the last waypoint.
-                    (distance < distanceThresholdLast && abs(yawError) < yawThreshold && abs(altError) < altitudeThreshold)
-                } else {
-                    // Simplified criteria for the intermediary waypoints.
-                    (distance < distanceThresholdInter)
+                if (reached) {
+                    setStick(0F, 0F, 0F, 0F)
+                    isWaypointReached = true
+                    return
                 }
 
-                if (waypointReached) {
-                    isIntermediaryWaypointReached = true
-                    if (!isLastWaypoint) {
-                        // We target the next waypoint.
-                        currentIndex++
-                    } else {
-                        // Last waypoint
-                        setStick(0F, 0F, 0F, 0F)
-                        isWaypointReached = true
-                        return
-                    }
-                } else {
-                    isIntermediaryWaypointReached = false
+                // Passed the end of the segment: go to next
+                if (!isLastSegment && progress > 1.0) {
+                    currentIndex++
+                    controlLoop.postDelayed(this, updateIntervalMs)
+                    return
                 }
 
-
+                // Send control command
                 val flightControlParam = VirtualStickFlightControlParam().apply {
-                    // DJI SDK is cursed, so we do inverse roll and pitch again.
-                    this.pitch = roll
+                    this.pitch = roll // DJI SDK: roll/pitch swapped
                     this.roll = pitch
-                    this.yaw = angularVelocity
-                    this.verticalThrottle = targetAltitude
+                    this.yaw = targetYawRate
+                    this.verticalThrottle = targetAlt
                     this.verticalControlMode = VerticalControlMode.POSITION
                     this.rollPitchControlMode = RollPitchControlMode.VELOCITY
                     this.yawControlMode = YawControlMode.ANGULAR_VELOCITY
@@ -537,8 +597,225 @@ object DroneController {
                 }
 
                 virtualStickVM.sendVirtualStickAdvancedParam(flightControlParam)
+                controlLoop.postDelayed(this, updateIntervalMs)
+            }
+        })
+    }
 
-                controlLoop.postDelayed(this, updateIntervalMs.toLong())
+    // === DJI Native Wayline (KMZ) flow ===
+    private fun generateTrajectoryName(): String {
+        val dateFormat = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault())
+        return "trajectory_${dateFormat.format(Date())}"
+    }
+
+    private fun createWaypointFromLatLon(
+        lat: Double,
+        lon: Double,
+        heightMeters: Double,
+        index: Int
+    ): WaypointInfoModel {
+        val waypointInfo = WaypointInfoModel()
+        val waypoint = WaylineWaypoint()
+
+        val coordinate2D = WaylineLocationCoordinate2D().apply {
+            latitude = lat
+            longitude = lon
+        }
+        waypoint.location = coordinate2D
+        waypoint.waypointIndex = index
+        waypoint.height = heightMeters
+        waypoint.ellipsoidHeight = heightMeters
+        waypoint.useGlobalFlightHeight = false
+
+        waypoint.useGlobalAutoFlightSpeed = true
+        waypoint.useGlobalTurnParam = true
+
+        val yawParam = WaylineWaypointYawParam().apply {
+            yawMode = WaylineWaypointYawMode.FOLLOW_WAYLINE
+            yawPathMode = WaylineWaypointYawPathMode.FOLLOW_BAD_ARC
+            poiLocation = WaylineLocationCoordinate3D(lat, lon, heightMeters)
+        }
+        waypoint.yawParam = yawParam
+        waypoint.useGlobalYawParam = false
+        waypoint.isWaylineWaypointYawParamSet = true
+
+        val gimbalParam = WaylineWaypointGimbalHeadingParam().apply {
+            headingMode = WaylineWaypointGimbalHeadingMode.find(0)
+            pitchAngle = 30.0
+        }
+        waypoint.gimbalHeadingParam = gimbalParam
+        waypoint.isWaylineWaypointGimbalHeadingParamSet = true
+        waypoint.useGlobalGimbalHeadingParam = false
+
+        waypointInfo.waylineWaypoint = waypoint
+        waypointInfo.actionInfos = ArrayList()
+        return waypointInfo
+    }
+
+    private fun createWaylineMission(): WaylineMission {
+        val m = WaylineMission()
+        val now = System.currentTimeMillis().toDouble()
+        m.createTime = now
+        m.updateTime = now
+        return m
+    }
+
+    private fun createMissionConfig(): WaylineMissionConfig {
+        val c = WaylineMissionConfig()
+        c.flyToWaylineMode = WaylineFlyToWaylineMode.SAFELY
+        // Use KMZ's settings; we set defaults commonly used
+        c.finishAction = WaylineFinishedAction.GO_HOME
+        c.droneInfo = WaylineDroneInfo()
+        c.securityTakeOffHeight = 20.0
+        c.isSecurityTakeOffHeightSet = true
+        c.exitOnRCLostBehavior = WaylineExitOnRCLostBehavior.EXCUTE_RC_LOST_ACTION
+        c.exitOnRCLostType = WaylineExitOnRCLostAction.GO_BACK
+        c.globalTransitionalSpeed = 10.0
+        c.payloadInfo = ArrayList()
+        return c
+    }
+
+    private fun createTemplateWaypointInfo(
+        waypointInfoModels: List<WaypointInfoModel>
+    ): WaylineTemplateWaypointInfo {
+        val waypoints = waypointInfoModels.map { it.waylineWaypoint }
+        val info = WaylineTemplateWaypointInfo()
+        info.waypoints = waypoints
+        info.actionGroups = ArrayList()
+        info.globalFlightHeight = 100.0
+        info.isGlobalFlightHeightSet = true
+        info.globalTurnMode = WaylineWaypointTurnMode.TO_POINT_AND_PASS_WITH_CONTINUITY_CURVATURE
+        info.useStraightLine = false
+        info.isTemplateGlobalTurnModeSet = true
+
+        val poi = if (waypoints.isNotEmpty()) {
+            val first = waypoints.first()
+            first.yawParam?.poiLocation
+                ?: WaylineLocationCoordinate3D(first.location.latitude, first.location.longitude, first.height)
+        } else WaylineLocationCoordinate3D(0.0, 0.0, 0.0)
+
+        val yawParam = WaylineWaypointYawParam().apply {
+            yawMode = WaylineWaypointYawMode.FOLLOW_WAYLINE
+            poiLocation = poi
+        }
+        info.globalYawParam = yawParam
+        info.isTemplateGlobalYawParamSet = true
+        info.pitchMode = WaylineWaypointPitchMode.USE_POINT_SETTING
+        return info
+    }
+
+    private fun createTemplate(waypointInfoModels: List<WaypointInfoModel>): Template {
+        val t = Template()
+        t.waypointInfo = createTemplateWaypointInfo(waypointInfoModels)
+
+        val cp = WaylineCoordinateParam().apply {
+            coordinateMode = WaylineCoordinateMode.WGS84
+            positioningType = WaylinePositioningType.GPS
+            isWaylinePositioningTypeSet = true
+            altitudeMode = WaylineAltitudeMode.RELATIVE_TO_START_POINT
+        }
+        t.coordinateParam = cp
+        t.useGlobalTransitionalSpeed = true
+        t.autoFlightSpeed = 12.0
+        t.payloadParam = ArrayList()
+        return t
+    }
+
+    private fun extractWaylineIdsFromKmz(kmzPath: String): ArrayList<Int> {
+        val result = arrayListOf<Int>()
+        runCatching {
+            ZipFile(File(kmzPath)).use { zip ->
+                val entry: ZipEntry? = zip.getEntry("wpmz/waylines.wpml")
+                if (entry != null) {
+                    val text = zip.getInputStream(entry).use { it.readBytes().toString(Charsets.UTF_8) }
+                    val regex = Regex("<\\s*wpml:waylineId\\s*>\\s*([0-9]+)\\s*<\\s*/\\s*wpml:waylineId\\s*>")
+                    regex.findAll(text).forEach { m ->
+                        m.groupValues.getOrNull(1)?.toIntOrNull()?.let { result.add(it) }
+                    }
+                }
+            }
+        }
+        return result
+    }
+
+    fun navigateTrajectoryNative(userWaypoints: List<Triple<Double, Double, Double>>) {
+        if (userWaypoints.size < 2) {
+            ToastUtils.showToast("Need at least 2 waypoints")
+            return
+        }
+
+        // Attempt to stop any previous mission we started
+        if (lastMissionNameNoExt.isNotEmpty()) {
+            WaypointMissionManager.getInstance().stopMission(lastMissionNameNoExt, object : CommonCallbacks.CompletionCallback {
+                override fun onSuccess() { /* no-op */ }
+                override fun onFailure(error: IDJIError) { /* ignore */ }
+            })
+        }
+
+        // Init WPMZ (idempotent)
+        WPMZManager.getInstance().init(ContextUtil.getContext())
+
+        // Build waypoints
+        val wpModels = ArrayList<WaypointInfoModel>()
+        userWaypoints.forEachIndexed { idx, t ->
+            wpModels.add(createWaypointFromLatLon(t.first, t.second, t.third, idx))
+        }
+
+        // Build mission components
+        val mission = createWaylineMission()
+        val config = createMissionConfig()
+        val template = createTemplate(wpModels)
+
+        // Generate KMZ
+        val missionName = generateTrajectoryName()
+        val kmzOutPath = kmzDir + missionName + ".kmz"
+        WPMZManager.getInstance().generateKMZFile(kmzOutPath, mission, config, template)
+
+        lastMissionNameNoExt = missionName
+        lastMissionKmzPath = kmzOutPath
+
+        // Push to aircraft then start
+        WaypointMissionManager.getInstance().pushKMZFileToAircraft(kmzOutPath, object :
+            CommonCallbacks.CompletionCallbackWithProgress<Double> {
+            override fun onProgressUpdate(progress: Double) {
+                // optional: progress log
+            }
+            override fun onSuccess() {
+                val ids = extractWaylineIdsFromKmz(kmzOutPath).ifEmpty { arrayListOf(0) }
+                WaypointMissionManager.getInstance().startMission(
+                    lastMissionNameNoExt,
+                    ids,
+                    object : CommonCallbacks.CompletionCallback {
+                        override fun onSuccess() {
+                            ToastUtils.showToast("Mission started: $lastMissionNameNoExt")
+                        }
+                        override fun onFailure(error: IDJIError) {
+                            ToastUtils.showToast("Start mission failed: ${error.description()}")
+                        }
+                    }
+                )
+            }
+            override fun onFailure(error: IDJIError) {
+                ToastUtils.showToast("Push KMZ failed: ${error.description()}")
+            }
+        })
+    }
+
+    fun endMission() {
+        if (lastMissionNameNoExt.isEmpty()) {
+            // Try to pause anyway
+            WaypointMissionManager.getInstance().pauseMission(object : CommonCallbacks.CompletionCallback {
+                override fun onSuccess() { ToastUtils.showToast("Mission paused") }
+                override fun onFailure(error: IDJIError) { ToastUtils.showToast("No mission to stop") }
+            })
+            return
+        }
+        WaypointMissionManager.getInstance().stopMission(lastMissionNameNoExt, object : CommonCallbacks.CompletionCallback {
+            override fun onSuccess() {
+                ToastUtils.showToast("Mission stopped: $lastMissionNameNoExt")
+            }
+            override fun onFailure(error: IDJIError) {
+                ToastUtils.showToast("Stop mission failed: ${error.description()}")
             }
         })
     }
