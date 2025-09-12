@@ -19,7 +19,7 @@ More refer to the release notes." </string>
     <string name="release_note_loading">loading…</string>
 
     <string name="app_name_all">MSDK ALL</string>
-    <string name="app_name_aircraft">WildBridge</string>
+    <string name="app_name_aircraft">WildBridge V2</string>
     <string name="app_name_handheld">MSDK Handheld</string>
 
     <string name="item_key_value_title">Key/Value</string>

@@ -376,6 +376,29 @@ class VirtualStickFragment : DJIFragment() {
                         DroneController.navigateTrajectory(waypoints, finalYaw)
                         "Trajectory command received. Waypoints=${waypoints.size}, FinalYaw=$finalYaw"
                     }
+                    // --- New endpoints ---
+                    "/send/navigateTrajectoryDJINative" -> {
+                        // Expect: "lat,lon,alt; lat,lon,alt; ..."
+                        val segments = postData.split(";").map { it.trim() }.filter { it.isNotEmpty() }
+                        if (segments.size < 2) return "Invalid input. Need at least 2 waypoints: lat,lon,alt;..."
+                        val waypoints = mutableListOf<Triple<Double, Double, Double>>()
+                        for ((i, s) in segments.withIndex()) {
+                            val parts = s.split(",").map { it.trim() }
+                            if (parts.size < 3) return "Invalid input at segment ${i}: expected lat,lon,alt"
+                            val lat = parts[0].toDouble()
+                            val lon = parts[1].toDouble()
+                            val alt = parts[2].toDouble()
+                            waypoints.add(Triple(lat, lon, alt))
+                        }
+                        DroneController.navigateTrajectoryNative(waypoints)
+                        mainHandler.post { ToastUtils.showToast("DJI native mission started (${waypoints.size} wps)") }
+                        "DJI native mission requested with ${waypoints.size} waypoints"
+                    }
+                    "/send/abort/DJIMission" -> {
+                        DroneController.endMission()
+                        mainHandler.post { ToastUtils.showToast("End mission requested") }
+                        "Mission stop requested"
+                    }
                     else -> "Not Found"
                 }
             } catch (e: Exception) {

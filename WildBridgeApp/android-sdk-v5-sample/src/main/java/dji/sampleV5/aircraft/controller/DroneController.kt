@@ -17,8 +17,18 @@ import dji.sdk.keyvalue.value.common.LocationCoordinate3D
 import dji.v5.et.create
 import dji.v5.et.get
 import kotlin.math.*
-
-
+import com.dji.wpmzsdk.common.data.Template
+import com.dji.wpmzsdk.manager.WPMZManager
+import dji.sampleV5.aircraft.utils.wpml.WaypointInfoModel
+import dji.v5.manager.aircraft.waypoint3.WaypointMissionManager
+import dji.v5.utils.common.ContextUtil
+import dji.sdk.wpmz.value.mission.*
+import java.io.File
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+import java.util.zip.ZipEntry
+import java.util.zip.ZipFile
 
 object DroneController {
 
@@ -47,6 +57,18 @@ object DroneController {
     private var isYawReached = false
     private var isAltitudeReached = false
     private var isIntermediaryWaypointReached = false
+
+    // Keep track of last KMZ pushed/started
+    private var lastMissionNameNoExt: String = ""
+    private var lastMissionKmzPath: String = ""
+
+    // App-owned external files directory for KMZ output
+    private val kmzDir: String by lazy {
+        val ctx = ContextUtil.getContext()
+        val base = ctx.getExternalFilesDir(null)
+        val dir = File(base, "kmz").apply { mkdirs() }
+        dir.absolutePath + File.separator
+    }
 
     // STREAM STABILITY
     fun enableVirtualStick() {
@@ -580,7 +602,223 @@ object DroneController {
         })
     }
 
+    // === DJI Native Wayline (KMZ) flow ===
+    private fun generateTrajectoryName(): String {
+        val dateFormat = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault())
+        return "trajectory_${dateFormat.format(Date())}"
+    }
 
+    private fun createWaypointFromLatLon(
+        lat: Double,
+        lon: Double,
+        heightMeters: Double,
+        index: Int
+    ): WaypointInfoModel {
+        val waypointInfo = WaypointInfoModel()
+        val waypoint = WaylineWaypoint()
+
+        val coordinate2D = WaylineLocationCoordinate2D().apply {
+            latitude = lat
+            longitude = lon
+        }
+        waypoint.location = coordinate2D
+        waypoint.waypointIndex = index
+        waypoint.height = heightMeters
+        waypoint.ellipsoidHeight = heightMeters
+        waypoint.useGlobalFlightHeight = false
+
+        waypoint.useGlobalAutoFlightSpeed = true
+        waypoint.useGlobalTurnParam = true
+
+        val yawParam = WaylineWaypointYawParam().apply {
+            yawMode = WaylineWaypointYawMode.FOLLOW_WAYLINE
+            yawPathMode = WaylineWaypointYawPathMode.FOLLOW_BAD_ARC
+            poiLocation = WaylineLocationCoordinate3D(lat, lon, heightMeters)
+        }
+        waypoint.yawParam = yawParam
+        waypoint.useGlobalYawParam = false
+        waypoint.isWaylineWaypointYawParamSet = true
+
+        val gimbalParam = WaylineWaypointGimbalHeadingParam().apply {
+            headingMode = WaylineWaypointGimbalHeadingMode.find(0)
+            pitchAngle = 30.0
+        }
+        waypoint.gimbalHeadingParam = gimbalParam
+        waypoint.isWaylineWaypointGimbalHeadingParamSet = true
+        waypoint.useGlobalGimbalHeadingParam = false
+
+        waypointInfo.waylineWaypoint = waypoint
+        waypointInfo.actionInfos = ArrayList()
+        return waypointInfo
+    }
+
+    private fun createWaylineMission(): WaylineMission {
+        val m = WaylineMission()
+        val now = System.currentTimeMillis().toDouble()
+        m.createTime = now
+        m.updateTime = now
+        return m
+    }
+
+    private fun createMissionConfig(): WaylineMissionConfig {
+        val c = WaylineMissionConfig()
+        c.flyToWaylineMode = WaylineFlyToWaylineMode.SAFELY
+        // Use KMZ's settings; we set defaults commonly used
+        c.finishAction = WaylineFinishedAction.NO_ACTION
+        c.droneInfo = WaylineDroneInfo()
+        c.securityTakeOffHeight = 20.0
+        c.isSecurityTakeOffHeightSet = true
+        c.exitOnRCLostBehavior = WaylineExitOnRCLostBehavior.EXCUTE_RC_LOST_ACTION
+        c.exitOnRCLostType = WaylineExitOnRCLostAction.GO_BACK
+        c.globalTransitionalSpeed = 10.0
+        c.payloadInfo = ArrayList()
+        return c
+    }
+
+    private fun createTemplateWaypointInfo(
+        waypointInfoModels: List<WaypointInfoModel>
+    ): WaylineTemplateWaypointInfo {
+        val waypoints = waypointInfoModels.map { it.waylineWaypoint }
+        val info = WaylineTemplateWaypointInfo()
+        info.waypoints = waypoints
+        info.actionGroups = ArrayList()
+        info.globalFlightHeight = 100.0
+        info.isGlobalFlightHeightSet = true
+        info.globalTurnMode = WaylineWaypointTurnMode.TO_POINT_AND_PASS_WITH_CONTINUITY_CURVATURE
+        info.useStraightLine = false
+        info.isTemplateGlobalTurnModeSet = true
+
+        val poi = if (waypoints.isNotEmpty()) {
+            val first = waypoints.first()
+            first.yawParam?.poiLocation
+                ?: WaylineLocationCoordinate3D(first.location.latitude, first.location.longitude, first.height)
+        } else WaylineLocationCoordinate3D(0.0, 0.0, 0.0)
+
+        val yawParam = WaylineWaypointYawParam().apply {
+            yawMode = WaylineWaypointYawMode.FOLLOW_WAYLINE
+            poiLocation = poi
+        }
+        info.globalYawParam = yawParam
+        info.isTemplateGlobalYawParamSet = true
+        info.pitchMode = WaylineWaypointPitchMode.USE_POINT_SETTING
+        return info
+    }
+
+    private fun createTemplate(waypointInfoModels: List<WaypointInfoModel>): Template {
+        val t = Template()
+        t.waypointInfo = createTemplateWaypointInfo(waypointInfoModels)
+
+        val cp = WaylineCoordinateParam().apply {
+            coordinateMode = WaylineCoordinateMode.WGS84
+            positioningType = WaylinePositioningType.GPS
+            isWaylinePositioningTypeSet = true
+            altitudeMode = WaylineAltitudeMode.RELATIVE_TO_START_POINT
+        }
+        t.coordinateParam = cp
+        t.useGlobalTransitionalSpeed = true
+        t.autoFlightSpeed = 12.0
+        t.payloadParam = ArrayList()
+        return t
+    }
+
+    private fun extractWaylineIdsFromKmz(kmzPath: String): ArrayList<Int> {
+        val result = arrayListOf<Int>()
+        runCatching {
+            ZipFile(File(kmzPath)).use { zip ->
+                val entry: ZipEntry? = zip.getEntry("wpmz/waylines.wpml")
+                if (entry != null) {
+                    val text = zip.getInputStream(entry).use { it.readBytes().toString(Charsets.UTF_8) }
+                    val regex = Regex("<\\s*wpml:waylineId\\s*>\\s*([0-9]+)\\s*<\\s*/\\s*wpml:waylineId\\s*>")
+                    regex.findAll(text).forEach { m ->
+                        m.groupValues.getOrNull(1)?.toIntOrNull()?.let { result.add(it) }
+                    }
+                }
+            }
+        }
+        return result
+    }
+
+    fun navigateTrajectoryNative(userWaypoints: List<Triple<Double, Double, Double>>) {
+        if (userWaypoints.size < 2) {
+            ToastUtils.showToast("Need at least 2 waypoints")
+            return
+        }
+
+        // Attempt to stop any previous mission we started
+        if (lastMissionNameNoExt.isNotEmpty()) {
+            WaypointMissionManager.getInstance().stopMission(lastMissionNameNoExt, object : CommonCallbacks.CompletionCallback {
+                override fun onSuccess() { /* no-op */ }
+                override fun onFailure(error: IDJIError) { /* ignore */ }
+            })
+        }
+
+        // Init WPMZ (idempotent)
+        WPMZManager.getInstance().init(ContextUtil.getContext())
+
+        // Build waypoints
+        val wpModels = ArrayList<WaypointInfoModel>()
+        userWaypoints.forEachIndexed { idx, t ->
+            wpModels.add(createWaypointFromLatLon(t.first, t.second, t.third, idx))
+        }
+
+        // Build mission components
+        val mission = createWaylineMission()
+        val config = createMissionConfig()
+        val template = createTemplate(wpModels)
+
+        // Generate KMZ
+        val missionName = generateTrajectoryName()
+        val kmzOutPath = kmzDir + missionName + ".kmz"
+        WPMZManager.getInstance().generateKMZFile(kmzOutPath, mission, config, template)
+
+        lastMissionNameNoExt = missionName
+        lastMissionKmzPath = kmzOutPath
+
+        // Push to aircraft then start
+        WaypointMissionManager.getInstance().pushKMZFileToAircraft(kmzOutPath, object :
+            CommonCallbacks.CompletionCallbackWithProgress<Double> {
+            override fun onProgressUpdate(progress: Double) {
+                // optional: progress log
+            }
+            override fun onSuccess() {
+                val ids = extractWaylineIdsFromKmz(kmzOutPath).ifEmpty { arrayListOf(0) }
+                WaypointMissionManager.getInstance().startMission(
+                    lastMissionNameNoExt,
+                    ids,
+                    object : CommonCallbacks.CompletionCallback {
+                        override fun onSuccess() {
+                            ToastUtils.showToast("Mission started: $lastMissionNameNoExt")
+                        }
+                        override fun onFailure(error: IDJIError) {
+                            ToastUtils.showToast("Start mission failed: ${error.description()}")
+                        }
+                    }
+                )
+            }
+            override fun onFailure(error: IDJIError) {
+                ToastUtils.showToast("Push KMZ failed: ${error.description()}")
+            }
+        })
+    }
+
+    fun endMission() {
+        if (lastMissionNameNoExt.isEmpty()) {
+            // Try to pause anyway
+            WaypointMissionManager.getInstance().pauseMission(object : CommonCallbacks.CompletionCallback {
+                override fun onSuccess() { ToastUtils.showToast("Mission paused") }
+                override fun onFailure(error: IDJIError) { ToastUtils.showToast("No mission to stop") }
+            })
+            return
+        }
+        WaypointMissionManager.getInstance().stopMission(lastMissionNameNoExt, object : CommonCallbacks.CompletionCallback {
+            override fun onSuccess() {
+                ToastUtils.showToast("Mission stopped: $lastMissionNameNoExt")
+            }
+            override fun onFailure(error: IDJIError) {
+                ToastUtils.showToast("Stop mission failed: ${error.description()}")
+            }
+        })
+    }
 
     // Getter pour isWaypointReached
     fun isWaypointReached(): Boolean {
