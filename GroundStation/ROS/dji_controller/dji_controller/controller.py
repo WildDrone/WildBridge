@@ -11,7 +11,6 @@ import rclpy
 from rclpy.node import Node
 from std_msgs.msg import Empty, String, Float64MultiArray, Float64, Int32, Bool
 from sensor_msgs.msg import NavSatFix
-from datetime import datetime
 from requests.exceptions import RequestException
 
 from dji_controller.submodules.dji_interface import *
@@ -40,8 +39,6 @@ class DjiNode(Node):
             rclpy.shutdown()  # Shut down ROS
             return
 
-        self.dji_controller = DJIControllerLite(self.dji_interface)
-
         # Subscribers for drone commands with Empty messages
         self.create_subscription(
             Empty, 'command/takeoff', self.takeoff_callback, 10)
@@ -49,13 +46,17 @@ class DjiNode(Node):
         self.create_subscription(Empty, 'command/rth', self.rth_callback, 10)
         self.create_subscription(
             Empty, 'command/abort_mission', self.abort_mission_callback, 10)
+        # Abort DJI native waypoint mission (different backend than generic mission)
+        self.create_subscription(
+            Empty, 'command/abort_trajectory', self.abort_dji_native_mission_callback, 10)
 
         # Subscribers for drone commands with specific messages
         self.create_subscription(
             Float64MultiArray, 'command/goto_waypoint', self.goto_waypoint_callback, 10)
 
+        # Trajectory: expect Float64MultiArray flattened as [lat,lon,alt, lat,lon,alt, ...]
         self.create_subscription(
-            String, 'command/goto_trajectory', self.goto_trajectory_callback, 10)
+            Float64MultiArray, 'command/goto_trajectory', self.goto_trajectory_callback, 10)
 
         self.create_subscription(
             Float64, 'command/goto_yaw', self.goto_yaw_callback, 10)
@@ -159,6 +160,10 @@ class DjiNode(Node):
         self.get_logger().info("Received abort mission command.")
         self.dji_interface.requestAbortMission()
 
+    def abort_dji_native_mission_callback(self, msg):
+        self.get_logger().info("Received abort DJI native mission command.")
+        self.dji_interface.requestAbortDJINativeMission()
+
     def goto_waypoint_callback(self, msg: Float64MultiArray):
         self.get_logger().info("Received goto waypoint command.")
         data = msg.data
@@ -172,17 +177,21 @@ class DjiNode(Node):
         self.dji_interface.requestSendGoToWPwithPID(
             latitude, longitude, altitude, yaw)
 
-    def goto_trajectory_callback(self, msg: String):
-
+    def goto_trajectory_callback(self, msg: Float64MultiArray):
         self.get_logger().info("Received goto trajectory command.")
-        waypoints = ast.literal_eval(msg.data)
-        self.get_logger().info(f"Received waypoints: {waypoints}")
+        data = msg.data
+        # Each waypoint is a group of 3 values: [lat, lon, alt]
+        if len(data) % 3 != 0:
+            self.get_logger().warning("Received trajectory array length is not a multiple of 3.")
+        waypoints_triples = [data[i:i+3] for i in range(0, len(data), 3)]
+        self.get_logger().info(f"Received waypoints: {waypoints_triples}")
 
-        self.dji_interface.requestSendNavigateTrajectory(waypoints)
+        self.dji_interface.requestSendNavigateTrajectoryDJINative(
+            waypoints_triples)
 
     def goto_yaw_callback(self, msg):
         self.get_logger().info("Received goto yaw command.")
-        self.dji_controller.gotoYaw(msg.data)
+        self.dji_interface.requestSendGotoYaw(msg.data)
 
     def goto_altitude_callback(self, msg):
         self.get_logger().info("Received goto altitude command.")
@@ -271,7 +280,7 @@ class DjiNode(Node):
         try:
             is_recording = self.dji_interface.requestCameraIsRecording()
             self.camera_is_recording_pub.publish(Bool(data=is_recording))
-            #self.get_logger().info(f"Camera is_recording: {is_recording}")
+            # self.get_logger().info(f"Camera is_recording: {is_recording}")
 
         except Exception as e:
             self.get_logger().error(
