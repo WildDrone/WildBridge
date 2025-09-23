@@ -34,7 +34,7 @@ android {
         release {
             minifyEnabled true
             shrinkResources false
-            signingConfig signingConfigs.release
+            // signingConfig signingConfigs.release
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'),
                     '../../android-sdk-v5-as/proguard-relative/sample.pro'
         }

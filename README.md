@@ -215,6 +215,9 @@ WildBridge/
      ```
      WildBridge/WildBridgeApp/android-sdk-v5-as/local.properties 
      ```
+     ```
+     AIRCRAFT_API_KEY="App key"
+     ```
 
 5. **Build and Deploy the App**
    - Build the app in Android Studio. Install any prompted dependencies.
