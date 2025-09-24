@@ -76,10 +76,52 @@ Based on controlled experiments with consumer-grade hardware:
    - Ground station computer
 
 2. **Software Installation**
-   ```bash
-   git clone https://github.com/WildDrone/WildBridge.git
-   cd WildBridge
-   ```
+
+First, you need to install the WildBridge App on your controller.
+
+#### Step-by-Step Android Installation SetUp
+
+1. **Enable Developer Mode and USB Debugging on your Android Device**
+   - Put your Android device in developer mode.
+   - Enable USB debugging in developer options.
+
+2. **Install Android Studio**
+   - Download and install Android Studio Koala 2024.1.1:
+     [Download Android Studio Koala 2024.1.1](https://redirector.gvt1.com/edgedl/android/studio/ide-zips/2024.1.2.13/android-studio-2024.1.2.13-linux.tar.gz)
+
+3. **Clone the WildBridge Repository**
+   - Open a terminal and run:
+     ```bash
+     git clone https://github.com/WildDrone/WildBridge.git
+     ```
+
+4. **Open the Project in Android Studio**
+   - In Android Studio, select "Open" and choose:
+     ```
+     WildBridge/WildBridgeApp/android-sdk-v5-as
+     ```
+
+5. **Become a DJI developer and get an API key**
+   - Register as a DJI developer and get an API key: [https://developer.dji.com/](https://developer.dji.com/)
+   - Past your API key in:
+     ```
+     WildBridge/WildBridgeApp/android-sdk-v5-as/local.properties 
+     ```
+     ```
+     AIRCRAFT_API_KEY="App key"
+     ```
+
+5. **Build and Deploy the App**
+   - Build the app in Android Studio. Install any prompted dependencies.
+   - Deploy the app to your controller.
+
+6. **Start the Server on the Drone Controller**
+   - In WildBridge, click "Testing Tools".
+   - Open the "Virtual Stick" page.
+   - The server is now running. You can send commands, view RTSP videofeed, and retrieve telemetry.
+
+Refer to the code snippets in the Quick Start section for examples of sending commands and retrieving telemetry.
+
 
 3. **Python GS Dependencies**
    ```bash
@@ -182,53 +224,6 @@ WildBridge/
     ├── android-sdk-v5-sample/          # Sample implementations
     └── android-sdk-v5-uxsdk/           # UI components
 ```
-
-## Development Guide
-
-### Android App Development
-
-#### Step-by-Step Setup
-
-1. **Enable Developer Mode and USB Debugging on your Android Device**
-   - Put your Android device in developer mode.
-   - Enable USB debugging in developer options.
-
-2. **Install Android Studio**
-   - Download and install Android Studio Koala 2024.1.1:
-     [Download Android Studio Koala 2024.1.1](https://redirector.gvt1.com/edgedl/android/studio/ide-zips/2024.1.2.13/android-studio-2024.1.2.13-linux.tar.gz)
-
-3. **Clone the WildBridge Repository**
-   - Open a terminal and run:
-     ```bash
-     git clone https://github.com/WildDrone/WildBridge.git
-     ```
-
-4. **Open the Project in Android Studio**
-   - In Android Studio, select "Open" and choose:
-     ```
-     WildBridge/WildBridgeApp/android-sdk-v5-as
-     ```
-
-5. **Become a DJI developer and get an API key**
-   - Register as a DJI developer and get an API key: [https://developer.dji.com/](https://developer.dji.com/)
-   - Past your API key in:
-     ```
-     WildBridge/WildBridgeApp/android-sdk-v5-as/local.properties 
-     ```
-     ```
-     AIRCRAFT_API_KEY="App key"
-     ```
-
-5. **Build and Deploy the App**
-   - Build the app in Android Studio. Install any prompted dependencies.
-   - Deploy the app to your controller.
-
-6. **Start the Server on the Drone Controller**
-   - In WildBridge, click "Testing Tools".
-   - Open the "Virtual Stick" page.
-   - The server is now running. You can send commands, view RTSP videofeed, and retrieve telemetry.
-
-Refer to the code snippets in the Quick Start section for examples of sending commands and retrieving telemetry.
 
 ### ROS 2 Integration
 
