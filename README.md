@@ -77,9 +77,9 @@ Based on controlled experiments with consumer-grade hardware:
 
 2. **Software Installation**
 
-First, you need to install the WildBridge App on your controller.
 
-#### Step-by-Step Android Installation SetUp
+
+#### First, you need to install the WildBridge App on your controller: Step-by-Step Android Installation 
 
 1. **Enable Developer Mode and USB Debugging on your Android Device**
    - Put your Android device in developer mode.
