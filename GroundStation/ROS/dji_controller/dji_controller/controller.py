@@ -9,6 +9,7 @@ via the WildBridge app. The node handles both command reception and telemetry pu
 
 import rclpy
 from rclpy.node import Node
+from rclpy.parameter import Parameter
 from std_msgs.msg import Empty, String, Float64MultiArray, Float64, Int32, Bool
 from sensor_msgs.msg import NavSatFix
 from geometry_msgs.msg import Vector3
@@ -33,10 +34,12 @@ class DjiNode(Node):
         # Initialize the DJI drone interface
         self.dji_interface = DJIInterface(self.ip_rc)
         
-        # Update IP if discovered
+        # Update IP if discovered and set the ROS2 parameter so other nodes can query it
         if not self.ip_rc and self.dji_interface.IP_RC:
             self.ip_rc = self.dji_interface.IP_RC
-            self.get_logger().info(f"Discovered drone at {self.ip_rc}")
+            # Update the ROS2 parameter so bridge can query it
+            self.set_parameters([Parameter('ip_rc', Parameter.Type.STRING, self.ip_rc)])
+            self.get_logger().info(f"Discovered drone at {self.ip_rc}, updated ip_rc parameter")
 
         # Verify the connection to the drone
         if not self.verify_connection():
@@ -56,6 +59,8 @@ class DjiNode(Node):
         self.create_subscription(Empty, 'command/rth', self.rth_callback, 10)
         self.create_subscription(
             Empty, 'command/abort_mission', self.abort_mission_callback, 10)
+        self.create_subscription(
+            Empty, 'command/abort_all', self.abort_all_callback, 10)
         self.create_subscription(
             Empty, 'command/enable_virtual_stick', self.enable_virtual_stick_callback, 10)
         self.create_subscription(
@@ -222,6 +227,10 @@ class DjiNode(Node):
     def abort_mission_callback(self, msg):
         self.get_logger().info("Received abort mission command.")
         self.dji_interface.requestAbortMission()
+
+    def abort_all_callback(self, msg):
+        self.get_logger().info("Received abort ALL command - stopping all missions.")
+        self.dji_interface.requestAbortAll()
 
     def enable_virtual_stick_callback(self, msg):
         self.get_logger().info("Received enable virtual stick command.")

@@ -61,6 +61,8 @@ import java.io.PrintWriter
 import java.net.DatagramPacket
 import java.net.DatagramSocket
 import java.net.Inet4Address
+import java.net.InetAddress
+import java.net.MulticastSocket
 import java.net.NetworkInterface
 import java.net.ServerSocket
 import java.net.Socket
@@ -68,6 +70,8 @@ import java.util.Collections
 import java.util.concurrent.Executors
 import kotlin.concurrent.thread
 import androidx.lifecycle.ViewModelProvider
+import android.net.nsd.NsdManager
+import android.net.nsd.NsdServiceInfo
 
 /**
  * WildBridge Default Layout Activity
@@ -76,6 +80,7 @@ import androidx.lifecycle.ViewModelProvider
  * - HTTP Command Server (port 8080) for drone control
  * - Telemetry Server (port 8081) for real-time telemetry data
  * - WebRTC Server (port 8082) for video streaming
+ * - mDNS/Bonjour service advertising for automatic discovery
  */
 class WildBridgeDefaultLayoutActivity : DefaultLayoutActivity() {
 
@@ -87,6 +92,11 @@ class WildBridgeDefaultLayoutActivity : DefaultLayoutActivity() {
         private const val DISCOVERY_PORT = 30000
         private const val DISCOVERY_MSG = "DISCOVER_WILDBRIDGE"
         private const val DISCOVERY_RESPONSE_PREFIX = "WILDBRIDGE_HERE:"
+        private const val MULTICAST_GROUP = "239.255.42.99"
+        private const val MULTICAST_PORT = 30001
+        
+        // mDNS/Zeroconf service type
+        private const val MDNS_SERVICE_TYPE = "_wildbridge._tcp."
     }
 
     private val mainHandler = Handler(Looper.getMainLooper())
@@ -100,11 +110,18 @@ class WildBridgeDefaultLayoutActivity : DefaultLayoutActivity() {
     private var telemetryServer: TelemetryServer? = null
     private var webRTCStreamer: WebRTCStreamer? = null
     
-    // Discovery
+    // Discovery (UDP broadcast/multicast)
     private var discoverySocket: DatagramSocket? = null
+    private var multicastSocket: MulticastSocket? = null
     private var discoveryThread: Thread? = null
+    private var multicastThread: Thread? = null
     private var isDiscoveryRunning = false
     private var droneSerialNumber: String = "UNKNOWN"
+    
+    // mDNS/Zeroconf service registration
+    private var nsdManager: NsdManager? = null
+    private var mdnsServiceName: String? = null
+    private var isMdnsRegistered = false
     
     // Drone Configuration
     private lateinit var sharedPreferences: SharedPreferences
@@ -372,7 +389,10 @@ class WildBridgeDefaultLayoutActivity : DefaultLayoutActivity() {
     private fun startServers() {
         val deviceIp = getDeviceIpAddress()
         
-        // Start Discovery Server
+        // Start mDNS/Zeroconf service registration (RECOMMENDED for discovery)
+        registerMdnsService()
+        
+        // Start Discovery Server (UDP broadcast/multicast fallback)
         startDiscoveryServer()
         
         // Start HTTP Command Server
@@ -464,6 +484,9 @@ class WildBridgeDefaultLayoutActivity : DefaultLayoutActivity() {
         webRTCStreamer?.stop()
         stopDiscoveryServer()
         
+        // Unregister mDNS service
+        unregisterMdnsService()
+        
         // Stop location updates
         locationManager?.removeUpdates(locationListener)
         
@@ -504,38 +527,28 @@ class WildBridgeDefaultLayoutActivity : DefaultLayoutActivity() {
     private fun startDiscoveryServer() {
         if (isDiscoveryRunning) return
         isDiscoveryRunning = true
+        
+        // Thread 1: Handle broadcast/unicast UDP on port 30000
         discoveryThread = thread(start = true) {
             try {
+                // Create socket that can receive broadcast packets
                 discoverySocket = DatagramSocket(null)
                 discoverySocket?.reuseAddress = true
                 discoverySocket?.broadcast = true
-                discoverySocket?.bind(java.net.InetSocketAddress(DISCOVERY_PORT))
+                discoverySocket?.bind(java.net.InetSocketAddress("0.0.0.0", DISCOVERY_PORT))
+                
                 val buffer = ByteArray(1024)
-                Log.i(TAG, "Discovery server started on port $DISCOVERY_PORT with broadcast enabled")
+                Log.i(TAG, "✓ Discovery server started on 0.0.0.0:$DISCOVERY_PORT (broadcast enabled)")
                 
                 while (isDiscoveryRunning) {
                     val packet = DatagramPacket(buffer, buffer.size)
                     discoverySocket?.receive(packet)
                     val message = String(packet.data, 0, packet.length).trim()
                     
-                    Log.d(TAG, "Received UDP packet from ${packet.address.hostAddress}: $message")
+                    Log.d(TAG, "📡 UDP from ${packet.address.hostAddress}:${packet.port}: $message")
                     
                     if (message == DISCOVERY_MSG) {
-                        val deviceIp = getDeviceIpAddress()
-                        Log.i(TAG, "Discovery request received. My IP is $deviceIp")
-                        
-                        if (deviceIp != null) {
-                            val response = "$DISCOVERY_RESPONSE_PREFIX$deviceIp:$droneName"
-                            val responseData = response.toByteArray()
-                            val responsePacket = DatagramPacket(
-                                responseData,
-                                responseData.size,
-                                packet.address,
-                                packet.port
-                            )
-                            discoverySocket?.send(responsePacket)
-                            Log.i(TAG, "Responded to discovery from ${packet.address.hostAddress} with $response")
-                        }
+                        respondToDiscovery(packet.address, packet.port)
                     }
                 }
             } catch (e: Exception) {
@@ -545,6 +558,72 @@ class WildBridgeDefaultLayoutActivity : DefaultLayoutActivity() {
             } finally {
                 discoverySocket?.close()
                 discoverySocket = null
+                Log.i(TAG, "Discovery server stopped")
+            }
+        }
+        
+        // Thread 2: Handle multicast on 239.255.42.99:30001
+        multicastThread = thread(start = true) {
+            try {
+                multicastSocket = MulticastSocket(MULTICAST_PORT)
+                multicastSocket?.reuseAddress = true
+                
+                val group = InetAddress.getByName(MULTICAST_GROUP)
+                multicastSocket?.joinGroup(group)
+                
+                val buffer = ByteArray(1024)
+                Log.i(TAG, "✓ Multicast discovery started on $MULTICAST_GROUP:$MULTICAST_PORT")
+                
+                while (isDiscoveryRunning) {
+                    val packet = DatagramPacket(buffer, buffer.size)
+                    multicastSocket?.receive(packet)
+                    val message = String(packet.data, 0, packet.length).trim()
+                    
+                    Log.d(TAG, "📡 Multicast from ${packet.address.hostAddress}: $message")
+                    
+                    if (message == DISCOVERY_MSG) {
+                        // Respond to multicast discovery
+                        respondToDiscovery(packet.address, MULTICAST_PORT)
+                    }
+                }
+                
+                multicastSocket?.leaveGroup(group)
+            } catch (e: Exception) {
+                if (isDiscoveryRunning) {
+                    Log.e(TAG, "Multicast discovery error: ${e.message}")
+                }
+            } finally {
+                multicastSocket?.close()
+                multicastSocket = null
+                Log.i(TAG, "Multicast discovery stopped")
+            }
+        }
+    }
+    
+    private fun respondToDiscovery(senderAddress: InetAddress, senderPort: Int) {
+        val deviceIp = getDeviceIpAddress()
+        Log.i(TAG, "🔍 Discovery request from ${senderAddress.hostAddress}. My IP: $deviceIp")
+        
+        if (deviceIp != null) {
+            val response = "$DISCOVERY_RESPONSE_PREFIX$deviceIp:$droneName"
+            val responseData = response.toByteArray()
+            
+            try {
+                // Send response back to sender
+                val responsePacket = DatagramPacket(
+                    responseData,
+                    responseData.size,
+                    senderAddress,
+                    senderPort
+                )
+                
+                // Try using the socket that received the message
+                val socketToUse = if (senderPort == MULTICAST_PORT) multicastSocket else discoverySocket
+                socketToUse?.send(responsePacket)
+                
+                Log.i(TAG, "✓ Sent discovery response to ${senderAddress.hostAddress}:$senderPort → $response")
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to send discovery response: ${e.message}")
             }
         }
     }
@@ -553,13 +632,82 @@ class WildBridgeDefaultLayoutActivity : DefaultLayoutActivity() {
         isDiscoveryRunning = false
         try {
             discoverySocket?.close()
+            multicastSocket?.close()
         } catch (e: Exception) {
             // Ignore
         }
         try {
             discoveryThread?.join(1000)
+            multicastThread?.join(1000)
         } catch (e: Exception) {
             // Ignore
+        }
+        Log.i(TAG, "All discovery servers stopped")
+    }
+    
+    // ==================== mDNS/Zeroconf Service Registration ====================
+    
+    private val registrationListener = object : NsdManager.RegistrationListener {
+        override fun onServiceRegistered(serviceInfo: NsdServiceInfo) {
+            mdnsServiceName = serviceInfo.serviceName
+            isMdnsRegistered = true
+            Log.i(TAG, "✓ mDNS service registered: ${serviceInfo.serviceName} (${MDNS_SERVICE_TYPE})")
+        }
+        
+        override fun onRegistrationFailed(serviceInfo: NsdServiceInfo, errorCode: Int) {
+            Log.e(TAG, "✗ mDNS registration failed: error $errorCode")
+            isMdnsRegistered = false
+        }
+        
+        override fun onServiceUnregistered(serviceInfo: NsdServiceInfo) {
+            Log.i(TAG, "mDNS service unregistered: ${serviceInfo.serviceName}")
+            isMdnsRegistered = false
+        }
+        
+        override fun onUnregistrationFailed(serviceInfo: NsdServiceInfo, errorCode: Int) {
+            Log.e(TAG, "mDNS unregistration failed: error $errorCode")
+        }
+    }
+    
+    private fun registerMdnsService() {
+        try {
+            nsdManager = getSystemService(Context.NSD_SERVICE) as NsdManager
+            
+            val serviceInfo = NsdServiceInfo().apply {
+                // Service name will be the drone name (e.g., "cacatua")
+                serviceName = droneName
+                serviceType = MDNS_SERVICE_TYPE
+                port = HTTP_PORT
+                
+                // Add service attributes (TXT records)
+                setAttribute("name", droneName)
+                setAttribute("serial", droneSerialNumber)
+                setAttribute("http", HTTP_PORT.toString())
+                setAttribute("telemetry", TELEMETRY_PORT.toString())
+                setAttribute("webrtc", WEBRTC_PORT.toString())
+            }
+            
+            nsdManager?.registerService(
+                serviceInfo,
+                NsdManager.PROTOCOL_DNS_SD,
+                registrationListener
+            )
+            
+            Log.i(TAG, "Registering mDNS service: $droneName.$MDNS_SERVICE_TYPE")
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to register mDNS service: ${e.message}")
+        }
+    }
+    
+    private fun unregisterMdnsService() {
+        if (isMdnsRegistered) {
+            try {
+                nsdManager?.unregisterService(registrationListener)
+                Log.i(TAG, "Unregistering mDNS service")
+            } catch (e: Exception) {
+                Log.e(TAG, "Error unregistering mDNS: ${e.message}")
+            }
         }
     }
     
@@ -629,7 +777,7 @@ class WildBridgeDefaultLayoutActivity : DefaultLayoutActivity() {
 
     // ==================== Telemetry Data ====================
 
-    private fun getLocation3D(): LocationCoordinate3D = location3DKey.get(LocationCoordinate3D(0.0, 0.0, 0.0))
+    private fun getLocation3D(): LocationCoordinate3D = location3DKey.get(LocationCoordinate3D(0.0, 0.0, .0))
     private fun getSatelliteCount(): Int = satelliteCountKey.get(-1)
     private fun getGimbalAttitude(): Attitude = gimbalAttitudeKey.get(Attitude(0.0, 0.0, 0.0))
     private fun getGimbalJointAttitude(): Attitude = gimbalJointAttitudeKey.get(Attitude(0.0, 0.0, 0.0))
@@ -889,6 +1037,10 @@ class WildBridgeDefaultLayoutActivity : DefaultLayoutActivity() {
                         DroneController.disableVirtualStick()
                         "Received: abortMission"
                     }
+                    "/send/abortAll" -> {
+                        DroneController.abortAllMissions()
+                        "Received: abortAll"
+                    }
                     "/send/enableVirtualStick" -> {
                         DroneController.enableVirtualStick()
                         "Received: enableVirtualStick"
@@ -924,23 +1076,16 @@ class WildBridgeDefaultLayoutActivity : DefaultLayoutActivity() {
                     "/send/navigateTrajectory" -> {
                         Log.d("DroneServer", "Received trajectory data: $postData")
                         val segments = postData.split(";").map { it.trim() }.filter { it.isNotEmpty() }
-                        if (segments.isEmpty()) return "Invalid input. Expected at least one waypoint and a yaw."
-                        val lastSegment = segments.last().split(",").map { it.trim() }
-                        if (lastSegment.size < 4) return "Invalid input. The last segment must have lat,lon,alt,yaw."
-                        val finalLatitude = lastSegment[0].toDouble()
-                        val finalLongitude = lastSegment[1].toDouble()
-                        val finalAltitude = lastSegment[2].toDouble()
-                        val finalYaw = lastSegment[3].toDouble()
+                        if (segments.isEmpty()) return "Invalid input. Expected at least one waypoint."
                         val waypoints = mutableListOf<Triple<Double, Double, Double>>()
-                        for (i in 0 until segments.size - 1) {
+                        for (i in 0 until segments.size) {
                             val parts = segments[i].split(",").map { it.trim() }
                             if (parts.size < 3) return "Invalid input at segment $i: expected lat,lon,alt"
                             waypoints.add(Triple(parts[0].toDouble(), parts[1].toDouble(), parts[2].toDouble()))
                         }
-                        waypoints.add(Triple(finalLatitude, finalLongitude, finalAltitude))
-                        Log.d("DroneServer", "Navigating trajectory with ${waypoints.size} waypoints, finalYaw: $finalYaw")
-                        DroneController.navigateTrajectory(waypoints, finalYaw)
-                        "Trajectory command received. Waypoints=${waypoints.size}, FinalYaw=$finalYaw"
+                        Log.d("DroneServer", "Navigating trajectory with ${waypoints.size} waypoints")
+                        DroneController.navigateTrajectory(waypoints)
+                        "Trajectory command received. Waypoints=${waypoints.size}"
                     }
                     "/send/navigateTrajectoryDJINative" -> {
                         val segments = postData.split(";").map { it.trim() }.filter { it.isNotEmpty() }

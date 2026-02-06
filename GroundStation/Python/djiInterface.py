@@ -378,7 +378,14 @@ class DJIInterface:
         return self.requestSend(EP_LAND, "")
 
     def requestSendRTH(self):
-        """Command the drone to return to home."""
+        """Command the drone to return to home.
+        
+        Note: This first aborts any active mission and disables virtual stick
+        to prevent conflicts with RTH. Virtual stick mode can interfere with
+        RTH causing erratic behavior.
+        """
+        # CRITICAL: Disable virtual stick before RTH to prevent conflicts
+        self.requestAbortMission()
         return self.requestSend(EP_RTH, "")
 
     def requestSendGoToWP(self, latitude, longitude, altitude):

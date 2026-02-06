@@ -34,6 +34,10 @@ google-services.json
 
 # Python
 *.pyc
+__pycache__/
+.venv/
+venv/
+*.egg-info/
 
 # Misc
 *.pt
@@ -52,3 +56,16 @@ google-services.json
 /GroundStation/__pycache__
 
 /GroundStation/cameraCalibrations
+
+# Android build outputs
+**/build/
+**/outputs/
+crash_logs/
+
+# Test files
+test_discovery.py
+diagnose_network.py
+
+# Documentation generated during development
+DISCOVERY_IMPROVEMENTS.md
+ANDROID_FIX_REQUIRED.md

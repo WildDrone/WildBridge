@@ -375,6 +375,13 @@ class VirtualStickFragment : DJIFragment() {
                         }
                         "Received: abortMission"
                     }
+                    "/send/abortAll" -> {
+                        DroneController.abortAllMissions()
+                        mainHandler.post {
+                            ToastUtils.showToast("All missions aborted!")
+                        }
+                        "Received: abortAll"
+                    }
                     "/send/enableVirtualStick" -> {
                         DroneController.enableVirtualStick()
                         mainHandler.post {

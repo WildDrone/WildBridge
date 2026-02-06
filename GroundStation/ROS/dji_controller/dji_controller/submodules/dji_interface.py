@@ -164,6 +164,7 @@ EP_LAND = "/send/land"
 EP_RTH = "/send/RTH"
 EP_ENABLE_VIRTUAL_STICK = "/send/enableVirtualStick"
 EP_ABORT_MISSION = "/send/abortMission"
+EP_ABORT_ALL = "/send/abortAll"
 EP_GOTO_WP = "/send/gotoWP"
 EP_GOTO_YAW = "/send/gotoYaw"
 EP_GOTO_WP_PID = "/send/gotoWPwithPID"
@@ -488,7 +489,14 @@ class DJIInterface:
         return self.requestSend(EP_LAND, "")
 
     def requestSendRTH(self):
-        """Command the drone to return to home."""
+        """Command the drone to return to home.
+        
+        Note: This first aborts any active mission and disables virtual stick
+        to prevent conflicts with RTH. Virtual stick mode can interfere with
+        RTH causing erratic behavior.
+        """
+        # CRITICAL: Disable virtual stick before RTH to prevent conflicts
+        self.requestAbortMission()
         return self.requestSend(EP_RTH, "")
 
     def requestSendGoToWP(self, latitude, longitude, altitude):
@@ -564,6 +572,19 @@ class DJIInterface:
     def requestAbortMission(self):
         """Abort the current mission and disable virtual stick."""
         return self.requestSend(EP_ABORT_MISSION, "")
+
+    def requestAbortAll(self):
+        """Emergency abort ALL missions - comprehensive stop.
+        
+        This performs a comprehensive abort that:
+        1. Cancels any active PID control loops
+        2. Resets virtual sticks to neutral
+        3. Disables virtual stick mode
+        4. Stops any DJI native waypoint missions
+        
+        Use this for emergency stops - it's more thorough than requestAbortMission().
+        """
+        return self.requestSend(EP_ABORT_ALL, "")
 
     def requestSendEnableVirtualStick(self):
         """Enable virtual stick control mode."""

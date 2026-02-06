@@ -19,15 +19,201 @@ import json
 import socket
 import threading
 import time
+import asyncio
 from datetime import datetime
+from pathlib import Path
+from enum import Enum
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 # Discovery Configuration
 DISCOVERY_PORT = 30000
 DISCOVERY_MSG = b"DISCOVER_WILDBRIDGE"
 DISCOVERY_RESPONSE_PREFIX = "WILDBRIDGE_HERE:"
+MULTICAST_GROUP = "239.255.42.99"  # Multicast address for drone discovery
+MULTICAST_PORT = 30001
+
+# mDNS/Zeroconf Configuration
+MDNS_SERVICE_TYPE = "_wildbridge._tcp.local."
+MDNS_SERVICE_NAME = "WildBridge Drone"
+
+# Cache configuration
+CACHE_DIR = Path.home() / ".wildbridge"
+CACHE_FILE = CACHE_DIR / "drones_cache.json"
+CACHE_MAX_AGE = 3600  # 1 hour
+
+# Optional: Try to import zeroconf for mDNS support
+try:
+    from zeroconf import ServiceBrowser, ServiceListener, Zeroconf, ServiceInfo
+    ZEROCONF_AVAILABLE = True
+except ImportError:
+    ZEROCONF_AVAILABLE = False
+    print("Note: zeroconf library not installed. Install with: pip install zeroconf")
+
+class DroneState(Enum):
+    """Drone connection states for health monitoring."""
+    DISCOVERING = 1
+    CONNECTED = 2
+    DISCONNECTED = 3
+    RECONNECTING = 4
+    FAILED = 5
+
+
+class DiscoveryCache:
+    """Persistent cache for discovered drones."""
+    
+    def __init__(self, cache_file=CACHE_FILE):
+        self.cache_file = Path(cache_file)
+        self.cache_file.parent.mkdir(parents=True, exist_ok=True)
+        self.drones = self.load()
+    
+    def load(self):
+        """Load cache from disk."""
+        if not self.cache_file.exists():
+            return {}
+        try:
+            with open(self.cache_file, 'r') as f:
+                return json.load(f)
+        except Exception as e:
+            print(f"Failed to load drone cache: {e}")
+            return {}
+    
+    def save(self):
+        """Save cache to disk."""
+        try:
+            with open(self.cache_file, 'w') as f:
+                json.dump(self.drones, f, indent=2)
+        except Exception as e:
+            print(f"Failed to save drone cache: {e}")
+    
+    def update(self, ip, name, metadata=None):
+        """Update cache with new or existing drone."""
+        self.drones[ip] = {
+            "name": name,
+            "last_seen": time.time(),
+            "metadata": metadata or {}
+        }
+        self.save()
+    
+    def get_recent(self, max_age=CACHE_MAX_AGE):
+        """Get recently seen drones (within max_age seconds)."""
+        cutoff = time.time() - max_age
+        recent = {}
+        for ip, data in self.drones.items():
+            if data.get("last_seen", 0) > cutoff:
+                recent[ip] = data
+        return recent
+    
+    def get_all(self):
+        """Get all cached drones."""
+        return self.drones.copy()
+    
+    def remove(self, ip):
+        """Remove a drone from cache."""
+        if ip in self.drones:
+            del self.drones[ip]
+            self.save()
+            return True
+        return False
+    
+    def clear(self):
+        """Clear all cache."""
+        self.drones = {}
+        self.save()
+
+
+class DroneHealthMonitor:
+    """Monitor drone health with automatic reconnection."""
+    
+    def __init__(self, check_interval=5.0):
+        self.check_interval = check_interval
+        self.monitors = {}
+        self._running = False
+    
+    def start_monitoring(self, ip, name, on_disconnect=None, on_reconnect=None):
+        """Start monitoring a drone."""
+        if ip in self.monitors:
+            return
+        
+        monitor_info = {
+            "ip": ip,
+            "name": name,
+            "state": DroneState.CONNECTED,
+            "consecutive_failures": 0,
+            "on_disconnect": on_disconnect,
+            "on_reconnect": on_reconnect,
+            "thread": None
+        }
+        
+        self.monitors[ip] = monitor_info
+        
+        # Start monitoring thread
+        thread = threading.Thread(
+            target=self._monitor_drone,
+            args=(ip,),
+            daemon=True
+        )
+        monitor_info["thread"] = thread
+        thread.start()
+    
+    def stop_monitoring(self, ip):
+        """Stop monitoring a drone."""
+        if ip in self.monitors:
+            del self.monitors[ip]
+    
+    def stop_all(self):
+        """Stop all monitoring."""
+        self.monitors.clear()
+    
+    def _monitor_drone(self, ip):
+        """Background monitoring thread."""
+        while ip in self.monitors:
+            monitor = self.monitors[ip]
+            
+            try:
+                # Try to ping the config endpoint
+                response = requests.get(
+                    f"http://{ip}:8080/config",
+                    timeout=2.0
+                )
+                
+                if response.status_code == 200:
+                    # Drone is healthy
+                    if monitor["state"] != DroneState.CONNECTED:
+                        # Reconnected!
+                        monitor["state"] = DroneState.CONNECTED
+                        monitor["consecutive_failures"] = 0
+                        if monitor["on_reconnect"]:
+                            monitor["on_reconnect"](ip, monitor["name"])
+                else:
+                    self._handle_failure(ip, monitor)
+                    
+            except Exception as e:
+                self._handle_failure(ip, monitor)
+            
+            time.sleep(self.check_interval)
+    
+    def _handle_failure(self, ip, monitor):
+        """Handle drone connection failure."""
+        monitor["consecutive_failures"] += 1
+        
+        if monitor["consecutive_failures"] == 1:
+            # First failure, mark as disconnected
+            monitor["state"] = DroneState.DISCONNECTED
+            if monitor["on_disconnect"]:
+                monitor["on_disconnect"](ip, monitor["name"])
+        
+        if monitor["consecutive_failures"] > 5:
+            monitor["state"] = DroneState.FAILED
+    
+    def get_state(self, ip):
+        """Get current state of a drone."""
+        if ip in self.monitors:
+            return self.monitors[ip]["state"]
+        return None
+
 
 def get_local_ips():
-    """Get all local IP addresses for subnet detection."""
+    """Get all local IP addresses and network information."""
     ip_list = []
     try:
         hostname = socket.gethostname()
@@ -49,6 +235,284 @@ def get_local_ips():
         pass
     
     return ip_list
+
+
+def get_broadcast_addresses():
+    """Get all possible broadcast addresses for local networks."""
+    broadcast_addrs = ['255.255.255.255']  # Global broadcast
+    
+    local_ips = get_local_ips()
+    for ip in local_ips:
+        parts = ip.split('.')
+        # Assume /24 subnet for simplicity (most common)
+        subnet_broadcast = f"{parts[0]}.{parts[1]}.{parts[2]}.255"
+        if subnet_broadcast not in broadcast_addrs:
+            broadcast_addrs.append(subnet_broadcast)
+        
+        # Also try /16 subnet broadcast
+        class_b_broadcast = f"{parts[0]}.{parts[1]}.255.255"
+        if class_b_broadcast not in broadcast_addrs:
+            broadcast_addrs.append(class_b_broadcast)
+    
+    return broadcast_addrs
+
+
+def discover_via_multicast(timeout=3.0, verbose=True):
+    """
+    Discover drones using IP multicast - works better across VLANs and larger networks.
+    Returns list of tuples [(drone_ip, drone_name), ...]
+    """
+    found_drones = {}
+    
+    try:
+        # Create multicast socket
+        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        
+        # Set multicast TTL
+        sock.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_TTL, 2)
+        
+        # Bind to receive responses
+        sock.bind(('', MULTICAST_PORT))
+        
+        # Join multicast group
+        mreq = socket.inet_aton(MULTICAST_GROUP) + socket.inet_aton('0.0.0.0')
+        sock.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP, mreq)
+        
+        sock.settimeout(timeout)
+        
+        # Send multicast discovery
+        sock.sendto(DISCOVERY_MSG, (MULTICAST_GROUP, MULTICAST_PORT))
+        
+        if verbose:
+            print(f"Sent multicast discovery to {MULTICAST_GROUP}:{MULTICAST_PORT}")
+        
+        start_time = time.time()
+        while time.time() - start_time < timeout:
+            try:
+                data, addr = sock.recvfrom(1024)
+                message = data.decode('utf-8')
+                if message.startswith(DISCOVERY_RESPONSE_PREFIX):
+                    parts = message.split(':')
+                    drone_ip = parts[1] if len(parts) > 1 else addr[0]
+                    drone_name = parts[2] if len(parts) > 2 else "UNKNOWN"
+                    if drone_ip and drone_ip not in found_drones:
+                        if verbose:
+                            print(f"✓ Found drone via multicast: {drone_ip} (Name: {drone_name})")
+                        found_drones[drone_ip] = drone_name
+            except socket.timeout:
+                break
+        
+        sock.close()
+        
+    except Exception as e:
+        if verbose:
+            print(f"Multicast discovery failed: {e}")
+    
+    return list(found_drones.items())
+
+
+class WildBridgeServiceListener:
+    """Listener for mDNS/Zeroconf service discovery."""
+    
+    def __init__(self, verbose=True):
+        self.found_drones = {}
+        self.verbose = verbose
+    
+    def add_service(self, zc, type_, name):
+        """Called when a service is discovered."""
+        info = zc.get_service_info(type_, name)
+        if info:
+            # Extract IP address
+            if info.addresses:
+                ip = socket.inet_ntoa(info.addresses[0])
+                # Get drone name from service properties or name
+                drone_name = info.properties.get(b'name', b'').decode('utf-8')
+                if not drone_name:
+                    # Extract from service name (e.g., "cacatua._wildbridge._tcp.local.")
+                    drone_name = name.split('.')[0]
+                
+                if ip not in self.found_drones:
+                    self.found_drones[ip] = drone_name
+                    if self.verbose:
+                        print(f"  ✓ mDNS: Found {drone_name} at {ip}")
+    
+    def remove_service(self, zc, type_, name):
+        """Called when a service is removed."""
+        pass
+    
+    def update_service(self, zc, type_, name):
+        """Called when a service is updated."""
+        self.add_service(zc, type_, name)
+
+
+def discover_via_mdns(timeout=5.0, verbose=True):
+    """
+    Discover drones using mDNS/Zeroconf - the industry standard for local service discovery.
+    Works across subnets (with mDNS repeaters), more reliable than UDP broadcast.
+    
+    Returns list of tuples [(drone_ip, drone_name), ...]
+    """
+    if not ZEROCONF_AVAILABLE:
+        if verbose:
+            print("  ⚠ mDNS not available (install: pip install zeroconf)")
+        return []
+    
+    found_drones = {}
+    
+    try:
+        zeroconf = Zeroconf()
+        listener = WildBridgeServiceListener(verbose=verbose)
+        
+        # Browse for WildBridge services
+        browser = ServiceBrowser(zeroconf, MDNS_SERVICE_TYPE, listener)
+        
+        if verbose:
+            print(f"  Browsing for {MDNS_SERVICE_TYPE}...")
+        
+        # Wait for discovery
+        time.sleep(timeout)
+        
+        # Get results
+        found_drones = listener.found_drones.copy()
+        
+        # Cleanup
+        browser.cancel()
+        zeroconf.close()
+        
+    except Exception as e:
+        if verbose:
+            print(f"  ✗ mDNS discovery failed: {e}")
+    
+    return list(found_drones.items())
+
+
+def discover_via_broadcast_enhanced(timeout=3.0, verbose=True):
+    """
+    Enhanced broadcast discovery trying multiple broadcast addresses and socket configurations.
+    Returns list of tuples [(drone_ip, drone_name), ...]
+    """
+    found_drones = {}
+    broadcast_addrs = get_broadcast_addresses()
+    
+    if verbose:
+        print(f"Trying broadcast discovery on {len(broadcast_addrs)} address(es)...")
+    
+    for broadcast_addr in broadcast_addrs:
+        try:
+            # Create a new socket for each broadcast address
+            sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
+            sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+            sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            
+            # Bind to a specific port to receive responses
+            try:
+                sock.bind(('', DISCOVERY_PORT + 1))
+            except:
+                sock.bind(('', 0))  # Let OS choose port
+            
+            sock.settimeout(timeout)
+            
+            # Send broadcast
+            sock.sendto(DISCOVERY_MSG, (broadcast_addr, DISCOVERY_PORT))
+            
+            if verbose:
+                print(f"  → Broadcast to {broadcast_addr}:{DISCOVERY_PORT}")
+            
+            start_time = time.time()
+            while time.time() - start_time < timeout:
+                try:
+                    data, addr = sock.recvfrom(1024)
+                    message = data.decode('utf-8')
+                    if message.startswith(DISCOVERY_RESPONSE_PREFIX):
+                        parts = message.split(':')
+                        drone_ip = parts[1] if len(parts) > 1 else addr[0]
+                        drone_name = parts[2] if len(parts) > 2 else "UNKNOWN"
+                        if drone_ip and drone_ip not in found_drones:
+                            if verbose:
+                                print(f"  ✓ Response from {drone_ip} (Name: {drone_name})")
+                            found_drones[drone_ip] = drone_name
+                except socket.timeout:
+                    break
+            
+            sock.close()
+            
+        except Exception as e:
+            if verbose:
+                print(f"  ✗ Broadcast to {broadcast_addr} failed: {e}")
+    
+    return list(found_drones.items())
+
+
+def probe_single_ip(ip, timeout=1.5):
+    """
+    Probe a single IP for WildBridge drone.
+    Returns (ip, name) tuple or None.
+    """
+    try:
+        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        sock.settimeout(timeout)
+        sock.sendto(DISCOVERY_MSG, (ip, DISCOVERY_PORT))
+        
+        try:
+            data, addr = sock.recvfrom(1024)
+            message = data.decode('utf-8')
+            if message.startswith(DISCOVERY_RESPONSE_PREFIX):
+                parts = message.split(':')
+                drone_ip = parts[1] if len(parts) > 1 else addr[0]
+                drone_name = parts[2] if len(parts) > 2 else "UNKNOWN"
+                sock.close()
+                return (drone_ip, drone_name)
+        except socket.timeout:
+            pass
+        
+        sock.close()
+    except:
+        pass
+    
+    return None
+
+
+def scan_subnet_for_drones_parallel(local_ips, timeout=1.5, verbose=True, max_workers=50):
+    """
+    Scan subnet for WildBridge drones using parallel UDP probing.
+    Much faster than sequential scanning.
+    Returns list of tuples [(drone_ip, drone_name), ...]
+    """
+    found_drones = {}
+    
+    if verbose:
+        print("Scanning subnet for WildBridge drones (parallel mode)...")
+    
+    # Build list of IPs to scan
+    ips_to_scan = []
+    for local_ip in local_ips:
+        parts = local_ip.split('.')
+        subnet = f"{parts[0]}.{parts[1]}.{parts[2]}"
+        
+        # Try common IP ranges
+        ranges = list(range(1, 51)) + list(range(100, 121)) + list(range(150, 171)) + list(range(200, 221))
+        
+        for i in ranges:
+            ip = f"{subnet}.{i}"
+            if ip != local_ip:
+                ips_to_scan.append(ip)
+    
+    # Probe all IPs in parallel
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        future_to_ip = {executor.submit(probe_single_ip, ip, timeout): ip for ip in ips_to_scan}
+        
+        for future in as_completed(future_to_ip):
+            result = future.result()
+            if result:
+                drone_ip, drone_name = result
+                if drone_ip not in found_drones:
+                    found_drones[drone_ip] = drone_name
+                    if verbose:
+                        print(f"✓ Found WildBridge drone at {drone_ip} (Name: {drone_name})")
+    
+    return list(found_drones.items())
+
 
 def scan_subnet_for_drones(local_ips, timeout=0.1, verbose=True):
     """
@@ -95,52 +559,157 @@ def scan_subnet_for_drones(local_ips, timeout=0.1, verbose=True):
     
     return list(found_drones.items())
 
-def discover_all_drones(timeout=5.0, verbose=True):
+def discover_all_drones(timeout=5.0, verbose=True, use_cache=True, max_retries=2):
     """
-    Discover all WildBridge drones on the network.
-    Returns list of tuples [(drone_ip, drone_name), ...]
+    Discover all WildBridge drones on the network with enhanced robustness.
+    
+    Discovery methods (in order of preference):
+    1. Cache verification (fastest - instant if drone was seen recently)
+    2. mDNS/Zeroconf (most reliable, industry standard)
+    3. Targeted subnet scan (always runs to find drones not in cache/mDNS)
+    
+    Args:
+        timeout: Timeout for each discovery method
+        verbose: Print discovery progress
+        use_cache: Try cached drones first
+        max_retries: Number of retry attempts (unused, kept for API compatibility)
+    
+    Returns:
+        List of tuples [(drone_ip, drone_name), ...]
     """
     found_drones = {}
+    failed_cache_entries = {}  # Track {old_ip: name} for drones that failed verification
+    cache = DiscoveryCache() if use_cache else None
     
-    # Try broadcast first
-    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
-    sock.settimeout(timeout)
+    def verify_drone_http(ip, name, source=""):
+        """Verify drone is running by checking HTTP endpoint."""
+        try:
+            response = requests.get(f"http://{ip}:8080/config", timeout=1.0)
+            if response.status_code == 200:
+                return True
+        except:
+            pass
+        return False
     
-    try:
-        sock.sendto(DISCOVERY_MSG, ('<broadcast>', DISCOVERY_PORT))
+    # Method 1: Try cached drones first for faster startup
+    if cache:
+        recent = cache.get_recent()
+        if recent:
+            if verbose:
+                print(f"[Cache] Found {len(recent)} drone(s) in cache, verifying...")
+            for ip, data in recent.items():
+                name = data.get("name", "UNKNOWN")
+                if verify_drone_http(ip, name):
+                    found_drones[ip] = name
+                    if verbose:
+                        print(f"  ✓ Verified {ip} (Name: {name})")
+                else:
+                    # Track failed entries with their names so we can find them with new IPs
+                    failed_cache_entries[ip] = name
+                    if verbose:
+                        print(f"  ✗ {ip} ({name}) not responding - will search for new IP")
+    
+    if found_drones and verbose:
+        print(f"[Cache] Verified {len(found_drones)} cached drone(s), continuing to search for more...")
+    
+    # Method 2: mDNS/Zeroconf discovery (PREFERRED - industry standard)
+    if ZEROCONF_AVAILABLE:
         if verbose:
-            print(f"Broadcasting discovery message on port {DISCOVERY_PORT}...")
+            print("[mDNS] Trying mDNS/Zeroconf discovery...")
         
-        start_time = time.time()
-        while time.time() - start_time < timeout:
-            try:
-                data, addr = sock.recvfrom(1024)
-                message = data.decode('utf-8')
-                if message.startswith(DISCOVERY_RESPONSE_PREFIX):
-                    parts = message.split(':')
-                    drone_ip = parts[1] if len(parts) > 1 else None
-                    drone_name = parts[2] if len(parts) > 2 else "UNKNOWN"
-                    if drone_ip and drone_ip not in found_drones:
-                        if verbose:
-                            print(f"Found WildBridge drone at {drone_ip} (Name: {drone_name})")
-                        found_drones[drone_ip] = drone_name
-            except socket.timeout:
-                continue
-    except Exception as e:
+        mdns_drones = discover_via_mdns(timeout=min(timeout, 5.0), verbose=verbose)
+        new_from_mdns = 0
+        for ip, name in mdns_drones:
+            if ip not in found_drones:
+                # Verify the drone is actually running
+                if verify_drone_http(ip, name):
+                    found_drones[ip] = name
+                    new_from_mdns += 1
+                    if cache:
+                        cache.update(ip, name)
+                    # Check if this drone was in cache with different IP
+                    for old_ip, old_name in list(failed_cache_entries.items()):
+                        if old_name == name:
+                            if verbose:
+                                print(f"  ↳ {name} IP changed: {old_ip} → {ip}")
+                            cache.remove(old_ip)
+                            del failed_cache_entries[old_ip]
+                            break
+                    if verbose:
+                        print(f"  ✓ Verified {ip} (Name: {name})")
+                else:
+                    if verbose:
+                        print(f"  ✗ {ip} mDNS registered but app not running")
+        
         if verbose:
-            print(f"Broadcast discovery failed: {e}")
-    finally:
-        sock.close()
+            if new_from_mdns > 0:
+                print(f"[mDNS] ✓ Found {new_from_mdns} verified drone(s) (total: {len(found_drones)})")
+            else:
+                print(f"[mDNS] No new active drones found")
     
-    if not found_drones:
+    # Method 3: Targeted subnet scan (ALWAYS run to find drones with changed IPs)
+    # This ensures we find drones even if cache is stale or mDNS isn't working
+    if verbose:
+        print("[Subnet Scan] Scanning local subnets for drones...")
+    
+    local_ips = get_local_ips()
+    if local_ips:
         if verbose:
-            print("Broadcast found no drones, scanning subnet...")
-        local_ips = get_local_ips()
-        if local_ips:
-            subnet_drones = scan_subnet_for_drones(local_ips, timeout=0.1, verbose=verbose)
-            for ip, name in subnet_drones:
-                found_drones[ip] = name
+            print(f"  Local IPs detected: {', '.join(local_ips)}")
+        
+        # Scan subnets to find any drones we might have missed
+        subnet_drones = scan_subnet_for_drones_parallel(
+            local_ips, 
+            timeout=1.5,  # Allow time for slower drones to respond
+            verbose=verbose,
+            max_workers=50
+        )
+        new_from_scan = 0
+        for ip, name in subnet_drones:
+            if ip not in found_drones:
+                # Verify the drone is actually running
+                if verify_drone_http(ip, name):
+                    found_drones[ip] = name
+                    new_from_scan += 1
+                    if cache:
+                        cache.update(ip, name)
+                    # Check if this drone was in cache with different IP (IP changed via DHCP)
+                    for old_ip, old_name in list(failed_cache_entries.items()):
+                        if old_name == name:
+                            if verbose:
+                                print(f"  ↳ {name} IP changed: {old_ip} → {ip}")
+                            cache.remove(old_ip)
+                            del failed_cache_entries[old_ip]
+                            break
+                    if verbose:
+                        print(f"  ✓ Verified {ip} (Name: {name})")
+                else:
+                    if verbose:
+                        print(f"  ✗ {ip} responded to UDP but app not running")
+        
+        if verbose:
+            if new_from_scan > 0:
+                print(f"[Subnet Scan] ✓ Found {new_from_scan} new drone(s) (total: {len(found_drones)})")
+            else:
+                print(f"[Subnet Scan] No additional drones found")
+    
+    # Clean up remaining stale cache entries that weren't found with any method
+    if cache and failed_cache_entries:
+        for ip, name in failed_cache_entries.items():
+            cache.remove(ip)
+            if verbose:
+                print(f"[Cache] Removed stale entry for {name} at {ip} (not found on network)")
+    
+    if verbose:
+        if found_drones:
+            print(f"✓ Discovery complete: Found {len(found_drones)} active drone(s)")
+        else:
+            print("✗ No active drones found with any method")
+            print("\nTroubleshooting tips:")
+            print("  1. Ensure drone WildBridge app is running")
+            print("  2. Check firewall allows UDP port 30000-30001 and TCP port 8080")
+            print("  3. Verify you're on the same network as the drone")
+            print("  4. Try: sudo iptables -L to check for blocking rules")
     
     return list(found_drones.items())
 
@@ -164,6 +733,7 @@ EP_LAND = "/send/land"
 EP_RTH = "/send/RTH"
 EP_ENABLE_VIRTUAL_STICK = "/send/enableVirtualStick"
 EP_ABORT_MISSION = "/send/abortMission"
+EP_ABORT_ALL = "/send/abortAll"
 EP_GOTO_WP = "/send/gotoWP"
 EP_GOTO_YAW = "/send/gotoYaw"
 EP_GOTO_WP_PID = "/send/gotoWPwithPID"
@@ -504,7 +1074,14 @@ class DJIInterface:
         return self.requestSend(EP_LAND, "")
 
     def requestSendRTH(self):
-        """Command the drone to return to home."""
+        """Command the drone to return to home.
+        
+        Note: This first aborts any active mission and disables virtual stick
+        to prevent conflicts with RTH. Virtual stick mode can interfere with
+        RTH causing erratic behavior.
+        """
+        # CRITICAL: Disable virtual stick before RTH to prevent conflicts
+        self.requestAbortMission()
         return self.requestSend(EP_RTH, "")
 
     def requestSendGoToWP(self, latitude, longitude, altitude):
@@ -580,6 +1157,11 @@ class DJIInterface:
     def requestAbortMission(self):
         """Abort the current mission and disable virtual stick."""
         return self.requestSend(EP_ABORT_MISSION, "")
+
+    def requestAbortAll(self):
+        """Abort ALL missions (PID control loops + DJI native waypoint missions).
+        This is the most comprehensive abort - use when you want to stop everything."""
+        return self.requestSend(EP_ABORT_ALL, "")
 
     def requestSendEnableVirtualStick(self):
         """Enable virtual stick control mode."""
