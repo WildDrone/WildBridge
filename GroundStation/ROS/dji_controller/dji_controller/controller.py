@@ -65,6 +65,8 @@ class DjiNode(Node):
             Empty, 'command/enable_virtual_stick', self.enable_virtual_stick_callback, 10)
         self.create_subscription(
             Empty, 'command/abort_dji_native_mission', self.abort_dji_native_mission_callback, 10)
+        self.create_subscription(
+            Empty, 'command/deactivate_manual_override', self.deactivate_manual_override_callback, 10)
 
         # Subscribers for drone commands with specific messages
         self.create_subscription(
@@ -163,6 +165,14 @@ class DjiNode(Node):
         self.camera_is_recording_pub = self.create_publisher(
             Bool, 'camera/is_recording', 10)
 
+        # Flight mode publisher
+        self.flight_mode_pub = self.create_publisher(
+            String, 'flight_mode', 10)
+
+        # Manual override publisher
+        self.manual_override_pub = self.create_publisher(
+            Bool, 'manual_override_active', 10)
+
         # Timer to publish telemetry at regular intervals
         # Publish every 1/20 second (50ms)
         self.create_timer(0.05, self.publish_states)
@@ -239,6 +249,10 @@ class DjiNode(Node):
     def abort_dji_native_mission_callback(self, msg):
         self.get_logger().info("Received abort DJI native mission command.")
         self.dji_interface.requestAbortDJINativeMission()
+
+    def deactivate_manual_override_callback(self, msg):
+        self.get_logger().info("Received deactivate manual override command.")
+        self.dji_interface.requestDeactivateManualOverride()
 
     def goto_waypoint_callback(self, msg: Float64MultiArray):
         """Navigate to waypoint with PID control.
@@ -460,6 +474,14 @@ class DjiNode(Node):
             # Camera recording status
             self.camera_is_recording_pub.publish(
                 Bool(data=telemetry.get('isRecording', False)))
+
+            # Flight mode
+            self.flight_mode_pub.publish(
+                String(data=telemetry.get('flightMode', 'UNKNOWN')))
+
+            # Manual override state
+            self.manual_override_pub.publish(
+                Bool(data=telemetry.get('isManualOverrideActive', False)))
 
         except Exception as e:
             self.get_logger().error(f"Error while publishing states: {e}")

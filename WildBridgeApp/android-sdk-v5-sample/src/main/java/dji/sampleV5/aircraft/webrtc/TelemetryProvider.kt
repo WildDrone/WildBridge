@@ -6,6 +6,7 @@ import dji.sdk.keyvalue.key.GimbalKey
 import dji.sdk.keyvalue.value.common.Attitude
 import dji.sdk.keyvalue.value.common.LocationCoordinate3D
 import dji.sdk.keyvalue.value.common.Velocity3D
+import dji.sampleV5.aircraft.controller.DroneController
 import dji.v5.et.create
 import dji.v5.et.get
 
@@ -27,6 +28,7 @@ object TelemetryProvider {
     private val satelliteCountKey = FlightControllerKey.KeyGPSSatelliteCount.create()
     private val batteryPercentKey = BatteryKey.KeyChargeRemainingInPercent.create()
     private val isFlyingKey = FlightControllerKey.KeyIsFlying.create()
+    private val flightModeStringKey = FlightControllerKey.KeyFlightModeString.create()
     
     /**
      * Capture current telemetry state.
@@ -56,6 +58,7 @@ object TelemetryProvider {
         val satelliteCount = satelliteCountKey.get(0) ?: 0
         val batteryPercent = batteryPercentKey.get(0) ?: 0
         val isFlying = isFlyingKey.get(false) ?: false
+        val flightMode = flightModeStringKey.get("") ?: "UNKNOWN"
         
         return FrameMetadata(
             frameNumber = frameNumber,
@@ -89,7 +92,9 @@ object TelemetryProvider {
             // Additional info
             satelliteCount = satelliteCount,
             batteryPercent = batteryPercent,
-            isFlying = isFlying
+            isFlying = isFlying,
+            flightMode = flightMode,
+            isManualOverrideActive = DroneController.isManualOverrideActive
         )
     }
 }

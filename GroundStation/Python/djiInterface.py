@@ -78,6 +78,8 @@ EP_CAMERA_STOP_RECORDING = "/send/camera/stopRecording"
 EP_GOTO_TRAJECTORY_DJI_NATIVE = "/send/navigateTrajectoryDJINative"
 EP_ABORT_DJI_NATIVE_MISSION = "/send/abort/DJIMission"
 EP_SET_RTH_ALTITUDE = "/send/setRTHAltitude"
+EP_DEACTIVATE_MANUAL_OVERRIDE = "/send/deactivateManualOverride"
+EP_GET_MANUAL_OVERRIDE = "/get/isManualOverrideActive"
 
 # PID Tuning
 EP_TUNING = "/send/gotoWPwithPIDtuning"
@@ -329,6 +331,14 @@ class DJIInterface:
         """Get the current flight mode (e.g., 'MANUAL', 'GPS', 'GO_HOME', etc.)."""
         return self.getTelemetry().get("flightMode", "UNKNOWN")
 
+    def isManualOverrideActive(self):
+        """Check if manual override is active (pilot took RC control).
+        
+        When True, autonomous HTTP commands are being rejected by the app.
+        The pilot must deactivate manual override before autonomous commands work again.
+        """
+        return self.getTelemetry().get("isManualOverrideActive", False)
+
     # ==================== Commands (HTTP POST on port 8080) ====================
 
     def requestSend(self, endPoint, data, verbose=False):
@@ -488,6 +498,14 @@ class DJIInterface:
         """Set the return-to-home altitude in meters."""
         return self.requestSend(EP_SET_RTH_ALTITUDE, str(altitude))
 
+    def requestDeactivateManualOverride(self):
+        """Deactivate manual override latch so autonomous commands are accepted again.
+        
+        This should be called after the pilot has finished manual control
+        and wants to allow autonomous commands to work again.
+        """
+        return self.requestSend(EP_DEACTIVATE_MANUAL_OVERRIDE, "")
+
     # ==================== Deprecated methods (kept for backward compatibility) ====================
     
     def requestSticks(self):
@@ -577,6 +595,7 @@ if __name__ == '__main__':
                 print(f"  Low Batt:    {dji.getLowBatteryThreshold()}%")
                 print(f"  Serious Low: {dji.getSeriousLowBatteryThreshold()}%")
                 print(f"  Flight Mode: {dji.getFlightMode()}")
+                print(f"  Manual Override: {dji.isManualOverrideActive()}")
             else:
                 print("Waiting for telemetry data...")
             

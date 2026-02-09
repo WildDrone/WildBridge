@@ -24,8 +24,8 @@ import java.util.concurrent.atomic.AtomicLong
  */
 class DJIV5VideoCapturer(
     private val cameraIndex: ComponentIndexType = ComponentIndexType.LEFT_OR_MAIN,
-    private val targetWidth: Int = FULL_HD_WIDTH,
-    private val targetHeight: Int = FULL_HD_HEIGHT,
+    @Volatile var targetWidth: Int = FULL_HD_WIDTH,
+    @Volatile var targetHeight: Int = FULL_HD_HEIGHT,
     private val scaleToTarget: Boolean = true,
     private val droneName: String = "drone_1"
 ) : VideoCapturer {
@@ -163,8 +163,18 @@ class DJIV5VideoCapturer(
         }
     }
 
+    /**
+     * Change the target resolution on-the-fly. Takes effect on the next frame.
+     */
+    fun changeResolution(width: Int, height: Int) {
+        Log.d(TAG, "Changing target resolution: ${targetWidth}x${targetHeight} -> ${width}x${height}")
+        targetWidth = width
+        targetHeight = height
+    }
+
     override fun changeCaptureFormat(width: Int, height: Int, framerate: Int) {
-        Log.d(TAG, "Change capture format requested: ${width}x${height}@${framerate}fps (ignored, using target resolution)")
+        Log.d(TAG, "Change capture format requested: ${width}x${height}@${framerate}fps")
+        changeResolution(width, height)
     }
 
     override fun dispose() {

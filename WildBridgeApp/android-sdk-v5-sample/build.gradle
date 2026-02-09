@@ -146,13 +146,3 @@ dependencies {
     // WebRTC for drone video streaming (Stream's maintained fork)
     implementation 'io.getstream:stream-webrtc-android:1.1.1'
 }
-
-kotlin {
-    jvmToolchain(17)
-}
-
-tasks.withType(org.jetbrains.kotlin.gradle.tasks.KaptGenerateStubs).configureEach {
-    kotlinOptions {
-        jvmTarget = "1.8"
-    }
-}

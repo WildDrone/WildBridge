@@ -125,6 +125,16 @@ class WebRTCStreamer(
     fun getClientCount(): Int = activeConnections.size
 
     /**
+     * Change the streaming resolution for all active connections on-the-fly.
+     */
+    fun changeResolution(width: Int, height: Int) {
+        Log.d(TAG, "Changing resolution to ${width}x${height} for ${activeConnections.size} client(s)")
+        activeConnections.values.forEach { client ->
+            client.changeResolution(width, height)
+        }
+    }
+
+    /**
      * Get the connection URL for clients
      */
     fun getConnectionUrl(): String {

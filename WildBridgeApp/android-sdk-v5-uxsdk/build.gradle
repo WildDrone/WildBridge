@@ -69,13 +69,3 @@ dependencies {
     implementation deps.aircraft
 
 }
-
-kotlin {
-    jvmToolchain(17)
-}
-
-tasks.withType(org.jetbrains.kotlin.gradle.tasks.KaptGenerateStubs).configureEach {
-    kotlinOptions {
-        jvmTarget = "1.8"
-    }
-}

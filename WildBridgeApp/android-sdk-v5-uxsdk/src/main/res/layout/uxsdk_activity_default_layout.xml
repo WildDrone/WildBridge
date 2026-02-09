@@ -96,6 +96,26 @@
             app:uxsdk_itemsMarginRight="@dimen/uxsdk_spacing_normal"
             app:uxsdk_itemsSpacing="14dp" />
 
+        <!-- Manual Override Indicator & Deactivate Toggle -->
+        <CheckBox
+            android:id="@+id/cb_manual_override"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Manual"
+            android:textColor="#FFFFFF"
+            android:textSize="13sp"
+            android:textStyle="bold"
+            android:buttonTint="#FF0000"
+            android:checked="false"
+            android:enabled="true"
+            android:padding="4dp"
+            android:background="#00000000"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintBottom_toTopOf="@+id/text_drone_name"
+            android:layout_marginStart="16dp"
+            android:layout_marginBottom="4dp"
+            tools:ignore="HardcodedText" />
+
         <TextView
             android:id="@+id/text_drone_name"
             android:layout_width="wrap_content"
@@ -109,9 +129,9 @@
             android:clickable="true"
             android:focusable="true"
             app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toBottomOf="@+id/panel_top_bar"
+            app:layout_constraintBottom_toBottomOf="parent"
             android:layout_marginStart="16dp"
-            android:layout_marginTop="8dp" />
+            android:layout_marginBottom="16dp" />
 
         <dji.v5.ux.core.widget.remainingflighttime.RemainingFlightTimeWidget
             android:id="@+id/widget_remaining_flight_time"

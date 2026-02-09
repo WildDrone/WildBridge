@@ -47,6 +47,64 @@ object DroneController {
     private var basicAircraftControlVM: BasicAircraftControlVM? = null
     var virtualStickVM: VirtualStickVM? = null
 
+    // ==================== Manual Override System ====================
+    // When true, the pilot has taken manual control via RC sticks.
+    // This flag latches ON automatically when RC stick input exceeds the deadzone,
+    // and only clears when the user explicitly deactivates it (via checkbox or HTTP).
+    // While active, all autonomous HTTP commands (waypoints, trajectories, etc.) are rejected.
+    @Volatile
+    var isManualOverrideActive = false
+        private set
+
+    // RC stick deadzone threshold [0..660]. DJI RC sticks report ±660.
+    // A value of ~50 (~7.5% deflection) filters out small accidental touches.
+    const val RC_STICK_DEADZONE = 50
+
+    // Listener interface so the UI can react to automatic activation
+    interface ManualOverrideListener {
+        fun onManualOverrideActivated()
+    }
+    var manualOverrideListener: ManualOverrideListener? = null
+
+    /**
+     * Called when RC stick input exceeds the deadzone during autonomous flight.
+     * Activates the manual override latch and kills any running control loops.
+     */
+    fun activateManualOverride() {
+        if (!isManualOverrideActive) {
+            isManualOverrideActive = true
+            cancelActiveControlLoop()
+            ToastUtils.showToast("⚠ MANUAL OVERRIDE ACTIVE — autonomous commands blocked")
+            manualOverrideListener?.onManualOverrideActivated()
+        }
+    }
+
+    /**
+     * Called ONLY by the user pressing the deactivate button/checkbox.
+     * Clears the manual override latch so autonomous commands work again.
+     */
+    fun deactivateManualOverride() {
+        isManualOverrideActive = false
+        ToastUtils.showToast("Manual override cleared — autonomous commands enabled")
+    }
+
+    /**
+     * Check if an autonomous command should be allowed to execute.
+     * Returns true if the command should be REJECTED (manual override is active).
+     */
+    fun shouldRejectAutonomousCommand(commandName: String = ""): Boolean {
+        if (isManualOverrideActive) {
+            val msg = if (commandName.isNotEmpty())
+                "Command '$commandName' rejected — manual override active"
+            else
+                "Autonomous command rejected — manual override active"
+            ToastUtils.showToast(msg)
+            return true
+        }
+        return false
+    }
+    // ==================== End Manual Override ====================
+
     fun init(basicVM: BasicAircraftControlVM, stickVM: VirtualStickVM ) {
         basicAircraftControlVM = basicVM
         virtualStickVM = stickVM
@@ -129,11 +187,18 @@ object DroneController {
      * Returns false if:
      * - The control loop was explicitly cancelled (controlLoopEnabled = false)
      * - A new control loop was started (loopId doesn't match)
+     * - Manual override is active (pilot took control via RC sticks)
      * - The drone is no longer in virtual stick mode (user took manual control)
      */
     private fun shouldControlLoopContinue(loopId: Long): Boolean {
         // Check if loop was cancelled or a new one started
         if (!controlLoopEnabled || loopId != currentControlLoopId) {
+            return false
+        }
+
+        // If manual override was triggered, stop immediately
+        if (isManualOverrideActive) {
+            controlLoopEnabled = false
             return false
         }
         
@@ -149,7 +214,9 @@ object DroneController {
         // If user takes manual control, virtual stick gets disabled - kill the loop
         val isVirtualStickEnabled = virtualStickVM?.currentVirtualStickStateInfo?.value?.state?.isVirtualStickEnable ?: false
         if (!isVirtualStickEnabled) {
-            // Virtual stick was disabled externally (user took control), cancel the loop
+            // Virtual stick was disabled externally (user took control)
+            // Activate manual override latch so subsequent commands are also blocked
+            activateManualOverride()
             controlLoopEnabled = false
             return false
         }

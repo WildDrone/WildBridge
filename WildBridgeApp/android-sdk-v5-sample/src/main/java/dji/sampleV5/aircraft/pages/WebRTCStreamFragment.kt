@@ -16,6 +16,7 @@ import android.widget.RadioGroup
 import android.widget.TextView
 import dji.sampleV5.aircraft.R
 import dji.sampleV5.aircraft.util.ToastUtils
+import dji.sampleV5.aircraft.webrtc.WebRTCMediaOptions
 import dji.sampleV5.aircraft.webrtc.WebRTCStreamer
 import dji.sdk.keyvalue.value.common.ComponentIndexType
 import dji.v5.manager.datacenter.MediaDataCenter
@@ -39,6 +40,7 @@ class WebRTCStreamFragment : DJIFragment() {
     private lateinit var btnStartServer: Button
     private lateinit var btnStopServer: Button
     private lateinit var rgCamera: RadioGroup
+    private lateinit var rgResolution: RadioGroup
     private lateinit var tvServerStatus: TextView
     private lateinit var tvServerIp: TextView
     private lateinit var tvServerPort: TextView
@@ -53,6 +55,7 @@ class WebRTCStreamFragment : DJIFragment() {
     // WebRTC
     private var webRTCStreamer: WebRTCStreamer? = null
     private var selectedCameraIndex: ComponentIndexType = ComponentIndexType.LEFT_OR_MAIN
+    private var selectedOptions: WebRTCMediaOptions = WebRTCMediaOptions.fullHD()
 
     // Camera preview
     private var previewSurface: Surface? = null
@@ -99,6 +102,7 @@ class WebRTCStreamFragment : DJIFragment() {
         btnStartServer = view.findViewById(R.id.btn_start_server)
         btnStopServer = view.findViewById(R.id.btn_stop_server)
         rgCamera = view.findViewById(R.id.rg_camera)
+        rgResolution = view.findViewById(R.id.rg_resolution)
         tvServerStatus = view.findViewById(R.id.tv_server_status)
         tvServerIp = view.findViewById(R.id.tv_server_ip)
         tvServerPort = view.findViewById(R.id.tv_server_port)
@@ -136,6 +140,20 @@ class WebRTCStreamFragment : DJIFragment() {
             if (webRTCStreamer?.isRunning() == true) {
                 ToastUtils.showToast(getString(R.string.webrtc_restart_required))
             }
+        }
+
+        rgResolution.setOnCheckedChangeListener { _, checkedId ->
+            selectedOptions = when (checkedId) {
+                R.id.rb_resolution_sd -> WebRTCMediaOptions.sd()
+                R.id.rb_resolution_hd -> WebRTCMediaOptions.hd()
+                R.id.rb_resolution_fullhd -> WebRTCMediaOptions.fullHD()
+                else -> WebRTCMediaOptions.fullHD()
+            }
+            // Apply resolution change live if server is running
+            webRTCStreamer?.changeResolution(
+                selectedOptions.videoResolutionWidth,
+                selectedOptions.videoResolutionHeight
+            )
         }
 
         btnCopyUrl.setOnClickListener {
@@ -192,7 +210,8 @@ class WebRTCStreamFragment : DJIFragment() {
             webRTCStreamer = WebRTCStreamer(
                 context = ctx,
                 cameraIndex = selectedCameraIndex,
-                signalingPort = DEFAULT_PORT
+                signalingPort = DEFAULT_PORT,
+                options = selectedOptions
             ).apply {
                 listener = object : WebRTCStreamer.WebRTCStreamerListener {
                     override fun onServerStarted(ip: String, port: Int) {
@@ -244,10 +263,11 @@ class WebRTCStreamFragment : DJIFragment() {
         btnStopServer.isEnabled = true
         rgCamera.isEnabled = false
         
-        // Disable camera radio buttons
+        // Disable camera radio buttons (camera change requires restart)
         for (i in 0 until rgCamera.childCount) {
             rgCamera.getChildAt(i).isEnabled = false
         }
+        // Resolution radio buttons stay enabled (changes apply live)
 
         tvServerStatus.text = getString(R.string.webrtc_status_running)
         tvServerStatus.setTextColor(resources.getColor(android.R.color.holo_green_light, null))

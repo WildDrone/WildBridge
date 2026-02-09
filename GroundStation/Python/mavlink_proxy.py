@@ -240,6 +240,7 @@ class MAVLinkProxy:
                 dji_mode = telemetry.get('flightMode', 'UNKNOWN')
                 self.armed = dji_mode not in ['UNKNOWN', 'MANUAL', '']
                 self.mode = dji_mode
+                self.manual_override = telemetry.get('isManualOverrideActive', False)
                 
                 # Set home position on first GPS fix
                 location = telemetry.get('location', {})

@@ -43,7 +43,9 @@ data class FrameMetadata(
     // Additional info
     val satelliteCount: Int,
     val batteryPercent: Int,
-    val isFlying: Boolean
+    val isFlying: Boolean,
+    val flightMode: String,          // DJI flight mode string (e.g. "GPS", "ATTI", "SPORT", "TRIPOD")
+    val isManualOverrideActive: Boolean = false  // True when pilot has taken manual RC control
 ) {
     /**
      * Convert to JSON for transmission via WebRTC data channel
@@ -83,6 +85,8 @@ data class FrameMetadata(
             put("satelliteCount", satelliteCount)
             put("batteryPercent", batteryPercent)
             put("isFlying", isFlying)
+            put("flightMode", flightMode)
+            put("isManualOverrideActive", isManualOverrideActive)
         }
     }
     
@@ -119,7 +123,9 @@ data class FrameMetadata(
                 velocityZ = obj.optDouble("velocityZ", 0.0),
                 satelliteCount = obj.optInt("satelliteCount", 0),
                 batteryPercent = obj.optInt("batteryPercent", 0),
-                isFlying = obj.optBoolean("isFlying", false)
+                isFlying = obj.optBoolean("isFlying", false),
+                flightMode = obj.optString("flightMode", "UNKNOWN"),
+                isManualOverrideActive = obj.optBoolean("isManualOverrideActive", false)
             )
         }
     }

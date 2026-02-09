@@ -213,6 +213,24 @@
         tools:ignore="HardcodedText,SpUsage">
     </TextView>
 
+    <!-- Manual Override Indicator & Deactivate Toggle -->
+    <CheckBox
+        android:id="@+id/cb_manual_override"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Manual"
+        android:textColor="#FFFFFF"
+        android:textSize="13sp"
+        android:textStyle="bold"
+        android:buttonTint="#FF0000"
+        android:checked="false"
+        android:enabled="true"
+        android:padding="4dp"
+        android:background="#33FF0000"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/simulator_state_info_tv"
+        tools:ignore="HardcodedText" />
+
     <TextView
         android:id="@+id/stream_quality_info_tv"
         android:layout_width="wrap_content"
@@ -221,7 +239,7 @@
         android:textColor="@color/green"
         android:textSize="13dp"
         app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/simulator_state_info_tv"
+        app:layout_constraintTop_toBottomOf="@+id/cb_manual_override"
         tools:ignore="HardcodedText,SpUsage,TextSizeCheck" />
 
     <TextView

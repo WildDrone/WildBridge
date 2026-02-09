@@ -1,6 +1,7 @@
 package dji.sampleV5.aircraft.models
 
 import androidx.lifecycle.MutableLiveData
+import dji.sampleV5.aircraft.controller.DroneController
 import dji.sdk.keyvalue.key.RemoteControllerKey
 import dji.sdk.keyvalue.value.flightcontroller.*
 import dji.v5.common.callback.CommonCallbacks
@@ -117,6 +118,24 @@ class VirtualStickVM : DJIViewModel() {
 
     private fun tryUpdateVirtualStickByRc() {
         stickValue.postValue(stickValue.value)
+
+        // Check if RC stick input exceeds the deadzone — if so, the pilot is taking manual control.
+        // This triggers the manual override latch in DroneController, which:
+        //   - Kills any running PID/control loops
+        //   - Blocks subsequent autonomous HTTP commands
+        //   - Only clears when the user explicitly deactivates it
+        stickValue.value?.let { sv ->
+            val maxDeflection = maxOf(
+                Math.abs(sv.leftHorizontal),
+                Math.abs(sv.leftVertical),
+                Math.abs(sv.rightHorizontal),
+                Math.abs(sv.rightVertical)
+            )
+            if (maxDeflection > DroneController.RC_STICK_DEADZONE) {
+                DroneController.activateManualOverride()
+            }
+        }
+
         if (useRcStick.value == true) {
             stickValue.value?.apply {
                 setLeftPosition(leftHorizontal, leftVertical)

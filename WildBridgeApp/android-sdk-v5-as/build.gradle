@@ -37,11 +37,4 @@ allprojects {
         }
     }
 
-    // Fix for duplicate class errors between kotlin-stdlib and kotlin-stdlib-jdk8
-    configurations.all {
-        resolutionStrategy.dependencySubstitution {
-            substitute module("org.jetbrains.kotlin:kotlin-stdlib-jdk7") using module("org.jetbrains.kotlin:kotlin-stdlib:$KOTLIN_VERSION")
-            substitute module("org.jetbrains.kotlin:kotlin-stdlib-jdk8") using module("org.jetbrains.kotlin:kotlin-stdlib:$KOTLIN_VERSION")
-        }
-    }
 }

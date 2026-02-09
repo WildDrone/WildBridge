@@ -302,6 +302,9 @@ class VirtualStickFragment : DJIFragment() {
                         "Return to home command sent."
                     }
                     "/send/stick" -> {
+                        if (DroneController.shouldRejectAutonomousCommand("stick")) {
+                            return "REJECTED: Manual override active. Deactivate manual override first."
+                        }
                         val cmd = postData.split(",")
                         val lx = cmd[0].toFloat()
                         val ly = cmd[1].toFloat()
@@ -344,6 +347,9 @@ class VirtualStickFragment : DJIFragment() {
                         "Received: roll: $roll, pitch: $pitch, yaw: $yaw"
                     }
                     "/send/gotoYaw" -> {
+                        if (DroneController.shouldRejectAutonomousCommand("gotoYaw")) {
+                            return "REJECTED: Manual override active. Deactivate manual override first."
+                        }
                         val yaw = postData.split(",")[0].toDouble()
                         DroneController.gotoYaw(yaw)
                         mainHandler.post {
@@ -352,6 +358,9 @@ class VirtualStickFragment : DJIFragment() {
                         "Received: yaw: $yaw"
                     }
                     "/send/gotoAltitude" -> {
+                        if (DroneController.shouldRejectAutonomousCommand("gotoAltitude")) {
+                            return "REJECTED: Manual override active. Deactivate manual override first."
+                        }
                         val targetAltitude = postData.split(",")[0].toDouble()
                         DroneController.gotoAltitude(targetAltitude)
                         mainHandler.post {
@@ -383,6 +392,9 @@ class VirtualStickFragment : DJIFragment() {
                         "Received: abortAll"
                     }
                     "/send/enableVirtualStick" -> {
+                        if (DroneController.shouldRejectAutonomousCommand("enableVirtualStick")) {
+                            return "REJECTED: Manual override active. Deactivate manual override first."
+                        }
                         DroneController.enableVirtualStick()
                         mainHandler.post {
                             ToastUtils.showToast("Virtual stick enabled!")
@@ -404,6 +416,9 @@ class VirtualStickFragment : DJIFragment() {
                         "Received: camera stop recording"
                     }
                     "/send/gotoWP" -> {
+                        if (DroneController.shouldRejectAutonomousCommand("gotoWP")) {
+                            return "REJECTED: Manual override active. Deactivate manual override first."
+                        }
                         val cmd = postData.split(",")
                         if (cmd.size < 3) {
                             return "Invalid input. Expected format: lat,lon,alt"
@@ -418,6 +433,9 @@ class VirtualStickFragment : DJIFragment() {
                         "Waypoint command received: Latitude=$latitude, Longitude=$longitude, Altitude=$altitude"
                     }
                     "/send/gotoWPwithPID" -> {
+                        if (DroneController.shouldRejectAutonomousCommand("gotoWPwithPID")) {
+                            return "REJECTED: Manual override active. Deactivate manual override first."
+                        }
                         val cmd = postData.split(",")
                         if (cmd.size < 5) {
                             return "Invalid input. Expected format: lat,lon,alt,yaw,maxSpeed"
@@ -431,6 +449,9 @@ class VirtualStickFragment : DJIFragment() {
                         "Waypoint command received: Latitude=$latitude, Longitude=$longitude, Altitude=$altitude, Yaw=$yaw, MaxSpeed=$maxSpeed"
                     }
                     "/send/navigateTrajectory" -> {
+                        if (DroneController.shouldRejectAutonomousCommand("navigateTrajectory")) {
+                            return "REJECTED: Manual override active. Deactivate manual override first."
+                        }
                         Log.d("DroneServer", "Received trajectory data: $postData")
                         val segments = postData.split(";").map { it.trim() }.filter { it.isNotEmpty() }
                         if (segments.isEmpty()) {
@@ -462,6 +483,9 @@ class VirtualStickFragment : DJIFragment() {
                     }
                     // --- New endpoints ---
                     "/send/navigateTrajectoryDJINative" -> {
+                        if (DroneController.shouldRejectAutonomousCommand("navigateTrajectoryDJINative")) {
+                            return "REJECTED: Manual override active. Deactivate manual override first."
+                        }
                         // Expect: "speed;lat,lon,alt;lat,lon,alt;..."
                         val segments = postData.split(";").map { it.trim() }.filter { it.isNotEmpty() }
                         if (segments.size < 3) return "Invalid input. Need speed and at least 2 waypoints: speed;lat,lon,alt;..."
@@ -505,6 +529,15 @@ class VirtualStickFragment : DJIFragment() {
                             "Invalid altitude value"
                         }
                     }
+                    // --- Manual Override Control ---
+                    "/send/deactivateManualOverride" -> {
+                        DroneController.deactivateManualOverride()
+                        mainHandler.post { updateManualOverrideUI() }
+                        "Manual override deactivated. Autonomous commands are now allowed."
+                    }
+                    "/get/isManualOverrideActive" -> {
+                        if (DroneController.isManualOverrideActive) "true" else "false"
+                    }
                     else -> "Not Found"
                 }
             } catch (e: Exception) {
@@ -529,6 +562,9 @@ class VirtualStickFragment : DJIFragment() {
 
         // Initialize DroneController with required ViewModels
         DroneController.init(basicAircraftControlVM, virtualStickVM)
+
+        // ---- Manual Override checkbox setup ----
+        setupManualOverrideCheckbox()
 
         binding?.widgetHorizontalSituationIndicator?.setSimpleModeEnable(false)
 
@@ -600,6 +636,54 @@ class VirtualStickFragment : DJIFragment() {
             displayCameraZoomRatios()
         }
     }
+
+    // ==================== Manual Override Checkbox ====================
+
+    private fun setupManualOverrideCheckbox() {
+        // Sync checkbox with current state (e.g. after rotation)
+        updateManualOverrideUI()
+
+        // When the checkbox is toggled by the user:
+        // - Checking it does nothing extra (it's auto-checked on activation)
+        // - UN-checking it clears the manual override latch
+        binding?.cbManualOverride?.setOnCheckedChangeListener { _, isChecked ->
+            if (!isChecked) {
+                // User explicitly deactivated manual override
+                DroneController.deactivateManualOverride()
+                updateManualOverrideUI()
+            }
+            // Note: checking it manually is a no-op — it activates automatically via RC sticks
+        }
+
+        // Register listener so DroneController can notify us when override triggers automatically
+        DroneController.manualOverrideListener = object : DroneController.ManualOverrideListener {
+            override fun onManualOverrideActivated() {
+                mainHandler.post { updateManualOverrideUI() }
+            }
+        }
+    }
+
+    @SuppressLint("SetTextI18n")
+    private fun updateManualOverrideUI() {
+        val isActive = DroneController.isManualOverrideActive
+        binding?.cbManualOverride?.let { cb ->
+            // Set checked state without triggering the listener
+            cb.setOnCheckedChangeListener(null)
+            cb.isChecked = isActive
+            cb.text = if (isActive) "\u26a0 Manual" else "Manual"
+            cb.setTextColor(if (isActive) 0xFFFF0000.toInt() else 0xFFFFFFFF.toInt())
+            cb.setBackgroundColor(if (isActive) 0x33FF0000 else 0x00000000)
+            // Re-attach listener
+            cb.setOnCheckedChangeListener { _, isChecked ->
+                if (!isChecked) {
+                    DroneController.deactivateManualOverride()
+                    updateManualOverrideUI()
+                }
+            }
+        }
+    }
+
+    // ==================== End Manual Override Checkbox ====================
 
     private fun initBtnClickListener() {
         binding?.btnEnableVirtualStick?.setOnClickListener {
@@ -1197,7 +1281,8 @@ class VirtualStickFragment : DJIFragment() {
                 "\"totalTime\":$totalTime,\"maxRadiusCanFlyAndGoHome\":$maxRadiusCanFlyAndGoHome," +
                 "\"remainingCharge\":$remainingCharge,\"batteryNeededToLand\":$batteryNeededToLand," +
                 "\"batteryNeededToGoHome\":$batteryNeededToGoHome,\"seriousLowBatteryThreshold\":$seriousLowBatteryThreshold," +
-                "\"lowBatteryThreshold\":$lowBatteryThreshold,\"flightMode\":$flightMode}"
+                "\"lowBatteryThreshold\":$lowBatteryThreshold,\"flightMode\":$flightMode," +
+                "\"isManualOverrideActive\":${DroneController.isManualOverrideActive}}"
     }
     //endregion
 }

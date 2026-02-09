@@ -81,6 +81,17 @@ class WebRTCClient(
     
     var connectionListener: PeerConnectionListener? = null
 
+    /**
+     * Change the streaming resolution on-the-fly without renegotiation.
+     * The capturer will scale the next frame to the new dimensions.
+     */
+    fun changeResolution(width: Int, height: Int) {
+        if (videoCapturer is DJIV5VideoCapturer) {
+            videoCapturer.changeResolution(width, height)
+            Log.d(TAG, "[$clientId] Resolution changed to ${width}x${height}")
+        }
+    }
+
     interface PeerConnectionListener {
         fun onConnected(clientId: String)
         fun onDisconnected(clientId: String)

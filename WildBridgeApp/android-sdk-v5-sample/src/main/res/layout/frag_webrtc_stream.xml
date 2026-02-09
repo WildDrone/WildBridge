@@ -119,6 +119,62 @@
 
     </LinearLayout>
 
+    <!-- Resolution Selection -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingHorizontal="8dp"
+        android:paddingBottom="8dp">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/webrtc_resolution"
+            android:textColor="@color/white"
+            android:textSize="13sp"
+            android:textStyle="bold" />
+
+        <RadioGroup
+            android:id="@+id/rg_resolution"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:orientation="horizontal">
+
+            <RadioButton
+                android:id="@+id/rb_resolution_sd"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:buttonTint="@color/white"
+                android:text="@string/webrtc_resolution_sd"
+                android:textColor="@color/white"
+                android:textSize="11sp" />
+
+            <RadioButton
+                android:id="@+id/rb_resolution_hd"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:buttonTint="@color/white"
+                android:text="@string/webrtc_resolution_hd"
+                android:textColor="@color/white"
+                android:textSize="11sp" />
+
+            <RadioButton
+                android:id="@+id/rb_resolution_fullhd"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:buttonTint="@color/white"
+                android:checked="true"
+                android:text="@string/webrtc_resolution_fullhd"
+                android:textColor="@color/white"
+                android:textSize="11sp" />
+
+        </RadioGroup>
+
+    </LinearLayout>
+
     <!-- Server Status Card -->
     <androidx.cardview.widget.CardView
         android:layout_width="match_parent"
