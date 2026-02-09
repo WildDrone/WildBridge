@@ -262,6 +262,16 @@ class WildBridgeDefaultLayoutActivity : DefaultLayoutActivity() {
         
         // Show IP address
         showServerInfo()
+
+        // Default to VISION_ASSIST camera as primary FPV source
+        mainHandler.postDelayed({
+            try {
+                primaryFpvWidget?.updateVideoSource(ComponentIndexType.VISION_ASSIST)
+                Log.i(TAG, "Primary FPV source set to VISION_ASSIST")
+            } catch (e: Exception) {
+                Log.w(TAG, "Could not set VISION_ASSIST as primary source: ${e.message}")
+            }
+        }, 2000) // Delay to allow camera list to populate
     }
     
     // ==================== Manual Override Checkbox ====================
