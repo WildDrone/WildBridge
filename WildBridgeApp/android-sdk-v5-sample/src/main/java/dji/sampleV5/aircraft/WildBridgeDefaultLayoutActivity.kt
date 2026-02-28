@@ -14,7 +14,10 @@ import android.Manifest
 import android.content.pm.PackageManager
 import android.content.SharedPreferences
 import android.hardware.Sensor
+import android.content.res.ColorStateList
 import android.widget.CheckBox
+import android.widget.Switch
+import android.widget.ToggleButton
 import android.widget.EditText
 import android.view.Menu
 import android.view.MenuItem
@@ -235,6 +238,9 @@ class WildBridgeDefaultLayoutActivity : DefaultLayoutActivity() {
         // Setup Manual Override checkbox
         setupManualOverrideCheckbox()
 
+        // Setup drone status indicator
+        setupDroneStatusView()
+
         // Initialize LocationManager
         locationManager = getSystemService(Context.LOCATION_SERVICE) as LocationManager
         startLocationUpdates()
@@ -274,16 +280,15 @@ class WildBridgeDefaultLayoutActivity : DefaultLayoutActivity() {
         }, 2000) // Delay to allow camera list to populate
     }
     
-    // ==================== Manual Override Checkbox ====================
+    // ==================== Mode Toggle (AUTO / MANUAL) ====================
 
     private fun setupManualOverrideCheckbox() {
         updateManualOverrideUI()
 
-        findViewById<CheckBox>(R.id.cb_manual_override)?.setOnCheckedChangeListener { _, isChecked ->
-            if (!isChecked) {
-                DroneController.deactivateManualOverride()
-                updateManualOverrideUI()
-            }
+        findViewById<Switch>(R.id.cb_manual_override)?.setOnCheckedChangeListener { _, isChecked ->
+            if (isChecked) DroneController.activateManualOverride()
+            else DroneController.deactivateManualOverride()
+            updateManualOverrideUI()
         }
 
         DroneController.manualOverrideListener = object : DroneController.ManualOverrideListener {
@@ -294,23 +299,69 @@ class WildBridgeDefaultLayoutActivity : DefaultLayoutActivity() {
     }
 
     private fun updateManualOverrideUI() {
-        val isActive = DroneController.isManualOverrideActive
-        findViewById<CheckBox>(R.id.cb_manual_override)?.let { cb ->
-            cb.setOnCheckedChangeListener(null)
-            cb.isChecked = isActive
-            cb.text = if (isActive) "\u26a0 Manual" else "Manual"
-            cb.setTextColor(if (isActive) 0xFFFF0000.toInt() else 0xFFFFFFFF.toInt())
-            cb.setBackgroundColor(if (isActive) 0x33FF0000 else 0x00000000)
-            cb.setOnCheckedChangeListener { _, isChecked ->
-                if (!isChecked) {
-                    DroneController.deactivateManualOverride()
-                    updateManualOverrideUI()
-                }
+        val isManual = DroneController.isManualOverrideActive
+        // Blue = autonomous, Red = manual
+        val color = if (isManual) 0xFFF44336.toInt() else 0xFF2196F3.toInt()
+        val tint = ColorStateList.valueOf(color)
+        findViewById<Switch>(R.id.cb_manual_override)?.let { sw ->
+            sw.setOnCheckedChangeListener(null)
+            sw.isChecked = isManual
+            sw.text = if (isManual) "MANUAL" else "AUTO"
+            sw.setTextColor(color)
+            sw.trackTintList = tint
+            sw.thumbTintList = ColorStateList.valueOf(if (isManual) 0xFFB71C1C.toInt() else 0xFF1565C0.toInt())
+            sw.setOnCheckedChangeListener { _, isChecked ->
+                if (isChecked) DroneController.activateManualOverride()
+                else DroneController.deactivateManualOverride()
+                updateManualOverrideUI()
             }
         }
     }
 
-    // ==================== End Manual Override Checkbox ====================
+    // ==================== End Mode Toggle ====================
+
+    // ==================== Drone Status View ====================
+
+    private fun setupDroneStatusView() {
+        DroneController.droneStatusListener = object : DroneController.DroneStatusListener {
+            override fun onDroneStatusChanged(status: DroneController.DroneStatus) {
+                mainHandler.post { updateDroneStatusView(status) }
+            }
+        }
+        updateDroneStatusView(DroneController.droneStatus)
+    }
+
+    private fun updateDroneStatusView(appStatus: DroneController.DroneStatus) {
+        val statusTv = findViewById<TextView>(R.id.text_drone_status) ?: return
+        // Upgrade IDLE → HOVERING when the FC says the drone is airborne
+        val resolved = if (appStatus == DroneController.DroneStatus.IDLE && isFlyingKey.get(false)) {
+            DroneController.DroneStatus.HOVERING
+        } else {
+            appStatus
+        }
+        val (label, color) = when (resolved) {
+            DroneController.DroneStatus.IDLE            -> Pair("IDLE",       0xFFAAAAAA.toInt())
+            DroneController.DroneStatus.TAKING_OFF      -> Pair("TAKEOFF",    0xFFFFC107.toInt())
+            DroneController.DroneStatus.HOVERING        -> Pair("HOVER",      0xFF4CAF50.toInt())
+            DroneController.DroneStatus.NAVIGATING      -> Pair("NAV",        0xFF2196F3.toInt())
+            DroneController.DroneStatus.LANDING         -> Pair("LAND",       0xFFFF9800.toInt())
+            DroneController.DroneStatus.RETURNING_HOME  -> Pair("RTH",        0xFFFF9800.toInt())
+            DroneController.DroneStatus.MANUAL_OVERRIDE -> Pair("MANUAL",     0xFFF44336.toInt())
+            DroneController.DroneStatus.ABORTING        -> Pair("ABORT",      0xFFF44336.toInt())
+        }
+        statusTv.text = label
+        statusTv.setTextColor(color)
+    }
+
+    // ==================== End Drone Status View ====================
+
+    private fun updateAltitudeView(altitudeMetres: Double) {
+        findViewById<TextView>(R.id.text_altitude)?.text = "ALT ${altitudeMetres.toInt()}m"
+    }
+
+    private fun updateSatelliteView(count: Int) {
+        findViewById<TextView>(R.id.text_satellite_count)?.text = "SAT $count"
+    }
 
     private fun setupDroneNameDisplay() {
         // Find the TextView in the layout
@@ -346,6 +397,21 @@ class WildBridgeDefaultLayoutActivity : DefaultLayoutActivity() {
         }
         KeyManager.getInstance().listen(timeNeededToLandKey, this) { _, newValue ->
             timeNeededToLandProcessor.onNext(newValue?.timeNeededToLand ?: 0)
+        }
+        // Keep isAirborne in DroneController in sync with FC telemetry — used by
+        // VirtualStickVM to gate manual-override detection: only fire when airborne
+        // (prevents ground-level RC drift false-positives) or during autonomous flight.
+        KeyManager.getInstance().listen(isFlyingKey, this) { _, newValue ->
+            DroneController.isAirborne = newValue ?: false
+            mainHandler.post { updateDroneStatusView(DroneController.droneStatus) }
+        }
+        // Keep altitude display in sync with every position update
+        KeyManager.getInstance().listen(location3DKey, this) { _, newValue ->
+            mainHandler.post { updateAltitudeView(newValue?.altitude ?: 0.0) }
+        }
+        // Satellite count
+        KeyManager.getInstance().listen(satelliteCountKey, this) { _, newValue ->
+            mainHandler.post { updateSatelliteView(newValue ?: 0) }
         }
     }
     
@@ -485,7 +551,10 @@ class WildBridgeDefaultLayoutActivity : DefaultLayoutActivity() {
                     signalingPort = WEBRTC_PORT,
                     droneName = droneName,
                     options = WebRTCMediaOptions(
-                        videoBitrate = 8_000_000, // 8 Mbps for 1080p
+                        videoResolutionWidth = 1280,
+                        videoResolutionHeight = 720,
+                        fps = 5,
+                        videoBitrate = 5_000_000, // 5 Mbps tuned for 720p
                         videoCodec = "H264"       // Use H264 for better hardware acceleration
                     )
                 )
@@ -556,7 +625,8 @@ class WildBridgeDefaultLayoutActivity : DefaultLayoutActivity() {
         // Cancel key listeners
         KeyManager.getInstance().cancelListen(this)
         
-        // Clean up DroneController to prevent memory leaks
+        // Clean up DroneController listeners and resources
+        DroneController.droneStatusListener = null
         DroneController.destroy()
         
         Log.i(TAG, "All servers stopped")

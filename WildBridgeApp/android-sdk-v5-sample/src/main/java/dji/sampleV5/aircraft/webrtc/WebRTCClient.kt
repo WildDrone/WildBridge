@@ -146,6 +146,9 @@ class WebRTCClient(
             sdpSemantics = PeerConnection.SdpSemantics.UNIFIED_PLAN
             continualGatheringPolicy = PeerConnection.ContinualGatheringPolicy.GATHER_CONTINUALLY
         }
+
+        // Prefer stable resolution over adaptive CPU downscale.
+        disableCpuOveruseDetection(rtcConfig)
         
         peerConnection = getFactory(context).createPeerConnection(rtcConfig, createPeerConnectionObserver())
         
@@ -230,8 +233,57 @@ class WebRTCClient(
         
         videoTrack?.let { track ->
             val streamIds = listOf(options.mediaStreamId)
-            peerConnection?.addTrack(track, streamIds)
+            val sender = peerConnection?.addTrack(track, streamIds)
+            if (sender != null) {
+                configureVideoSenderForStability(sender)
+            }
             Log.d(TAG, "Video track added to peer connection")
+        }
+    }
+
+    private fun disableCpuOveruseDetection(rtcConfig: PeerConnection.RTCConfiguration) {
+        runCatching {
+            val field = rtcConfig.javaClass.getField("enableCpuOveruseDetection")
+            field.isAccessible = true
+            field.setBoolean(rtcConfig, false)
+            Log.d(TAG, "[$clientId] Disabled RTC CPU overuse detection")
+        }.onFailure {
+            Log.d(TAG, "[$clientId] RTC CPU overuse flag unavailable on this WebRTC build")
+        }
+    }
+
+    private fun configureVideoSenderForStability(sender: RtpSender) {
+        runCatching {
+            val params = sender.parameters ?: return
+            val encodings = params.encodings ?: emptyList()
+
+            encodings.forEach { encoding ->
+                runCatching {
+                    encoding.maxBitrateBps = options.videoBitrate
+                }
+                runCatching {
+                    encoding.maxFramerate = options.fps
+                }
+            }
+
+            // Force adaptation strategy toward FPS reduction before resolution reduction.
+            runCatching {
+                val preferenceClass = Class.forName("org.webrtc.RtpParameters\$DegradationPreference")
+                @Suppress("UNCHECKED_CAST")
+                val enumClass = preferenceClass as Class<out Enum<*>>
+                val maintainResolution = java.lang.Enum.valueOf(enumClass, "MAINTAIN_RESOLUTION")
+                val field = params.javaClass.getField("degradationPreference")
+                field.isAccessible = true
+                field.set(params, maintainResolution)
+            }
+
+            sender.parameters = params
+            Log.d(
+                TAG,
+                "[$clientId] Sender params tuned: maxBitrate=${options.videoBitrate}bps, maxFps=${options.fps}, prefer=MAINTAIN_RESOLUTION"
+            )
+        }.onFailure { e ->
+            Log.w(TAG, "[$clientId] Unable to fully apply sender tuning: ${e.message}")
         }
     }
 
@@ -325,6 +377,7 @@ class WebRTCClient(
         val constraints = MediaConstraints().apply {
             mandatory.add(MediaConstraints.KeyValuePair("OfferToReceiveVideo", "false"))
             mandatory.add(MediaConstraints.KeyValuePair("OfferToReceiveAudio", "false"))
+            optional.add(MediaConstraints.KeyValuePair("googCpuOveruseDetection", "false"))
         }
         
         peerConnection?.createAnswer(object : SimpleSdpObserver(TAG) {
@@ -364,6 +417,7 @@ class WebRTCClient(
             val constraints = MediaConstraints().apply {
                 mandatory.add(MediaConstraints.KeyValuePair("OfferToReceiveVideo", "false"))
                 mandatory.add(MediaConstraints.KeyValuePair("OfferToReceiveAudio", "false"))
+                optional.add(MediaConstraints.KeyValuePair("googCpuOveruseDetection", "false"))
             }
             
             peerConnection?.createOffer(object : SimpleSdpObserver(TAG) {

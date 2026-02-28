@@ -124,6 +124,13 @@ class VirtualStickVM : DJIViewModel() {
         //   - Kills any running PID/control loops
         //   - Blocks subsequent autonomous HTTP commands
         //   - Only clears when the user explicitly deactivates it
+        //
+        // IMPORTANT: Only fire when an autonomous control loop is actually active.
+        // Without this guard, any RC stick noise, calibration drift, or spurious SDK callbacks
+        // (e.g. the SDK emitting current stick positions at subscription time, or when the FC
+        // transitions state during takeoff) would latch manual override even while the drone
+        // is on the ground in idle — which is the bug: drones entering manual mode right after
+        // a ground-station takeoff command without the pilot touching anything.
         stickValue.value?.let { sv ->
             val maxDeflection = maxOf(
                 Math.abs(sv.leftHorizontal),
@@ -131,7 +138,7 @@ class VirtualStickVM : DJIViewModel() {
                 Math.abs(sv.rightHorizontal),
                 Math.abs(sv.rightVertical)
             )
-            if (maxDeflection > DroneController.RC_STICK_DEADZONE) {
+            if (maxDeflection > DroneController.RC_STICK_DEADZONE && (DroneController.isAirborne || DroneController.isAutonomousFlightActive)) {
                 DroneController.activateManualOverride()
             }
         }

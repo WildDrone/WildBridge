@@ -43,8 +43,11 @@ class DJIV5VideoCapturer(
     private var capturerObserver: CapturerObserver? = null
     private var surfaceTextureHelper: SurfaceTextureHelper? = null
     private val isCapturing = AtomicBoolean(false)
+    @Volatile private var targetFps = 30
+    @Volatile private var frameIntervalNs = 1_000_000_000L / 30L
     private var lastSourceWidth = 0
     private var lastSourceHeight = 0
+    private val lastSentTimestampNs = AtomicLong(0L)
     
     // Frame counter for metadata synchronization
     private val frameCounter = AtomicLong(0)
@@ -72,14 +75,22 @@ class DJIV5VideoCapturer(
             if (!isCapturing.get() || capturerObserver == null) return
 
             try {
+                val timestampNs = System.nanoTime()
+
+                // Cap output FPS by dropping frames that arrive too soon.
+                val previousSent = lastSentTimestampNs.get()
+                if (previousSent != 0L && (timestampNs - previousSent) < frameIntervalNs) {
+                    return
+                }
+                lastSentTimestampNs.set(timestampNs)
+
                 // Log source resolution changes
                 if (width != lastSourceWidth || height != lastSourceHeight) {
                     lastSourceWidth = width
                     lastSourceHeight = height
                     Log.d(TAG, "Source: ${width}x${height}, Target: ${targetWidth}x${targetHeight}, Scale: $scaleToTarget")
                 }
-                
-                val timestampNs = System.nanoTime()
+
                 val frameNumber = frameCounter.incrementAndGet()
                 
                 // Determine output dimensions
@@ -138,7 +149,10 @@ class DJIV5VideoCapturer(
     }
 
     override fun startCapture(width: Int, height: Int, framerate: Int) {
-        Log.d(TAG, "Starting capture: ${targetWidth}x${targetHeight}@${framerate}fps (scale=$scaleToTarget)")
+        targetFps = framerate.coerceAtLeast(1)
+        frameIntervalNs = 1_000_000_000L / targetFps.toLong()
+        lastSentTimestampNs.set(0L)
+        Log.d(TAG, "Starting capture: ${targetWidth}x${targetHeight}@${targetFps}fps (scale=$scaleToTarget)")
         
         if (isCapturing.compareAndSet(false, true)) {
             // Register frame listener with NV21 format (compatible with WebRTC's NV21Buffer)
@@ -175,6 +189,8 @@ class DJIV5VideoCapturer(
     override fun changeCaptureFormat(width: Int, height: Int, framerate: Int) {
         Log.d(TAG, "Change capture format requested: ${width}x${height}@${framerate}fps")
         changeResolution(width, height)
+        targetFps = framerate.coerceAtLeast(1)
+        frameIntervalNs = 1_000_000_000L / targetFps.toLong()
     }
 
     override fun dispose() {
