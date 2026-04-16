@@ -1,3 +1,4 @@
 {
-    "java.jdt.ls.java.home": "/usr/lib/jvm/java-17-openjdk-amd64"
+    "java.jdt.ls.java.home": "/usr/lib/jvm/java-17-openjdk-amd64",
+    "python-envs.defaultEnvManager": "ms-python.python:system"
 }

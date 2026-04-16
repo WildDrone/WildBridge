@@ -36,9 +36,12 @@ This work is part of the WildDrone project, funded by the European Union's Horiz
 
 - **Real-time Telemetry**: TCP socket streaming (port 8081) for continuous flight data at 20Hz
 - **HTTP Command Interface**: RESTful API (port 8080) for drone control commands
-- **Live Video Streaming**: WebRTC and RTSP video feeds with switchable streaming modes
-- **Camera Control**: Zoom ratio display and dynamic zoom control
+- **Live Video Streaming**: WebRTC (720p@10fps, adaptive to 5fps under load) and RTSP video feeds with switchable streaming modes
+- **Manual Override**: AUTO/MANUAL toggle for instant pilot takeover during autonomous flight with ~30% stick deflection threshold
+- **Camera Control**: Zoom ratio display, dynamic zoom control, and Vision Assist as default FPV source
+- **Enhanced UI**: Real-time drone status indicator, live altitude above takeoff (AGL), satellite count badge, and compact telemetry display
 - **DJI Native Waypoint Missions**: Support for KMZ-based wayline missions via DJI's native system
+- **Comprehensive Abort**: Stop all active missions, abort RTH, and disable Virtual Stick in one command
 - **MAVLink Integration**: Compatible with QGroundControl via MAVLink proxy for mission planning
 - **PID-based Navigation**: Custom trajectory following with pure pursuit algorithm
 - **Multi-drone Coordination**: Support for up to 10 concurrent drones with sub-100ms latency
@@ -48,12 +51,22 @@ This work is part of the WildDrone project, funded by the European Union's Horiz
 
 ### Drone Identity & Discovery
 
-WildBridge now supports user-configurable drone names for easier fleet management:
+WildBridge supports user-configurable drone names for easier fleet management:
 - **Custom Naming**: Set a unique name (e.g., "RedScout", "Bravo") directly in the app by clicking the name display on the home screen.
-- **Auto-Discovery**: Ground station tools automatically discover drones on the network and identify them by name.
+- **Auto-Discovery**: Ground station tools automatically discover drones on the network via mDNS/Bonjour with subnet scanning and connection verification.
 - **Dynamic Namespaces**: ROS nodes automatically launch with namespaces matching the drone name (e.g., `/drone_RedScout/location`), eliminating manual configuration.
 
+### Manual Override
+
+WildBridge includes a pilot-friendly manual override system for safe autonomous operations:
+- **AUTO/MANUAL Toggle**: Switch displayed in the Virtual Stick interface (blue track = AUTO, red track = MANUAL).
+- **Stick Detection**: Moving the RC sticks beyond ~30% deflection while airborne automatically triggers manual override.
+- **Command Rejection**: When in MANUAL mode, autonomous navigation commands are rejected to ensure full pilot control.
+- **Safe Transitions**: Override only activates when airborne, preventing spurious activation during idle or takeoff.
+
 ## Supported Hardware
+
+**SDK Version**: DJI Mobile SDK V5 5.17.0
 
 ### DJI Drones (Mobile SDK V5 Compatible)
 - **DJI Mini 3/Mini 3 Pro**
@@ -256,6 +269,7 @@ Connect to the TCP socket on port 8081 to receive continuous JSON telemetry at 2
 | `/send/navigateTrajectoryDJINative` | DJI native waypoint mission | `lat,lon,alt;lat,lon,alt;...` |
 | `/send/abort/DJIMission` | Stop DJI native mission | None |
 | `/send/abortMission` | Stop and disable Virtual Stick | None |
+| `/send/abort` | Stop all active missions (DJI + Virtual Stick) | None |
 | `/send/enableVirtualStick` | Enable Virtual Stick mode | None |
 | `/send/stick` | Virtual stick input | `leftX,leftY,rightX,rightY` |
 | `/send/camera/zoom` | Camera zoom control | `zoom_ratio` |
@@ -296,8 +310,9 @@ WildBridge supports two video streaming modes that can be toggled in the Virtual
 #### WebRTC Streaming (Default)
 - **Port**: 8082
 - **Protocol**: WebSocket (ws://{RC_IP}:8082)
+- **Resolution**: 720p@10fps (adaptive to 5fps under high load)
 - **Latency**: <1 second (lower latency streaming)
-- **Features**: Real-time video, client connection management
+- **Features**: Real-time video, dynamic resolution selection, client connection management
 - **Use Case**: Live monitoring, low-latency applications
 
 #### RTSP Streaming

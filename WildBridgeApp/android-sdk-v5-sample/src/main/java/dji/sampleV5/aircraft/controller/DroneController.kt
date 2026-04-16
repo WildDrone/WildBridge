@@ -462,7 +462,7 @@ object DroneController {
 
     fun startReturnToHome() {
         // CRITICAL: Disable virtual stick before RTH to prevent conflicts
-        // Virtual stick mode can interfere with RTH causing erratic behavior
+        // Virtual stick mode can interfere with RTH causing erratic behaviorW
         setDroneStatus(DroneStatus.RETURNING_HOME)
         statusResetHandler.postDelayed({
             if (droneStatus == DroneStatus.RETURNING_HOME) setDroneStatus(DroneStatus.IDLE)
