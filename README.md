@@ -281,8 +281,8 @@ Continuous newline-delimited JSON stream. Connect and read; the app pushes updat
 
 ### Control Endpoints (HTTP POST — Port 8080)
 
-| Endpoint | Body / Parameters | Description |
-|----------|------------------|-------------|
+| Endpoint | Body | Description |
+|----------|------|-------------|
 | `/send/takeoff` | — | Takeoff |
 | `/send/land` | — | Land |
 | `/send/RTH` | — | Return to home (aborts active mission + disables VS first) |
@@ -290,14 +290,14 @@ Continuous newline-delimited JSON stream. Connect and read; the app pushes updat
 | `/send/abortMission` | — | Stop mission + disable Virtual Stick |
 | `/send/abortAll` | — | Stop all active missions (DJI native + Virtual Stick) |
 | `/send/abort/DJIMission` | — | Stop DJI native mission only |
-| `/send/stick` | `leftX,leftY,rightX,rightY` ∈ [-1,1] | Direct AVS velocity input |
+| `/send/stick` | `leftX,leftY,rightX,rightY` | Direct AVS velocity input (values ∈ [-1, 1]) |
 | `/send/gotoWP` | `lat,lon,alt` | Navigate to waypoint (basic) |
 | `/send/gotoWPwithPID` | `lat,lon,alt,yaw[,speed]` | PID position controller (default speed: 5.0 m/s) |
 | `/send/gotoWPwithPIDtuning` | `lat,lon,alt,yaw,kp_pos,ki_pos,kd_pos,kp_yaw,ki_yaw,kd_yaw` | PID with custom gains |
-| `/send/navigateTrajectory` | `lat,lon,alt;…;lat,lon,alt,yaw` | Trajectory via Virtual Stick PID; last WP has yaw |
+| `/send/navigateTrajectory` | `lat,lon,alt;…;lat,lon,alt,yaw` | Trajectory via Virtual Stick PID; last WP includes yaw |
 | `/send/navigateTrajectoryDJINative` | `speed;lat,lon,alt;…` | DJI native KMZ mission (≥ 2 waypoints) |
-| `/send/gotoYaw` | `yaw_degrees` | Rotate to heading (enables VS) |
-| `/send/gotoAltitude` | `altitude_m` | Change altitude (enables VS) |
+| `/send/gotoYaw` | `yaw_degrees` | Rotate to heading |
+| `/send/gotoAltitude` | `altitude_m` | Change altitude |
 | `/send/gimbal/pitch` | `roll,pitch,yaw` | Set gimbal pitch |
 | `/send/gimbal/yaw` | `roll,pitch,yaw` | Set gimbal yaw joint angle |
 | `/send/camera/zoom` | `zoom_ratio` | Set camera zoom |
