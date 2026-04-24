@@ -520,17 +520,6 @@ WildBridge/
 
 ---
 
-## Limitations
-
-| Limitation | Detail |
-|------------|--------|
-| Video–telemetry sync | Streams are not synchronised; a sync manoeuvre at mission start is needed for post-mission alignment |
-| Manual override | Once latched, autonomous commands are fully blocked until `/send/deactivateManualOverride` is called |
-| SDK dependency | Relies on DJI Mobile SDK V5; SDK updates may require app changes |
-| Setup time | Multi-drone configurations require registering IPs and completing pre-flight checks on the GS |
-
----
-
 ## Troubleshooting
 
 **Connection refused:**
