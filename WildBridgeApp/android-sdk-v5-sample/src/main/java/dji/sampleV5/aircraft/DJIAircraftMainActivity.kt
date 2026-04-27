@@ -4,7 +4,6 @@ import dji.v5.common.utils.GeoidManager
 import dji.v5.ux.core.communication.DefaultGlobalPreferences
 import dji.v5.ux.core.communication.GlobalPreferencesManager
 import dji.v5.ux.core.util.UxSharedPreferencesUtil
-import dji.v5.ux.sample.showcase.defaultlayout.DefaultLayoutActivity
 import dji.v5.ux.sample.showcase.widgetlist.WidgetsActivity
 
 /**
@@ -22,7 +21,7 @@ class DJIAircraftMainActivity : DJIMainActivity() {
         GlobalPreferencesManager.initialize(DefaultGlobalPreferences(this))
         GeoidManager.getInstance().init(this)
 
-        enableDefaultLayout(DefaultLayoutActivity::class.java)
+        enableDefaultLayout(WildBridgeDefaultLayoutActivity::class.java)
         enableWidgetList(WidgetsActivity::class.java)
     }
 

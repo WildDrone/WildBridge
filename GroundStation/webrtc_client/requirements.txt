@@ -1,0 +1,7 @@
+# WebRTC dependencies
+aiortc>=1.6.0
+websockets>=12.0
+opencv-python>=4.8.0
+numpy>=1.24.0
+aiohttp>=3.9.0
+av>=11.0.0

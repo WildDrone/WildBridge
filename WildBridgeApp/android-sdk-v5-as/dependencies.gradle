@@ -1,9 +1,9 @@
 ext {
     deps = [:]
     //DJI MSDK V5包
-    deps.aircraft = "com.dji:dji-sdk-v5-aircraft:5.15.0"
-    deps.aircraftProvided = "com.dji:dji-sdk-v5-aircraft-provided:5.15.0"
-    deps.networkImp = "com.dji:dji-sdk-v5-networkImp:5.15.0"
+    deps.aircraft = "com.dji:dji-sdk-v5-aircraft:5.17.0"
+    deps.aircraftProvided = "com.dji:dji-sdk-v5-aircraft-provided:5.17.0"
+    deps.networkImp = "com.dji:dji-sdk-v5-networkImp:5.17.0"
 
     //三方依赖库
     deps.gson = 'com.google.code.gson:gson:2.9.1'
@@ -67,7 +67,7 @@ ext {
     deps.dom = 'org.dom4j:dom4j:2.1.1'
 
     //kotlin
-    deps.kotlinLib = "org.jetbrains.kotlin:kotlin-stdlib-jdk7:$KOTLIN_VERSION"
+    deps.kotlinLib = "org.jetbrains.kotlin:kotlin-stdlib:$KOTLIN_VERSION"
 
     //glide
     deps.glide = 'com.github.bumptech.glide:glide:4.9.0'

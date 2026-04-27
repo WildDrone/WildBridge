@@ -9,6 +9,7 @@ via the WildBridge app. The node handles both command reception and telemetry pu
 
 import rclpy
 from rclpy.node import Node
+from rclpy.parameter import Parameter
 from std_msgs.msg import Empty, String, Float64MultiArray, Float64, Int32, Bool
 from sensor_msgs.msg import NavSatFix
 from geometry_msgs.msg import Vector3
@@ -26,12 +27,19 @@ class DjiNode(Node):
         self.get_logger().info("Node Initialisation")
 
         # Retrieve the drone's IP address from the parameter server
-        self.declare_parameter('ip_rc', '192.168.50.27')  # Default IP
+        self.declare_parameter('ip_rc', '')  # Default IP (empty for auto-discovery)
         self.ip_rc = self.get_parameter(
             'ip_rc').get_parameter_value().string_value
 
         # Initialize the DJI drone interface
         self.dji_interface = DJIInterface(self.ip_rc)
+        
+        # Update IP if discovered and set the ROS2 parameter so other nodes can query it
+        if not self.ip_rc and self.dji_interface.IP_RC:
+            self.ip_rc = self.dji_interface.IP_RC
+            # Update the ROS2 parameter so bridge can query it
+            self.set_parameters([Parameter('ip_rc', Parameter.Type.STRING, self.ip_rc)])
+            self.get_logger().info(f"Discovered drone at {self.ip_rc}, updated ip_rc parameter")
 
         # Verify the connection to the drone
         if not self.verify_connection():
@@ -52,9 +60,13 @@ class DjiNode(Node):
         self.create_subscription(
             Empty, 'command/abort_mission', self.abort_mission_callback, 10)
         self.create_subscription(
+            Empty, 'command/abort_all', self.abort_all_callback, 10)
+        self.create_subscription(
             Empty, 'command/enable_virtual_stick', self.enable_virtual_stick_callback, 10)
         self.create_subscription(
             Empty, 'command/abort_dji_native_mission', self.abort_dji_native_mission_callback, 10)
+        self.create_subscription(
+            Empty, 'command/deactivate_manual_override', self.deactivate_manual_override_callback, 10)
 
         # Subscribers for drone commands with specific messages
         self.create_subscription(
@@ -153,6 +165,14 @@ class DjiNode(Node):
         self.camera_is_recording_pub = self.create_publisher(
             Bool, 'camera/is_recording', 10)
 
+        # Flight mode publisher
+        self.flight_mode_pub = self.create_publisher(
+            String, 'flight_mode', 10)
+
+        # Manual override publisher
+        self.manual_override_pub = self.create_publisher(
+            Bool, 'manual_override_active', 10)
+
         # Timer to publish telemetry at regular intervals
         # Publish every 1/20 second (50ms)
         self.create_timer(0.05, self.publish_states)
@@ -170,10 +190,18 @@ class DjiNode(Node):
 
         def connection_attempt():
             try:
-                # Try to send a simple request to verify connection
-                response = self.dji_interface.requestSend("/", "", verbose=True)
-                self.get_logger().info(f"Connection attempt response: {response}")
-                return True
+                # Try to get config to verify connection (cleaner than probing /)
+                config = get_config(self.ip_rc)
+                if config:
+                    self.get_logger().info(f"Connection verified. Drone config: {config}")
+                    return True
+                
+                # Fallback to old method if config fails but maybe server is up
+                response = self.dji_interface.requestSend("/", "", verbose=False)
+                if response:
+                    self.get_logger().info("Connection verified (via fallback probe).")
+                    return True
+                return False
             except RequestException as e:
                 self.get_logger().error(f"Connection failed: {e}")
                 return False
@@ -210,6 +238,10 @@ class DjiNode(Node):
         self.get_logger().info("Received abort mission command.")
         self.dji_interface.requestAbortMission()
 
+    def abort_all_callback(self, msg):
+        self.get_logger().info("Received abort ALL command - stopping all missions.")
+        self.dji_interface.requestAbortAll()
+
     def enable_virtual_stick_callback(self, msg):
         self.get_logger().info("Received enable virtual stick command.")
         self.dji_interface.requestSendEnableVirtualStick()
@@ -217,6 +249,10 @@ class DjiNode(Node):
     def abort_dji_native_mission_callback(self, msg):
         self.get_logger().info("Received abort DJI native mission command.")
         self.dji_interface.requestAbortDJINativeMission()
+
+    def deactivate_manual_override_callback(self, msg):
+        self.get_logger().info("Received deactivate manual override command.")
+        self.dji_interface.requestDeactivateManualOverride()
 
     def goto_waypoint_callback(self, msg: Float64MultiArray):
         """Navigate to waypoint with PID control.
@@ -438,6 +474,14 @@ class DjiNode(Node):
             # Camera recording status
             self.camera_is_recording_pub.publish(
                 Bool(data=telemetry.get('isRecording', False)))
+
+            # Flight mode
+            self.flight_mode_pub.publish(
+                String(data=telemetry.get('flightMode', 'UNKNOWN')))
+
+            # Manual override state
+            self.manual_override_pub.publish(
+                Bool(data=telemetry.get('isManualOverrideActive', False)))
 
         except Exception as e:
             self.get_logger().error(f"Error while publishing states: {e}")

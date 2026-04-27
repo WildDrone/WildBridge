@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DJI Drone WebRTC Viewer</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background: #1a1a2e;
+            color: #fff;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+        }
+        h1 {
+            margin-bottom: 20px;
+            color: #4ade80;
+        }
+        .container {
+            max-width: 900px;
+            width: 100%;
+        }
+        .connection-panel {
+            background: #16213e;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+        }
+        .form-group {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+            align-items: center;
+        }
+        label {
+            min-width: 100px;
+            color: #94a3b8;
+        }
+        input {
+            flex: 1;
+            padding: 10px 15px;
+            border: 1px solid #334155;
+            border-radius: 5px;
+            background: #1e293b;
+            color: #fff;
+            font-size: 14px;
+        }
+        input:focus {
+            outline: none;
+            border-color: #4ade80;
+        }
+        .btn {
+            padding: 10px 25px;
+            border: none;
+            border-radius: 5px;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        .btn-primary {
+            background: #4ade80;
+            color: #1a1a2e;
+        }
+        .btn-primary:hover {
+            background: #22c55e;
+        }
+        .btn-danger {
+            background: #ef4444;
+            color: #fff;
+        }
+        .btn-danger:hover {
+            background: #dc2626;
+        }
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        .status {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 15px;
+            background: #1e293b;
+            border-radius: 5px;
+        }
+        .status-indicator {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #ef4444;
+        }
+        .status-indicator.connected {
+            background: #4ade80;
+        }
+        .video-container {
+            background: #000;
+            border-radius: 10px;
+            overflow: hidden;
+            aspect-ratio: 16/9;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        video {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
+        .placeholder {
+            color: #64748b;
+            text-align: center;
+        }
+        .logs {
+            background: #16213e;
+            padding: 15px;
+            border-radius: 10px;
+            margin-top: 20px;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+        .logs h3 {
+            margin-bottom: 10px;
+            color: #94a3b8;
+        }
+        .log-entry {
+            font-family: monospace;
+            font-size: 12px;
+            color: #64748b;
+            margin: 3px 0;
+        }
+        .log-entry.info { color: #3b82f6; }
+        .log-entry.success { color: #4ade80; }
+        .log-entry.error { color: #ef4444; }
+        .log-entry.warn { color: #f59e0b; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🚁 DJI Drone WebRTC Viewer</h1>
+        
+        <div class="connection-panel">
+            <div class="form-group">
+                <label>Server URL:</label>
+                <input type="text" id="serverUrl" placeholder="ws://192.168.1.100:8081" value="">
+                <button class="btn btn-primary" id="connectBtn" onclick="connect()">Connect</button>
+                <button class="btn btn-danger" id="disconnectBtn" onclick="disconnect()" disabled>Disconnect</button>
+            </div>
+            <div class="status">
+                <div class="status-indicator" id="statusIndicator"></div>
+                <span id="statusText">Disconnected</span>
+            </div>
+        </div>
+
+        <div class="video-container">
+            <video id="remoteVideo" autoplay playsinline></video>
+            <div class="placeholder" id="videoPlaceholder">
+                <p>📹 Connect to the drone to view video feed</p>
+            </div>
+        </div>
+
+        <div class="logs">
+            <h3>Connection Logs</h3>
+            <div id="logContainer"></div>
+        </div>
+    </div>
+
+    <script>
+        let ws = null;
+        let peerConnection = null;
+        let clientId = null;
+
+        const config = {
+            iceServers: [
+                { urls: 'stun:stun.l.google.com:19302' }
+            ]
+        };
+
+        function log(message, type = 'info') {
+            const container = document.getElementById('logContainer');
+            const entry = document.createElement('div');
+            entry.className = `log-entry ${type}`;
+            entry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            container.appendChild(entry);
+            container.scrollTop = container.scrollHeight;
+            console.log(message);
+        }
+
+        function setStatus(connected, text) {
+            const indicator = document.getElementById('statusIndicator');
+            const statusText = document.getElementById('statusText');
+            indicator.className = `status-indicator ${connected ? 'connected' : ''}`;
+            statusText.textContent = text;
+        }
+
+        function connect() {
+            const url = document.getElementById('serverUrl').value;
+            if (!url) {
+                log('Please enter server URL', 'error');
+                return;
+            }
+
+            log(`Connecting to ${url}...`);
+            setStatus(false, 'Connecting...');
+
+            try {
+                ws = new WebSocket(url);
+
+                ws.onopen = () => {
+                    log('WebSocket connected', 'success');
+                    setStatus(true, 'Connected to signaling server');
+                    document.getElementById('connectBtn').disabled = true;
+                    document.getElementById('disconnectBtn').disabled = false;
+                    
+                    // Register as a viewer
+                    ws.send(JSON.stringify({ type: 'register', role: 'viewer' }));
+                };
+
+                ws.onmessage = async (event) => {
+                    const message = JSON.parse(event.data);
+                    log(`Received: ${message.type}`, 'info');
+
+                    switch (message.type) {
+                        case 'welcome':
+                            clientId = message.clientId;
+                            log(`Assigned client ID: ${clientId}`, 'success');
+                            break;
+
+                        case 'offer':
+                            await handleOffer(message);
+                            break;
+
+                        case 'answer':
+                            await handleAnswer(message);
+                            break;
+
+                        case 'candidate':
+                            await handleCandidate(message);
+                            break;
+
+                        default:
+                            log(`Unknown message type: ${message.type}`, 'warn');
+                    }
+                };
+
+                ws.onclose = () => {
+                    log('WebSocket disconnected', 'warn');
+                    setStatus(false, 'Disconnected');
+                    cleanup();
+                };
+
+                ws.onerror = (error) => {
+                    log(`WebSocket error: ${error}`, 'error');
+                    setStatus(false, 'Connection error');
+                };
+            } catch (e) {
+                log(`Connection failed: ${e.message}`, 'error');
+            }
+        }
+
+        function disconnect() {
+            log('Disconnecting...');
+            cleanup();
+            setStatus(false, 'Disconnected');
+        }
+
+        function cleanup() {
+            if (ws) {
+                ws.close();
+                ws = null;
+            }
+            if (peerConnection) {
+                peerConnection.close();
+                peerConnection = null;
+            }
+            document.getElementById('connectBtn').disabled = false;
+            document.getElementById('disconnectBtn').disabled = true;
+            document.getElementById('remoteVideo').srcObject = null;
+            document.getElementById('videoPlaceholder').style.display = 'block';
+        }
+
+        async function createPeerConnection() {
+            peerConnection = new RTCPeerConnection(config);
+
+            peerConnection.onicecandidate = (event) => {
+                if (event.candidate) {
+                    log('Sending ICE candidate', 'info');
+                    ws.send(JSON.stringify({
+                        type: 'candidate',
+                        label: event.candidate.sdpMLineIndex,
+                        id: event.candidate.sdpMid,
+                        candidate: event.candidate.candidate
+                    }));
+                }
+            };
+
+            peerConnection.ontrack = (event) => {
+                log('Received remote track', 'success');
+                const video = document.getElementById('remoteVideo');
+                video.srcObject = event.streams[0];
+                document.getElementById('videoPlaceholder').style.display = 'none';
+                setStatus(true, 'Receiving video');
+            };
+
+            peerConnection.oniceconnectionstatechange = () => {
+                log(`ICE state: ${peerConnection.iceConnectionState}`);
+                if (peerConnection.iceConnectionState === 'disconnected' ||
+                    peerConnection.iceConnectionState === 'failed') {
+                    setStatus(false, 'Connection lost');
+                }
+            };
+
+            peerConnection.onconnectionstatechange = () => {
+                log(`Connection state: ${peerConnection.connectionState}`);
+            };
+
+            return peerConnection;
+        }
+
+        async function handleOffer(message) {
+            log('Processing offer...', 'info');
+            
+            if (!peerConnection) {
+                await createPeerConnection();
+            }
+
+            try {
+                await peerConnection.setRemoteDescription(new RTCSessionDescription({
+                    type: 'offer',
+                    sdp: message.sdp
+                }));
+
+                const answer = await peerConnection.createAnswer();
+                await peerConnection.setLocalDescription(answer);
+
+                log('Sending answer', 'info');
+                ws.send(JSON.stringify({
+                    type: 'answer',
+                    sdp: answer.sdp
+                }));
+            } catch (e) {
+                log(`Error handling offer: ${e.message}`, 'error');
+            }
+        }
+
+        async function handleAnswer(message) {
+            log('Processing answer...', 'info');
+            try {
+                await peerConnection.setRemoteDescription(new RTCSessionDescription({
+                    type: 'answer',
+                    sdp: message.sdp
+                }));
+            } catch (e) {
+                log(`Error handling answer: ${e.message}`, 'error');
+            }
+        }
+
+        async function handleCandidate(message) {
+            log('Processing ICE candidate...', 'info');
+            try {
+                if (peerConnection) {
+                    await peerConnection.addIceCandidate(new RTCIceCandidate({
+                        sdpMLineIndex: message.label,
+                        sdpMid: message.id,
+                        candidate: message.candidate
+                    }));
+                }
+            } catch (e) {
+                log(`Error handling candidate: ${e.message}`, 'error');
+            }
+        }
+
+        // Try to auto-fill URL from query parameter
+        const urlParams = new URLSearchParams(window.location.search);
+        const serverParam = urlParams.get('server');
+        if (serverParam) {
+            document.getElementById('serverUrl').value = serverParam;
+        }
+    </script>
+</body>
+</html>

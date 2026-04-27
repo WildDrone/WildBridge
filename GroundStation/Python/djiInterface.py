@@ -18,7 +18,45 @@ import ast
 import json
 import socket
 import threading
+import time
 from datetime import datetime
+
+# Discovery Configuration
+DISCOVERY_PORT = 30000
+DISCOVERY_MSG = b"DISCOVER_WILDBRIDGE"
+DISCOVERY_RESPONSE_PREFIX = "WILDBRIDGE_HERE:"
+
+def discover_drone(timeout=5.0):
+    """
+    Discover WildBridge drone on the network using UDP broadcast.
+    Returns the IP address of the first drone found, or None if not found.
+    """
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+    sock.settimeout(timeout)
+    
+    try:
+        # Send broadcast
+        sock.sendto(DISCOVERY_MSG, ('<broadcast>', DISCOVERY_PORT))
+        print(f"Broadcasting discovery message on port {DISCOVERY_PORT}...")
+        
+        start_time = time.time()
+        while time.time() - start_time < timeout:
+            try:
+                data, addr = sock.recvfrom(1024)
+                message = data.decode('utf-8')
+                if message.startswith(DISCOVERY_RESPONSE_PREFIX):
+                    drone_ip = message.split(":")[1]
+                    print(f"Found WildBridge drone at {drone_ip}")
+                    return drone_ip
+            except socket.timeout:
+                break
+    except Exception as e:
+        print(f"Discovery error: {e}")
+    finally:
+        sock.close()
+    
+    return None
 
 # HTTP POST Command Endpoints (port 8080)
 EP_STICK = "/send/stick"  # expects a formatted string: "<leftX>,<leftY>,<rightX>,<rightY>"
@@ -40,6 +78,8 @@ EP_CAMERA_STOP_RECORDING = "/send/camera/stopRecording"
 EP_GOTO_TRAJECTORY_DJI_NATIVE = "/send/navigateTrajectoryDJINative"
 EP_ABORT_DJI_NATIVE_MISSION = "/send/abort/DJIMission"
 EP_SET_RTH_ALTITUDE = "/send/setRTHAltitude"
+EP_DEACTIVATE_MANUAL_OVERRIDE = "/send/deactivateManualOverride"
+EP_GET_MANUAL_OVERRIDE = "/get/isManualOverrideActive"
 
 # PID Tuning
 EP_TUNING = "/send/gotoWPwithPIDtuning"
@@ -52,8 +92,18 @@ class DJIInterface:
     """
     
     def __init__(self, IP_RC=""):
-        self.IP_RC = IP_RC
-        self.baseCommandUrl = f"http://{IP_RC}:8080"
+        if not IP_RC:
+            print("No IP provided, attempting to discover drone...")
+            discovered_ip = discover_drone()
+            if discovered_ip:
+                self.IP_RC = discovered_ip
+            else:
+                print("Drone discovery failed.")
+                self.IP_RC = ""
+        else:
+            self.IP_RC = IP_RC
+
+        self.baseCommandUrl = f"http://{self.IP_RC}:8080"
         self.telemetryPort = 8081
         self.videoSource = f"rtsp://aaa:aaa@{self.IP_RC}:8554/streaming/live/1"
         
@@ -281,6 +331,14 @@ class DJIInterface:
         """Get the current flight mode (e.g., 'MANUAL', 'GPS', 'GO_HOME', etc.)."""
         return self.getTelemetry().get("flightMode", "UNKNOWN")
 
+    def isManualOverrideActive(self):
+        """Check if manual override is active (pilot took RC control).
+        
+        When True, autonomous HTTP commands are being rejected by the app.
+        The pilot must deactivate manual override before autonomous commands work again.
+        """
+        return self.getTelemetry().get("isManualOverrideActive", False)
+
     # ==================== Commands (HTTP POST on port 8080) ====================
 
     def requestSend(self, endPoint, data, verbose=False):
@@ -330,7 +388,14 @@ class DJIInterface:
         return self.requestSend(EP_LAND, "")
 
     def requestSendRTH(self):
-        """Command the drone to return to home."""
+        """Command the drone to return to home.
+        
+        Note: This first aborts any active mission and disables virtual stick
+        to prevent conflicts with RTH. Virtual stick mode can interfere with
+        RTH causing erratic behavior.
+        """
+        # CRITICAL: Disable virtual stick before RTH to prevent conflicts
+        self.requestAbortMission()
         return self.requestSend(EP_RTH, "")
 
     def requestSendGoToWP(self, latitude, longitude, altitude):
@@ -433,6 +498,14 @@ class DJIInterface:
         """Set the return-to-home altitude in meters."""
         return self.requestSend(EP_SET_RTH_ALTITUDE, str(altitude))
 
+    def requestDeactivateManualOverride(self):
+        """Deactivate manual override latch so autonomous commands are accepted again.
+        
+        This should be called after the pilot has finished manual control
+        and wants to allow autonomous commands to work again.
+        """
+        return self.requestSend(EP_DEACTIVATE_MANUAL_OVERRIDE, "")
+
     # ==================== Deprecated methods (kept for backward compatibility) ====================
     
     def requestSticks(self):
@@ -522,6 +595,7 @@ if __name__ == '__main__':
                 print(f"  Low Batt:    {dji.getLowBatteryThreshold()}%")
                 print(f"  Serious Low: {dji.getSeriousLowBatteryThreshold()}%")
                 print(f"  Flight Mode: {dji.getFlightMode()}")
+                print(f"  Manual Override: {dji.isManualOverrideActive()}")
             else:
                 print("Waiting for telemetry data...")
             

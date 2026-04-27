@@ -12,6 +12,12 @@
         tools:layout="@layout/frag_virtual_stick_page" />
 
     <fragment
+        android:id="@+id/webrtc_stream_page"
+        android:name="dji.sampleV5.aircraft.pages.WebRTCStreamFragment"
+        android:label="webrtc_stream_page"
+        tools:layout="@layout/frag_webrtc_stream" />
+
+    <fragment
         android:id="@+id/formation_control_page"
         android:name="dji.sampleV5.aircraft.pages.FormationControlFragment"
         android:label="formation_control_page"

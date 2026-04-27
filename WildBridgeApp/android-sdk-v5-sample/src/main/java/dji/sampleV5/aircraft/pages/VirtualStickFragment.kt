@@ -1,6 +1,5 @@
 package dji.sampleV5.aircraft.pages
 import android.annotation.SuppressLint
-import android.graphics.Color
 import android.os.Bundle
 import android.util.Log
 import android.view.LayoutInflater
@@ -8,7 +7,6 @@ import android.view.Surface
 import android.view.SurfaceHolder
 import android.view.View
 import android.view.ViewGroup
-import android.widget.TextView
 import androidx.fragment.app.activityViewModels
 import dji.sampleV5.aircraft.databinding.FragVirtualStickPageBinding
 import dji.sampleV5.aircraft.keyvalue.KeyValueDialogUtil
@@ -64,6 +62,8 @@ import kotlin.concurrent.thread
 import dji.v5.manager.KeyManager
 
 import dji.sdk.keyvalue.value.flightcontroller.FlightMode
+import dji.sampleV5.aircraft.webrtc.WebRTCStreamer
+import dji.sampleV5.aircraft.webrtc.WebRTCMediaOptions
 
 /**
  * Class Description
@@ -75,6 +75,10 @@ import dji.sdk.keyvalue.value.flightcontroller.FlightMode
  */
 
 class VirtualStickFragment : DJIFragment() {
+
+    companion object {
+        private const val TAG = "VirtualStickFragment"
+    }
 
     private val basicAircraftControlVM: BasicAircraftControlVM by activityViewModels()
     private val virtualStickVM: VirtualStickVM by activityViewModels()
@@ -95,6 +99,11 @@ class VirtualStickFragment : DJIFragment() {
     private var httpServer: SimpleHttpServer? = null
     private var telemetryServer: TelemetryServer? = null
     private var isHomePointSetLatch = false
+
+    // WebRTC streaming
+    private var webRTCStreamer: WebRTCStreamer? = null
+    private var isWebRTCMode = true  // Start with WebRTC by default
+    private val wEBRTCPORT = 8082  // Use different port than telemetry server
 
     // --- Remaining flight time style data (similar to RemainingFlightTimeWidgetModel) ---
     private val chargeRemainingProcessor: DataProcessor<Int> = DataProcessor.create(0)
@@ -293,6 +302,9 @@ class VirtualStickFragment : DJIFragment() {
                         "Return to home command sent."
                     }
                     "/send/stick" -> {
+                        if (DroneController.shouldRejectAutonomousCommand("stick")) {
+                            return "REJECTED: Manual override active. Deactivate manual override first."
+                        }
                         val cmd = postData.split(",")
                         val lx = cmd[0].toFloat()
                         val ly = cmd[1].toFloat()
@@ -335,6 +347,9 @@ class VirtualStickFragment : DJIFragment() {
                         "Received: roll: $roll, pitch: $pitch, yaw: $yaw"
                     }
                     "/send/gotoYaw" -> {
+                        if (DroneController.shouldRejectAutonomousCommand("gotoYaw")) {
+                            return "REJECTED: Manual override active. Deactivate manual override first."
+                        }
                         val yaw = postData.split(",")[0].toDouble()
                         DroneController.gotoYaw(yaw)
                         mainHandler.post {
@@ -343,6 +358,9 @@ class VirtualStickFragment : DJIFragment() {
                         "Received: yaw: $yaw"
                     }
                     "/send/gotoAltitude" -> {
+                        if (DroneController.shouldRejectAutonomousCommand("gotoAltitude")) {
+                            return "REJECTED: Manual override active. Deactivate manual override first."
+                        }
                         val targetAltitude = postData.split(",")[0].toDouble()
                         DroneController.gotoAltitude(targetAltitude)
                         mainHandler.post {
@@ -366,7 +384,17 @@ class VirtualStickFragment : DJIFragment() {
                         }
                         "Received: abortMission"
                     }
+                    "/send/abortAll" -> {
+                        DroneController.abortAllMissions()
+                        mainHandler.post {
+                            ToastUtils.showToast("All missions aborted!")
+                        }
+                        "Received: abortAll"
+                    }
                     "/send/enableVirtualStick" -> {
+                        if (DroneController.shouldRejectAutonomousCommand("enableVirtualStick")) {
+                            return "REJECTED: Manual override active. Deactivate manual override first."
+                        }
                         DroneController.enableVirtualStick()
                         mainHandler.post {
                             ToastUtils.showToast("Virtual stick enabled!")
@@ -388,6 +416,9 @@ class VirtualStickFragment : DJIFragment() {
                         "Received: camera stop recording"
                     }
                     "/send/gotoWP" -> {
+                        if (DroneController.shouldRejectAutonomousCommand("gotoWP")) {
+                            return "REJECTED: Manual override active. Deactivate manual override first."
+                        }
                         val cmd = postData.split(",")
                         if (cmd.size < 3) {
                             return "Invalid input. Expected format: lat,lon,alt"
@@ -402,6 +433,9 @@ class VirtualStickFragment : DJIFragment() {
                         "Waypoint command received: Latitude=$latitude, Longitude=$longitude, Altitude=$altitude"
                     }
                     "/send/gotoWPwithPID" -> {
+                        if (DroneController.shouldRejectAutonomousCommand("gotoWPwithPID")) {
+                            return "REJECTED: Manual override active. Deactivate manual override first."
+                        }
                         val cmd = postData.split(",")
                         if (cmd.size < 5) {
                             return "Invalid input. Expected format: lat,lon,alt,yaw,maxSpeed"
@@ -415,6 +449,9 @@ class VirtualStickFragment : DJIFragment() {
                         "Waypoint command received: Latitude=$latitude, Longitude=$longitude, Altitude=$altitude, Yaw=$yaw, MaxSpeed=$maxSpeed"
                     }
                     "/send/navigateTrajectory" -> {
+                        if (DroneController.shouldRejectAutonomousCommand("navigateTrajectory")) {
+                            return "REJECTED: Manual override active. Deactivate manual override first."
+                        }
                         Log.d("DroneServer", "Received trajectory data: $postData")
                         val segments = postData.split(";").map { it.trim() }.filter { it.isNotEmpty() }
                         if (segments.isEmpty()) {
@@ -446,6 +483,9 @@ class VirtualStickFragment : DJIFragment() {
                     }
                     // --- New endpoints ---
                     "/send/navigateTrajectoryDJINative" -> {
+                        if (DroneController.shouldRejectAutonomousCommand("navigateTrajectoryDJINative")) {
+                            return "REJECTED: Manual override active. Deactivate manual override first."
+                        }
                         // Expect: "speed;lat,lon,alt;lat,lon,alt;..."
                         val segments = postData.split(";").map { it.trim() }.filter { it.isNotEmpty() }
                         if (segments.size < 3) return "Invalid input. Need speed and at least 2 waypoints: speed;lat,lon,alt;..."
@@ -489,6 +529,15 @@ class VirtualStickFragment : DJIFragment() {
                             "Invalid altitude value"
                         }
                     }
+                    // --- Manual Override Control ---
+                    "/send/deactivateManualOverride" -> {
+                        DroneController.deactivateManualOverride()
+                        mainHandler.post { updateManualOverrideUI() }
+                        "Manual override deactivated. Autonomous commands are now allowed."
+                    }
+                    "/get/isManualOverrideActive" -> {
+                        if (DroneController.isManualOverrideActive) "true" else "false"
+                    }
                     else -> "Not Found"
                 }
             } catch (e: Exception) {
@@ -507,11 +556,15 @@ class VirtualStickFragment : DJIFragment() {
         return binding?.root
     }
 
+    @SuppressLint("SetTextI18n")
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
         // Initialize DroneController with required ViewModels
         DroneController.init(basicAircraftControlVM, virtualStickVM)
+
+        // ---- Manual Override checkbox setup ----
+        setupManualOverrideCheckbox()
 
         binding?.widgetHorizontalSituationIndicator?.setSimpleModeEnable(false)
 
@@ -540,7 +593,10 @@ class VirtualStickFragment : DJIFragment() {
         mainHandler.post(distanceUpdateRunnable)
 
         initBtnClickListener()
-        setupAndStartRtspStream()
+        
+        // Start WebRTC stream by default (instead of RTSP)
+        setupAndStartWebRTCStream()
+        
         virtualStickVM.listenRCStick()
         virtualStickVM.currentSpeedLevel.observe(viewLifecycleOwner) {
             updateVirtualStickInfo()
@@ -560,15 +616,74 @@ class VirtualStickFragment : DJIFragment() {
         simulatorVM.simulatorStateSb.observe(viewLifecycleOwner) {
             binding?.simulatorStateInfoTv?.text = it
         }
-        liveStreamVM.streamQuality.observe(viewLifecycleOwner) {
-            binding?.streamQualityInfoTv?.text = it.toString()
+        liveStreamVM.streamQuality.observe(viewLifecycleOwner) { it ->
+            // Only update if in RTSP mode
+            if (!isWebRTCMode) {
+                "RTSP: $it".also { binding?.streamQualityInfoTv?.text = it }
+            }
         }
 
         startServers()
 
         // Initialize camera stream
         initCameraStream()
+        
+        // Display available zoom ratios
+        displayCameraZoomRatios()
+        
+        // Listen for zoom ratios changes
+        KeyManager.getInstance().listen(zoomRatiosRangeKey, this) { _, _ ->
+            displayCameraZoomRatios()
+        }
     }
+
+    // ==================== Manual Override Checkbox ====================
+
+    private fun setupManualOverrideCheckbox() {
+        // Sync checkbox with current state (e.g. after rotation)
+        updateManualOverrideUI()
+
+        // When the checkbox is toggled by the user:
+        // - Checking it does nothing extra (it's auto-checked on activation)
+        // - UN-checking it clears the manual override latch
+        binding?.cbManualOverride?.setOnCheckedChangeListener { _, isChecked ->
+            if (!isChecked) {
+                // User explicitly deactivated manual override
+                DroneController.deactivateManualOverride()
+                updateManualOverrideUI()
+            }
+            // Note: checking it manually is a no-op — it activates automatically via RC sticks
+        }
+
+        // Register listener so DroneController can notify us when override triggers automatically
+        DroneController.manualOverrideListener = object : DroneController.ManualOverrideListener {
+            override fun onManualOverrideActivated() {
+                mainHandler.post { updateManualOverrideUI() }
+            }
+        }
+    }
+
+    @SuppressLint("SetTextI18n")
+    private fun updateManualOverrideUI() {
+        val isActive = DroneController.isManualOverrideActive
+        binding?.cbManualOverride?.let { cb ->
+            // Set checked state without triggering the listener
+            cb.setOnCheckedChangeListener(null)
+            cb.isChecked = isActive
+            cb.text = if (isActive) "\u26a0 Manual" else "Manual"
+            cb.setTextColor(if (isActive) 0xFFFF0000.toInt() else 0xFFFFFFFF.toInt())
+            cb.setBackgroundColor(if (isActive) 0x33FF0000 else 0x00000000)
+            // Re-attach listener
+            cb.setOnCheckedChangeListener { _, isChecked ->
+                if (!isChecked) {
+                    DroneController.deactivateManualOverride()
+                    updateManualOverrideUI()
+                }
+            }
+        }
+    }
+
+    // ==================== End Manual Override Checkbox ====================
 
     private fun initBtnClickListener() {
         binding?.btnEnableVirtualStick?.setOnClickListener {
@@ -659,6 +774,11 @@ class VirtualStickFragment : DJIFragment() {
         binding?.btnDisableVirtualStickAdvancedMode?.setOnClickListener {
             virtualStickVM.disableVirtualStickAdvancedMode()
         }
+        
+        // Toggle between WebRTC and RTSP streaming
+        binding?.btnToggleStreamMode?.setOnClickListener {
+            toggleStreamingMode()
+        }
     }
 
     private fun updateVirtualStickInfo() {
@@ -684,7 +804,74 @@ class VirtualStickFragment : DJIFragment() {
         }
     }
 
+    // ==================== WebRTC Streaming ====================
+    
+    private fun setupAndStartWebRTCStream() {
+        isWebRTCMode = true
+        updateStreamingModeUI()
+        
+        webRTCStreamer = WebRTCStreamer(
+            context = requireContext(),
+            cameraIndex = cameraIndex,
+            signalingPort = wEBRTCPORT,
+            options = WebRTCMediaOptions()
+        )
+        
+        webRTCStreamer?.listener = object : WebRTCStreamer.WebRTCStreamerListener {
+            @SuppressLint("SetTextI18n")
+            override fun onServerStarted(ip: String, port: Int) {
+                mainHandler.post {
+                    ToastUtils.showToast("WebRTC server started at ws://$ip:$port")
+                    binding?.streamQualityInfoTv?.text = "WebRTC: ws://$ip:$port"
+                }
+            }
+
+            @SuppressLint("SetTextI18n")
+            override fun onServerStopped() {
+                mainHandler.post {
+                    binding?.streamQualityInfoTv?.text = "WebRTC: Stopped"
+                }
+            }
+
+            @SuppressLint("SetTextI18n")
+            override fun onServerError(error: String) {
+                mainHandler.post {
+                    ToastUtils.showToast("WebRTC error: $error")
+                    binding?.streamQualityInfoTv?.text = "WebRTC: Error"
+                }
+            }
+
+            @SuppressLint("SetTextI18n")
+            override fun onClientConnected(clientId: String, totalClients: Int) {
+                mainHandler.post {
+                    binding?.streamQualityInfoTv?.text = "WebRTC: $totalClients client(s)"
+                }
+            }
+
+            @SuppressLint("SetTextI18n")
+            override fun onClientDisconnected(clientId: String, totalClients: Int) {
+                mainHandler.post {
+                    binding?.streamQualityInfoTv?.text = "WebRTC: $totalClients client(s)"
+                }
+            }
+        }
+        
+        webRTCStreamer?.start()
+        Log.i("VirtualStickFragment", "WebRTC streamer started on port $wEBRTCPORT")
+    }
+    
+    private fun stopWebRTCStream() {
+        webRTCStreamer?.stop()
+        webRTCStreamer = null
+        Log.i("VirtualStickFragment", "WebRTC streamer stopped")
+    }
+    
+    // ==================== RTSP Streaming ====================
+
     private fun setupAndStartRtspStream() {
+        isWebRTCMode = false
+        updateStreamingModeUI()
+        
         // Set RTSP configuration with the specified parameters
         liveStreamVM.setRTSPConfig(
             "aaa", // username
@@ -693,12 +880,16 @@ class VirtualStickFragment : DJIFragment() {
         )
 
         // Set stream quality to FULL_HD
-        liveStreamVM.setLiveStreamQuality(StreamQuality.SD)
+        liveStreamVM.setLiveStreamQuality(StreamQuality.ORIGINAL)
 
         // Start the stream
         liveStreamVM.startStream(object : CommonCallbacks.CompletionCallback {
+            @SuppressLint("SetTextI18n")
             override fun onSuccess() {
-                ToastUtils.showToast("RTSP stream started successfully")
+                mainHandler.post {
+                    ToastUtils.showToast("RTSP stream started successfully")
+                    binding?.streamQualityInfoTv?.text = "RTSP: rtsp://$deviceIp:8554"
+                }
             }
 
             override fun onFailure(error: IDJIError) {
@@ -720,11 +911,68 @@ class VirtualStickFragment : DJIFragment() {
             })
         }
     }
+    
+    // ==================== Stream Toggle ====================
+    
+    private fun toggleStreamingMode() {
+        if (isWebRTCMode) {
+            // Switch to RTSP
+            stopWebRTCStream()
+            setupAndStartRtspStream()
+        } else {
+            // Switch to WebRTC
+            stopRtspStream()
+            setupAndStartWebRTCStream()
+        }
+    }
+    
+    private fun updateStreamingModeUI() {
+        mainHandler.post {
+            binding?.btnToggleStreamMode?.text = if (isWebRTCMode) {
+                "Switch to RTSP"
+            } else {
+                "Switch to WebRTC"
+            }
+        }
+    }
+    
+    @SuppressLint("SetTextI18n")
+    private fun displayCameraZoomRatios() {
+        try {
+            val zoomRatiosRange = zoomRatiosRangeKey.get()
+            
+            if (zoomRatiosRange != null) {
+                // Build a display string of available zoom ratios
+                val zoomRatiosText = StringBuilder("Camera Zoom Ratios:\n")
+                
+                // ZoomRatiosRange contains the zoom range information
+                val itemStr = zoomRatiosRange.toString()
+                zoomRatiosText.append(itemStr)
+                
+                Log.d(TAG, "Zoom ratio range: $itemStr")
+                
+                mainHandler.post {
+                    binding?.cameraZoomRatiosTv?.text = zoomRatiosText.toString()
+                }
+            } else {
+                mainHandler.post {
+                    binding?.cameraZoomRatiosTv?.text = "Camera Zoom Ratios: Not available"
+                }
+                Log.w(TAG, "Zoom ratios range is null")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error getting zoom ratios: ${e.message}", e)
+            mainHandler.post {
+                binding?.cameraZoomRatiosTv?.text = "Camera Zoom Ratios: Error - ${e.message}"
+            }
+        }
+    }
 
 
     private val gimbalKey: DJIKey.ActionKey<GimbalAngleRotation, EmptyMsg> =
         GimbalKey.KeyRotateByAngle.create()
     private val zoomKey: DJIKey<Double> = CameraKey.KeyCameraZoomRatios.create()
+    private val zoomRatiosRangeKey = CameraKey.KeyCameraZoomRatiosRange.create()
     private val startRecording: DJIKey.ActionKey<EmptyMsg, EmptyMsg> = CameraKey.KeyStartRecord.create()
     private val stopRecording: DJIKey.ActionKey<EmptyMsg, EmptyMsg> = CameraKey.KeyStopRecord.create()
     private val isRecording: DJIKey<Boolean> = CameraKey.KeyIsRecording.create()
@@ -859,7 +1107,7 @@ class VirtualStickFragment : DJIFragment() {
             override fun run() {
                 val currentBatteryLevel = getBatteryLevel()
                 mainHandler.post {
-                    binding?.batteryLevelTv?.text = "Battery Level: $currentBatteryLevel%"
+                    "Battery Level: $currentBatteryLevel%".also { binding?.batteryLevelTv?.text = it }
                 }
                 mainHandler.postDelayed(this, 1000) // Update every second
             }
@@ -954,6 +1202,7 @@ class VirtualStickFragment : DJIFragment() {
 
     override fun onDestroyView() {
         super.onDestroyView()
+        stopWebRTCStream()
         stopRtspStream()
         httpServer?.stop()
         telemetryServer?.stop()
@@ -1032,7 +1281,8 @@ class VirtualStickFragment : DJIFragment() {
                 "\"totalTime\":$totalTime,\"maxRadiusCanFlyAndGoHome\":$maxRadiusCanFlyAndGoHome," +
                 "\"remainingCharge\":$remainingCharge,\"batteryNeededToLand\":$batteryNeededToLand," +
                 "\"batteryNeededToGoHome\":$batteryNeededToGoHome,\"seriousLowBatteryThreshold\":$seriousLowBatteryThreshold," +
-                "\"lowBatteryThreshold\":$lowBatteryThreshold,\"flightMode\":$flightMode}"
+                "\"lowBatteryThreshold\":$lowBatteryThreshold,\"flightMode\":$flightMode," +
+                "\"isManualOverrideActive\":${DroneController.isManualOverrideActive}}"
     }
     //endregion
 }

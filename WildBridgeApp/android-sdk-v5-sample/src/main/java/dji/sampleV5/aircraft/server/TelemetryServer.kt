@@ -82,7 +82,7 @@ class TelemetryServer(
                     Log.i("TelemetryServer", "Client disconnected and removed.")
                 }
 
-                Thread.sleep(200) // Send data at 20Hz
+                Thread.sleep(10) // Adjust the interval as needed
             } catch (e: Exception) {
                 Log.e("TelemetryServer", "Error in telemetry sending loop: ${e.message}")
             }

@@ -96,6 +96,93 @@
             app:uxsdk_itemsMarginRight="@dimen/uxsdk_spacing_normal"
             app:uxsdk_itemsSpacing="14dp" />
 
+        <!-- Autonomous / Manual mode toggle -->
+        <Switch
+            android:id="@+id/cb_manual_override"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="AUTO"
+            android:textColor="#FF2196F3"
+            android:textSize="13sp"
+            android:textStyle="bold"
+            android:padding="6dp"
+            android:checked="false"
+            android:switchMinWidth="44dp"
+            android:background="@drawable/uxsdk_background_black_rectangle"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintBottom_toTopOf="@+id/text_drone_name"
+            android:layout_marginStart="16dp"
+            android:layout_marginBottom="4dp"
+            tools:ignore="HardcodedText" />
+
+        <TextView
+            android:id="@+id/text_drone_name"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="drone_1"
+            android:textColor="#FFFFFF"
+            android:textSize="16sp"
+            android:textStyle="bold"
+            android:padding="8dp"
+            android:background="@drawable/uxsdk_background_black_rectangle"
+            android:clickable="true"
+            android:focusable="true"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintBottom_toBottomOf="parent"
+            android:layout_marginStart="16dp"
+            android:layout_marginBottom="12dp" />
+
+        <!-- Drone operational status indicator (icon + label, updates in real-time) -->
+        <TextView
+            android:id="@+id/text_drone_status"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="● IDLE"
+            android:textColor="#FFAAAAAA"
+            android:textSize="11sp"
+            android:textStyle="bold"
+            android:padding="4dp"
+            android:background="@drawable/uxsdk_background_black_rectangle"
+            app:layout_constraintStart_toEndOf="@+id/text_drone_name"
+            app:layout_constraintBottom_toBottomOf="@+id/text_drone_name"
+            app:layout_constraintTop_toTopOf="@+id/text_drone_name"
+            android:layout_marginStart="4dp"
+            tools:ignore="HardcodedText" />
+
+        <!-- Altitude above takeoff in whole metres -->
+        <TextView
+            android:id="@+id/text_altitude"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="0 m"
+            android:textColor="#FFCCCCCC"
+            android:textSize="11sp"
+            android:textStyle="bold"
+            android:padding="4dp"
+            android:background="@drawable/uxsdk_background_black_rectangle"
+            app:layout_constraintStart_toEndOf="@+id/text_drone_status"
+            app:layout_constraintBottom_toBottomOf="@+id/text_drone_name"
+            app:layout_constraintTop_toTopOf="@+id/text_drone_name"
+            android:layout_marginStart="4dp"
+            tools:ignore="HardcodedText" />
+
+        <!-- GPS satellite count -->
+        <TextView
+            android:id="@+id/text_satellite_count"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="🛰 0"
+            android:textColor="#FFCCCCCC"
+            android:textSize="11sp"
+            android:textStyle="bold"
+            android:padding="4dp"
+            android:background="@drawable/uxsdk_background_black_rectangle"
+            app:layout_constraintStart_toEndOf="@+id/text_altitude"
+            app:layout_constraintBottom_toBottomOf="@+id/text_drone_name"
+            app:layout_constraintTop_toTopOf="@+id/text_drone_name"
+            android:layout_marginStart="4dp"
+            tools:ignore="HardcodedText" />
+
         <dji.v5.ux.core.widget.remainingflighttime.RemainingFlightTimeWidget
             android:id="@+id/widget_remaining_flight_time"
             android:layout_width="match_parent"

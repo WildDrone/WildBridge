@@ -115,6 +115,15 @@
                 app:layout_constraintEnd_toEndOf="parent"
                 app:layout_constraintStart_toStartOf="parent"
                 app:layout_constraintTop_toBottomOf="@id/btn_set_virtual_stick_advanced_param" />
+
+            <Button
+                android:id="@+id/btn_toggle_stream_mode"
+                style="@style/main_fragment_btn"
+                android:text="Switch to RTSP"
+                android:textSize="10sp"
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintTop_toBottomOf="@id/btn_send_virtual_stick_advanced_param" />
         </androidx.constraintlayout.widget.ConstraintLayout>
     </androidx.core.widget.NestedScrollView>
 
@@ -204,6 +213,24 @@
         tools:ignore="HardcodedText,SpUsage">
     </TextView>
 
+    <!-- Manual Override Indicator & Deactivate Toggle -->
+    <CheckBox
+        android:id="@+id/cb_manual_override"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Manual"
+        android:textColor="#FFFFFF"
+        android:textSize="13sp"
+        android:textStyle="bold"
+        android:buttonTint="#FF0000"
+        android:checked="false"
+        android:enabled="true"
+        android:padding="4dp"
+        android:background="#33FF0000"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/simulator_state_info_tv"
+        tools:ignore="HardcodedText" />
+
     <TextView
         android:id="@+id/stream_quality_info_tv"
         android:layout_width="wrap_content"
@@ -212,7 +239,20 @@
         android:textColor="@color/green"
         android:textSize="13dp"
         app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/simulator_state_info_tv"
+        app:layout_constraintTop_toBottomOf="@+id/cb_manual_override"
+        tools:ignore="HardcodedText,SpUsage,TextSizeCheck" />
+
+    <TextView
+        android:id="@+id/camera_zoom_ratios_tv"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Camera Zoom Ratios: Loading..."
+        android:textColor="@color/green"
+        android:textSize="12dp"
+        android:maxLines="5"
+        android:scrollbars="vertical"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/stream_quality_info_tv"
         tools:ignore="HardcodedText,SpUsage,TextSizeCheck" />
 
 

@@ -3,6 +3,7 @@ apply plugin: 'kotlin-android'
 apply plugin: 'kotlin-kapt'
 
 android {
+    namespace 'dji.v5.ux'
     compileSdkVersion Integer.parseInt(project.ANDROID_COMPILE_SDK_VERSION)
 
     resourcePrefix "uxsdk_"
@@ -19,7 +20,7 @@ android {
     }
 
     kotlinOptions{
-        jvmTarget = JavaVersion.VERSION_1_8
+        jvmTarget = "1.8"
         freeCompilerArgs += ["-Xjvm-default=all"]
     }
 

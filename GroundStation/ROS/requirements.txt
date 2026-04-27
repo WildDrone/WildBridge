@@ -1,4 +1,3 @@
 requests
 numpy
 opencv-python
-rclpy

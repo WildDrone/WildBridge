@@ -18,7 +18,141 @@ import ast
 import json
 import socket
 import threading
+import time
 from datetime import datetime
+
+# Discovery Configuration
+DISCOVERY_PORT = 30000
+DISCOVERY_MSG = b"DISCOVER_WILDBRIDGE"
+DISCOVERY_RESPONSE_PREFIX = "WILDBRIDGE_HERE:"
+
+def get_local_ips():
+    """Get all local IP addresses for subnet detection."""
+    ip_list = []
+    try:
+        hostname = socket.gethostname()
+        for ip in socket.gethostbyname_ex(hostname)[2]:
+            if not ip.startswith("127."):
+                ip_list.append(ip)
+    except:
+        pass
+    
+    # Fallback method
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(("8.8.8.8", 80))
+        ip = s.getsockname()[0]
+        s.close()
+        if ip not in ip_list and not ip.startswith("127."):
+            ip_list.append(ip)
+    except:
+        pass
+    
+    return ip_list
+
+def scan_subnet_for_drones(local_ips, timeout=0.1, verbose=True):
+    """
+    Scan subnet for WildBridge drones using direct UDP probing.
+    Returns list of tuples [(drone_ip, drone_name), ...]
+    """
+    found_drones = {}
+    if verbose:
+        print("Scanning subnet for WildBridge drones...")
+    
+    for local_ip in local_ips:
+        parts = local_ip.split('.')
+        subnet = f"{parts[0]}.{parts[1]}.{parts[2]}"
+        
+        # Try common IP ranges
+        ranges = list(range(1, 51)) + list(range(100, 121)) + list(range(150, 171)) + list(range(200, 221))
+        
+        for i in ranges:
+            ip = f"{subnet}.{i}"
+            if ip == local_ip:
+                continue
+            
+            try:
+                sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+                sock.settimeout(timeout)
+                sock.sendto(DISCOVERY_MSG, (ip, DISCOVERY_PORT))
+                
+                try:
+                    data, addr = sock.recvfrom(1024)
+                    message = data.decode('utf-8')
+                    if message.startswith(DISCOVERY_RESPONSE_PREFIX):
+                        parts = message.split(':')
+                        drone_ip = parts[1] if len(parts) > 1 else addr[0]
+                        drone_name = parts[2] if len(parts) > 2 else "UNKNOWN"
+                        if verbose:
+                            print(f"Found WildBridge drone at {drone_ip} (Name: {drone_name})")
+                        found_drones[drone_ip] = drone_name
+                except socket.timeout:
+                    pass
+                
+                sock.close()
+            except:
+                pass
+    
+    return list(found_drones.items())
+
+def discover_all_drones(timeout=5.0, verbose=True):
+    """
+    Discover all WildBridge drones on the network.
+    Returns list of tuples [(drone_ip, drone_name), ...]
+    """
+    found_drones = {}
+    
+    # Try broadcast first
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+    sock.settimeout(timeout)
+    
+    try:
+        sock.sendto(DISCOVERY_MSG, ('<broadcast>', DISCOVERY_PORT))
+        if verbose:
+            print(f"Broadcasting discovery message on port {DISCOVERY_PORT}...")
+        
+        start_time = time.time()
+        while time.time() - start_time < timeout:
+            try:
+                data, addr = sock.recvfrom(1024)
+                message = data.decode('utf-8')
+                if message.startswith(DISCOVERY_RESPONSE_PREFIX):
+                    parts = message.split(':')
+                    drone_ip = parts[1] if len(parts) > 1 else None
+                    drone_name = parts[2] if len(parts) > 2 else "UNKNOWN"
+                    if drone_ip and drone_ip not in found_drones:
+                        if verbose:
+                            print(f"Found WildBridge drone at {drone_ip} (Name: {drone_name})")
+                        found_drones[drone_ip] = drone_name
+            except socket.timeout:
+                continue
+    except Exception as e:
+        if verbose:
+            print(f"Broadcast discovery failed: {e}")
+    finally:
+        sock.close()
+    
+    if not found_drones:
+        if verbose:
+            print("Broadcast found no drones, scanning subnet...")
+        local_ips = get_local_ips()
+        if local_ips:
+            subnet_drones = scan_subnet_for_drones(local_ips, timeout=0.1, verbose=verbose)
+            for ip, name in subnet_drones:
+                found_drones[ip] = name
+    
+    return list(found_drones.items())
+
+def discover_drone(timeout=5.0, verbose=True):
+    """
+    Discover a single WildBridge drone.
+    Returns tuple (drone_ip, drone_name) or (None, None).
+    """
+    drones = discover_all_drones(timeout, verbose)
+    if drones:
+        return drones[0]
+    return None, None
 
 # HTTP POST Command Endpoints (port 8080)
 EP_STICK = "/send/stick"  # expects a formatted string: "<leftX>,<leftY>,<rightX>,<rightY>"
@@ -30,6 +164,7 @@ EP_LAND = "/send/land"
 EP_RTH = "/send/RTH"
 EP_ENABLE_VIRTUAL_STICK = "/send/enableVirtualStick"
 EP_ABORT_MISSION = "/send/abortMission"
+EP_ABORT_ALL = "/send/abortAll"
 EP_GOTO_WP = "/send/gotoWP"
 EP_GOTO_YAW = "/send/gotoYaw"
 EP_GOTO_WP_PID = "/send/gotoWPwithPID"
@@ -40,9 +175,24 @@ EP_CAMERA_STOP_RECORDING = "/send/camera/stopRecording"
 EP_GOTO_TRAJECTORY_DJI_NATIVE = "/send/navigateTrajectoryDJINative"
 EP_ABORT_DJI_NATIVE_MISSION = "/send/abort/DJIMission"
 EP_SET_RTH_ALTITUDE = "/send/setRTHAltitude"
+EP_DEACTIVATE_MANUAL_OVERRIDE = "/send/deactivateManualOverride"
 
 # PID Tuning
 EP_TUNING = "/send/gotoWPwithPIDtuning"
+
+
+def get_config(ip_address):
+    """
+    Query drone configuration via HTTP GET /config endpoint.
+    Returns dict with droneName, ipAddress, ports, or None if failed.
+    """
+    try:
+        response = requests.get(f"http://{ip_address}:8080/config", timeout=2.0)
+        if response.status_code == 200:
+            return json.loads(response.text)
+    except Exception as e:
+        print(f"Failed to get config from {ip_address}: {e}")
+    return None
 
 
 class DJIInterface:
@@ -52,8 +202,18 @@ class DJIInterface:
     """
     
     def __init__(self, IP_RC=""):
-        self.IP_RC = IP_RC
-        self.baseCommandUrl = f"http://{IP_RC}:8080"
+        if not IP_RC:
+            print("No IP provided, attempting to discover drone...")
+            discovered_ip = discover_drone()
+            if discovered_ip:
+                self.IP_RC = discovered_ip
+            else:
+                print("Drone discovery failed.")
+                self.IP_RC = ""
+        else:
+            self.IP_RC = IP_RC
+
+        self.baseCommandUrl = f"http://{self.IP_RC}:8080"
         self.telemetryPort = 8081
         self.videoSource = f"rtsp://aaa:aaa@{self.IP_RC}:8554/streaming/live/1"
         
@@ -281,6 +441,14 @@ class DJIInterface:
         """Get the current flight mode (e.g., 'MANUAL', 'GPS', 'GO_HOME', etc.)."""
         return self.getTelemetry().get("flightMode", "UNKNOWN")
 
+    def isManualOverrideActive(self):
+        """Check if manual override is active (pilot took RC control).
+        
+        When True, autonomous HTTP commands are being rejected by the app.
+        The pilot must deactivate manual override before autonomous commands work again.
+        """
+        return self.getTelemetry().get("isManualOverrideActive", False)
+
     # ==================== Commands (HTTP POST on port 8080) ====================
 
     def requestSend(self, endPoint, data, verbose=False):
@@ -330,7 +498,14 @@ class DJIInterface:
         return self.requestSend(EP_LAND, "")
 
     def requestSendRTH(self):
-        """Command the drone to return to home."""
+        """Command the drone to return to home.
+        
+        Note: This first aborts any active mission and disables virtual stick
+        to prevent conflicts with RTH. Virtual stick mode can interfere with
+        RTH causing erratic behavior.
+        """
+        # CRITICAL: Disable virtual stick before RTH to prevent conflicts
+        self.requestAbortMission()
         return self.requestSend(EP_RTH, "")
 
     def requestSendGoToWP(self, latitude, longitude, altitude):
@@ -407,6 +582,19 @@ class DJIInterface:
         """Abort the current mission and disable virtual stick."""
         return self.requestSend(EP_ABORT_MISSION, "")
 
+    def requestAbortAll(self):
+        """Emergency abort ALL missions - comprehensive stop.
+        
+        This performs a comprehensive abort that:
+        1. Cancels any active PID control loops
+        2. Resets virtual sticks to neutral
+        3. Disables virtual stick mode
+        4. Stops any DJI native waypoint missions
+        
+        Use this for emergency stops - it's more thorough than requestAbortMission().
+        """
+        return self.requestSend(EP_ABORT_ALL, "")
+
     def requestSendEnableVirtualStick(self):
         """Enable virtual stick control mode."""
         return self.requestSend(EP_ENABLE_VIRTUAL_STICK, "")
@@ -432,6 +620,14 @@ class DJIInterface:
     def requestSetRTHAltitude(self, altitude):
         """Set the return-to-home altitude in meters."""
         return self.requestSend(EP_SET_RTH_ALTITUDE, str(altitude))
+
+    def requestDeactivateManualOverride(self):
+        """Deactivate manual override latch so autonomous commands are accepted again.
+        
+        This should be called after the pilot has finished manual control
+        and wants to allow autonomous commands to work again.
+        """
+        return self.requestSend(EP_DEACTIVATE_MANUAL_OVERRIDE, "")
 
     # ==================== Deprecated methods (kept for backward compatibility) ====================
     

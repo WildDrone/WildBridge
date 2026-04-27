@@ -1,30 +1,556 @@
 <div align="center">
-  <img src="WildBridge_icon.png" alt="WildBridge App Icon" width="300" height="300">
+  <img src="WildBridge_icon.png" alt="WildBridge App Icon" width="200" height="200">
 </div>
 
-> **WildBridge: Ground Station Interface for Lightweight Multi-Drone Control and Telemetry on DJI Platforms**  
-> Part of the [WildDrone Project](https://wilddrone.eu) - European Union's Horizon Europe Research Program
+<div align="center">
+
+# WildBridge
+
+**Ground Station Interface for Lightweight Multi-Drone Control and Telemetry on DJI Platforms**
+
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![DJI MSDK V5](https://img.shields.io/badge/DJI%20MSDK-V5.17.0-blue.svg)](https://developer.dji.com/doc/mobile-sdk-tutorial/en/)
+[![ROS 2 Humble](https://img.shields.io/badge/ROS%202-Humble-brightgreen.svg)](https://docs.ros.org/en/humble/)
+[![Part of WildDrone](https://img.shields.io/badge/Part%20of-WildDrone-orange.svg)](https://wilddrone.eu)
+
+*Part of the [WildDrone Project](https://wilddrone.eu) — European Union Horizon Europe Research Programme*
+
+</div>
+
+---
 
 ## Overview
 
-WildBridge is an open-source Android application that extends DJI's Mobile SDK V5 to provide accessible telemetry, video streaming, and low-level control for scientific research applications. Running directly on the DJI remote controller, it exposes network interfaces (HTTP and RTSP) over a local area network, enabling seamless integration with ground stations and external research tools.
+WildBridge is an **open-source Android application** (Kotlin, DJI Mobile SDK V5) that runs directly on the DJI Remote Controller and exposes drone telemetry, control, and video streaming over a local Wi-Fi network. It removes the need to interact with DJI's proprietary SDK from the ground station — any language or framework with HTTP and TCP socket support can integrate with WildBridge.
 
- 
-![WildBridge Diagram](https://github.com/WildDrone/WildBridge/blob/main/WildBridgeDiagram.png "WildBridge System Architecture")
+Each drone connects to its RC via DJI OcuSync (2.4/5 GHz). The RC connects to the ground station over a 2.4/5 GHz LAN. Multiple WildBridge instances can coexist on the same LAN, enabling multi-drone configurations without any app modification.
 
+![WildBridge System Architecture](WildBridgeDiagram.png)
+*Multi-drone setup: each RC runs WildBridge and exposes unique HTTP, TCP telemetry, and WebRTC endpoints. The ground station communicates with all drones via standard HTTP commands (port 8080), TCP telemetry (port 8081), and WebRTC video (port 8082).*
+
+---
+
+## Key Features
+
+- **Real-time Telemetry**: TCP socket streaming (port 8081) — continuous JSON at up to 20 Hz with 25+ flight state fields
+- **HTTP Command Interface**: RESTful API (port 8080) for full drone control
+- **Live Video Streaming**: WebRTC (port 8082, 720p@5fps)
+- **Three Navigation Modes**: Direct Virtual Stick (AVS), on-device PID position controller, DJI native KMZ waypoint missions
+- **Manual Override**: Pilot takeover detection (~30% stick deflection), with GS-readable override state and deactivation command
+- **Camera Control**: Zoom ratio display and control, gimbal pitch/yaw, start/stop recording
+- **Multi-drone Coordination**: Up to 10 concurrent drones over a single LAN
+- **Auto-Discovery**: UDP broadcast discovery (port 30000), mDNS/Bonjour, subnet scanning
+- **ROS 2 Integration**: Complete ROS 2 Humble package with 25+ topics and MAVROS-compatible bridge
+- **Docker Deployment**: Pre-built container (ROS 2 Humble + CycloneDDS)
+
+---
+
+## Supported Hardware
+
+**SDK Version**: DJI Mobile SDK V5 5.17.0
+
+### DJI Drones
+- DJI Mini 3 / Mini 3 Pro
+- DJI Mini 4 Pro
+- DJI Mavic 3 Enterprise Series (M3E)
+- DJI Matrice 30 Series (M30/M30T)
+- DJI Matrice 300 RTK
+- DJI Matrice 350 RTK
+- DJI Matrice 4 Thermal (M4T)
+- Full list: [DJI Mobile SDK Tutorial](https://developer.dji.com/doc/mobile-sdk-tutorial/en/)
+
+### Remote Controllers
+- **DJI RC Pro** — Primary supported controller
+- **DJI RC Plus** — Enterprise compatibility
+- **DJI RC-N3** — Standard controller (tested with smartphones)
+
+---
+
+## User Interface
+
+WildBridge runs on the RC's built-in Android display. All servers (HTTP port 8080, TCP telemetry port 8081, WebRTC port 8082) start automatically when the app launches from the main default layout — no additional navigation required.
+
+![WildBridge Virtual Stick UI](UI.jpg)
+
+The **Manual Override** checkbox is checked automatically when the pilot moves RC sticks beyond ~30% deflection while airborne. When active, all HTTP navigation commands are rejected. The GS reads `isManualOverrideActive` from the TCP telemetry stream and can call `/send/deactivateManualOverride` to restore autonomous control.
+
+---
+
+## Published Use Cases & Demo Videos
+
+WildBridge has been used in the following research applications (Rolland et al., RiTA 2025):
+
+| Study | UAVs | Features | Description | Video |
+|-------|------|----------|-------------|-------|
+| Drone Swarm for Wildlife Monitoring | 2× Mini 3, 1× M3E | T, V, WP | ROS 2 multi-drone monitoring of zebra herds; semi-autonomous waypoint missions; 15 m vertical separation | [▶ Watch](https://www.youtube.com/watch?v=PzHnbgxLaSU) |
+| Drone Swarm for Wildfire Detection | 1× M3E, 1× M4T, 2× M300 | T, V, WP | Autonomous thermal + visual wildfire detection; coordinated take-off, search, detection, verification, payload drop; XPRIZE Wildfire semi-finalist | [▶ Watch](https://www.youtube.com/watch?v=F73VcUoOzo8) |
+| Atmospheric Wind Field Profiling | 3× Mini 3 | T | Vertical wind profiles from attitude data validated against LiDAR (ENAC Lab) | [▶ Watch](https://www.youtube.com/watch?v=KZ40L-y1xt8) |
+| Custom PID Position Controller | — | C | On-device PID controller demo | [▶ Watch](https://www.youtube.com/watch?v=j52ovMPVt_I) |
+
+*T = Telemetry · V = Video · WP = Waypoint control · C = Low-level control*
+
+---
+
+## Quick Start
+
+### Prerequisites
+
+1. DJI drone + compatible RC, 5 GHz Wi-Fi access point, ground station computer
+2. [Android Studio Koala 2024.1.2](https://redirector.gvt1.com/edgedl/android/studio/ide-zips/2024.1.2.13/android-studio-2024.1.2.13-linux.tar.gz)
+3. DJI developer account + API key from [developer.dji.com](https://developer.dji.com/)
+
+### Install the App
+
+```bash
+git clone https://github.com/WildDrone/WildBridge.git
+```
+
+1. Open `WildBridge/WildBridgeApp/android-sdk-v5-as` in Android Studio.
+2. Add your API key to `local.properties`:
+   ```
+   AIRCRAFT_API_KEY="Your_App_Key"
+   ```
+3. Build and deploy to your RC (enable Developer Mode + USB Debugging first).
+
+### Start the Server
+
+1. Launch the WildBridge app on the RC — servers start automatically on the home screen.
+2. Note the Device IP shown in the app (or use auto-discovery).
+3. Press **Enable Virtual Stick** (via `/send/enableVirtualStick` or the app UI) before sending navigation commands.
+
+### Ground Station Dependencies
+
+```bash
+pip install -r GroundStation/Python/requirements.txt   # Python interface
+pip install -r GroundStation/ROS/requirements.txt      # ROS 2 interface
+```
+
+### Connect and Control
+
+**Telemetry (TCP, port 8081):**
+```python
+import socket, json
+
+sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+sock.connect(("192.168.1.100", 8081))
+buffer = ""
+while True:
+    buffer += sock.recv(4096).decode('utf-8')
+    while '\n' in buffer:
+        line, buffer = buffer.split('\n', 1)
+        if line.strip():
+            t = json.loads(line)
+            print(f"Battery: {t['batteryLevel']}%  Alt: {t['location']['altitude']:.1f}m  Sats: {t['satelliteCount']}")
+```
+
+**Commands (HTTP POST, port 8080):**
+```python
+import requests
+
+rc = "192.168.1.100"
+requests.post(f"http://{rc}:8080/send/takeoff")
+requests.post(f"http://{rc}:8080/send/gotoWPwithPID", data="49.306254,4.593728,20,90,5.0")
+requests.post(f"http://{rc}:8080/send/navigateTrajectoryDJINative",
+              data="10.0;49.306,4.593,20;49.307,4.594,25;49.308,4.595,20")
+requests.post(f"http://{rc}:8080/send/RTH")
+```
+
+**Video (WebRTC, port 8082):**
+```bash
+python GroundStation/webrtc_client/webrtc_drone_viewer.py --server ws://192.168.1.100:8082
+python webrtc_drone_viewer.py --server ws://192.168.1.100:8082 --save-video out.mp4
+python webrtc_drone_viewer.py --server ws://192.168.1.100:8082 --headless --save-frames ./frames/
+```
+
+---
+
+## Python Interface (`DJIInterface`)
+
+`GroundStation/Python/djiInterface.py` provides a high-level class wrapping all HTTP commands and the TCP telemetry socket in a thread-safe background receiver.
+
+```python
+from djiInterface import DJIInterface
+
+# Auto-discovery via UDP broadcast (port 30000) if no IP provided
+dji = DJIInterface("192.168.1.100")
+
+# Start background telemetry thread (TCP socket, port 8081)
+dji.startTelemetryStream()
+
+# Read latest telemetry (thread-safe, returns copy of last JSON snapshot)
+print(dji.getBatteryLevel())          # int: 0–100
+print(dji.getLocation())              # {'latitude': ..., 'longitude': ..., 'altitude': ...}
+print(dji.getHeading())               # float: compass degrees
+print(dji.getAttitude())              # {'pitch': ..., 'roll': ..., 'yaw': ...}
+print(dji.getGimbalAttitude())        # {'pitch': ..., 'roll': ..., 'yaw': ...}
+print(dji.getSatelliteCount())        # int
+print(dji.getFlightMode())            # str: 'GPS', 'ATTI', 'VIRTUAL_STICK', 'GO_HOME', ...
+print(dji.isManualOverrideActive())   # bool
+print(dji.getRemainingFlightTime())   # int: seconds
+print(dji.getDistanceToHome())        # float: metres
+print(dji.getZoomRatio())             # float
+
+# Commands
+dji.requestSendTakeOff()
+dji.requestSendLand()
+dji.requestSendRTH()                  # Aborts mission first, then RTH
+dji.requestSendEnableVirtualStick()
+dji.requestAbortMission()             # Abort + disable Virtual Stick
+dji.requestAbortDJINativeMission()    # Abort DJI native mission only
+
+# Navigation
+dji.requestSendGoToWPwithPID(49.306254, 4.593728, 20.0, yaw=90, speed=5.0)
+dji.requestSendNavigateTrajectory(
+    [(49.306, 4.593, 20), (49.307, 4.594, 25)], finalYaw=90)
+dji.requestSendNavigateTrajectoryDJINative(
+    [(49.306, 4.593, 20), (49.307, 4.594, 25), (49.308, 4.595, 20)], speed=10.0)
+dji.requestSendGotoYaw(45.0)
+dji.requestSendGotoAltitude(30.0)
+
+# Camera / gimbal
+dji.requestSendGimbalPitch(-30.0)
+dji.requestSendGimbalYaw(45.0)
+dji.requestSendZoomRatio(4.0)
+dji.requestCameraStartRecording()
+dji.requestCameraStopRecording()
+
+# Manual override
+dji.requestDeactivateManualOverride()
+
+# RTH altitude
+dji.requestSetRTHAltitude(50.0)
+
+# PID tuning
+dji.requestSendGoToWPwithPIDtuning(
+    lat, lon, alt, yaw,
+    kp_pos=1.0, ki_pos=0.0, kd_pos=0.2,
+    kp_yaw=1.0, ki_yaw=0.0, kd_yaw=0.1)
+
+# Virtual stick (raw AVS, values saturated to ±0.3 by DJIInterface)
+dji.requestSendStick(leftX=0, leftY=0.2, rightX=0.1, rightY=0)
+
+dji.stopTelemetryStream()
+```
+
+---
+
+## API Reference
+
+### Telemetry (TCP Socket — Port 8081)
+
+Continuous newline-delimited JSON stream. Connect and read; the app pushes updates automatically.
+
+**Telemetry fields:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `droneName` | `string` | Drone name (set via app UI) |
+| `speed` | `{x, y, z}` | Velocity (m/s) |
+| `heading` | `float` | Compass heading (degrees) |
+| `attitude` | `{pitch, roll, yaw}` | Aircraft attitude (degrees) |
+| `location` | `{latitude, longitude, altitude}` | GPS position |
+| `phoneLocation` | `{latitude, longitude, heading, pressure, battery, wifiRssi}` | Operator phone/RC location and sensor data |
+| `gimbalAttitude` | `{pitch, roll, yaw}` | Gimbal orientation (degrees) |
+| `gimbalJointAttitude` | `{pitch, roll, yaw}` | Gimbal joint angles (degrees) |
+| `zoomRatio` | `float` | Camera zoom ratio |
+| `zoomFl` / `hybridFl` / `opticalFl` | `float` | Focal lengths (-1 if unavailable) |
+| `batteryLevel` | `int` | Battery % (0–100) |
+| `satelliteCount` | `int` | GPS satellite count |
+| `homeLocation` | `{latitude, longitude}` | Home point coordinates |
+| `homeSet` | `bool` | Home point set |
+| `distanceToHome` | `float` | Distance to home (m) |
+| `waypointReached` | `bool` | Final waypoint reached |
+| `intermediaryWaypointReached` | `bool` | Intermediate waypoint reached |
+| `yawReached` | `bool` | Target yaw reached |
+| `altitudeReached` | `bool` | Target altitude reached |
+| `isRecording` | `bool` | Camera recording active |
+| `flightMode` | `string` | GPS / ATTI / VIRTUAL_STICK / GO_HOME / AUTO_LANDING / WAYPOINT / MANUAL |
+| `remainingFlightTime` | `int` | Remaining flight time (s) |
+| `timeNeededToGoHome` | `float` | Time to return home (s) |
+| `timeNeededToLand` | `float` | Time to land (s) |
+| `totalTime` | `float` | Go-home + land time (s) |
+| `maxRadiusCanFlyAndGoHome` | `float` | Max safe flyable radius (m) |
+| `batteryNeededToGoHome` | `float` | Battery % needed for RTH |
+| `batteryNeededToLand` | `float` | Battery % needed to land |
+| `remainingCharge` | `int` | Raw remaining battery charge from SDK |
+| `seriousLowBatteryThreshold` | `float` | Critical low battery % |
+| `lowBatteryThreshold` | `float` | Low battery warning % |
+| `isManualOverrideActive` | `bool` | Pilot has taken manual RC control |
+
+---
+
+### Control Endpoints (HTTP POST — Port 8080)
+
+| Endpoint | Body | Description |
+|----------|------|-------------|
+| `/send/takeoff` | — | Takeoff |
+| `/send/land` | — | Land |
+| `/send/RTH` | — | Return to home (aborts active mission + disables VS first) |
+| `/send/enableVirtualStick` | — | Enable Virtual Stick mode |
+| `/send/abortMission` | — | Stop mission + disable Virtual Stick |
+| `/send/abortAll` | — | Stop all active missions (DJI native + Virtual Stick) |
+| `/send/abort/DJIMission` | — | Stop DJI native mission only |
+| `/send/stick` | `leftX,leftY,rightX,rightY` | Direct AVS velocity input (values ∈ [-1, 1]) |
+| `/send/gotoWP` | `lat,lon,alt` | Navigate to waypoint (basic) |
+| `/send/gotoWPwithPID` | `lat,lon,alt,yaw[,speed]` | PID position controller (default speed: 5.0 m/s) |
+| `/send/gotoWPwithPIDtuning` | `lat,lon,alt,yaw,kp_pos,ki_pos,kd_pos,kp_yaw,ki_yaw,kd_yaw` | PID with custom gains |
+| `/send/navigateTrajectory` | `lat,lon,alt;…;lat,lon,alt,yaw` | Trajectory via Virtual Stick PID; last WP includes yaw |
+| `/send/navigateTrajectoryDJINative` | `speed;lat,lon,alt;…` | DJI native KMZ mission (≥ 2 waypoints) |
+| `/send/gotoYaw` | `yaw_degrees` | Rotate to heading |
+| `/send/gotoAltitude` | `altitude_m` | Change altitude |
+| `/send/gimbal/pitch` | `roll,pitch,yaw` | Set gimbal pitch |
+| `/send/gimbal/yaw` | `roll,pitch,yaw` | Set gimbal yaw joint angle |
+| `/send/camera/zoom` | `zoom_ratio` | Set camera zoom |
+| `/send/camera/startRecording` | — | Start recording |
+| `/send/camera/stopRecording` | — | Stop recording |
+| `/send/setRTHAltitude` | `altitude_m` | Set RTH altitude |
+| `/send/deactivateManualOverride` | — | Re-enable autonomous commands after pilot override |
+
+### Status Endpoints (HTTP GET — Port 8080)
+
+| Endpoint | Returns | Description |
+|----------|---------|-------------|
+| `/config` | JSON | Drone name, IP, HTTP/telemetry/WebRTC ports |
+
+> All other flight state data is available via the TCP telemetry stream on port 8081. Use `GET /config` for connection metadata and auto-discovery.
+
+---
+
+### Video Streaming
+
+#### WebRTC (Port 8082)
+
+The app acts as the WebRTC **offerer**. Viewers connect via WebSocket, register as `"viewer"`, and receive an SDP offer. A negotiated data channel (label `"telemetry"`, `id=0`, ordered) delivers per-frame JSON metadata alongside the video track:
+
+```json
+{
+  "frameNumber": 1042,
+  "latitude": 49.306254, "longitude": 4.593728,
+  "altitudeASL": 120.5, "altitudeAGL": 20.3,
+  "gimbalPitch": -30.0, "gimbalYaw": 0.0, "gimbalRoll": 0.0,
+  "aircraftPitch": 2.1, "aircraftYaw": 87.3, "aircraftRoll": -1.5,
+  "velocityX": 3.2, "velocityY": 0.1, "velocityZ": -0.5,
+  "batteryPercent": 78, "satelliteCount": 15
+}
+```
+
+Resolution options: SD / HD / **Full HD (720p, default)** · Frame rate: **5 fps**
+
+Camera source options: Left / Right / Top / **FPV (Vision Assist, default)**
+
+---
+
+## Drone Identity & Auto-Discovery
+
+- **Custom naming**: Set drone name via the app UI (tap the name display). Examples: `"RedScout"`, `"Bravo"`.
+- **UDP broadcast discovery**: `DJIInterface("")` broadcasts `DISCOVER_WILDBRIDGE` on port 30000; the app replies `WILDBRIDGE_HERE:{ip}`.
+- **Config endpoint**: `/config` returns drone name and connection metadata (used by ROS auto-discovery).
+- **Dynamic ROS namespaces**: Nodes launch under the drone's name (e.g., `/RedScout/location`), eliminating manual IP-to-name mapping.
+
+---
+
+## ROS 2 Integration
+
+Full ROS 2 Humble package. The `dji_controller` node publishes all telemetry fields as individual topics at **20 Hz** and subscribes to command topics.
+
+### Package Structure
+
+```
+GroundStation/ROS/
+├── dji_controller/          # Main control + telemetry node
+│   ├── controller.py        # DjiNode: 25+ topics, 20 Hz timer
+│   └── submodules/dji_interface.py
+├── wildbridge_mavros/       # MAVROS-compatible bridge
+│   ├── mavros_bridge.py     # WildBridgeMavrosNode
+│   ├── auto_mavros_bridge.py# Auto-discovery + dynamic namespace launch
+│   └── dji_interface.py
+└── wildview_bringup/
+    ├── swarm_connection.launch.py      # Multi-drone: MAC→IP resolution via ARP
+    ├── auto_discovery.launch.py
+    ├── auto_discovery_native.launch.py
+    └── config/parameters.yaml
+```
+
+### Published Topics (per drone namespace `/drone_N/`)
+
+| Topic | Type | Description |
+|-------|------|-------------|
+| `speed` | `Float64` | Velocity magnitude (m/s) |
+| `speed_vector` | `Vector3` | Velocity vector x, y, z (m/s) |
+| `heading` | `Float64` | Compass heading (degrees) |
+| `attitude` | `String` | `{pitch, roll, yaw}` JSON |
+| `location` | `NavSatFix` | GPS latitude, longitude, altitude |
+| `gimbal_attitude` | `String` | `{pitch, roll, yaw}` JSON |
+| `gimbal_joint_attitude` | `String` | Joint angles JSON |
+| `gimbal_yaw` / `gimbal_pitch` | `Float64` | Individual gimbal angles |
+| `zoom_fl` / `hybrid_fl` / `optical_fl` | `Float64` | Focal lengths (-1 if N/A) |
+| `zoom_ratio` | `Float64` | Camera zoom ratio |
+| `battery_level` | `Float64` | Battery % |
+| `satellite_count` | `Int32` | GPS satellite count |
+| `waypoint_reached` | `Bool` | Final WP flag |
+| `intermediary_waypoint_reached` | `Bool` | Intermediate WP flag |
+| `altitude_reached` / `yaw_reached` | `Bool` | Reach flags |
+| `home_location` | `NavSatFix` | Home GPS coordinates |
+| `home_set` | `Bool` | Home point set flag |
+| `distance_to_home` | `Float64` | Distance to home (m) |
+| `remaining_flight_time` | `Float64` | Remaining flight time (s) |
+| `time_needed_to_go_home` | `Float64` | Time to RTH (s) |
+| `time_needed_to_land` | `Float64` | Time to land (s) |
+| `time_to_landing_spot` | `Float64` | Go-home + land (s) |
+| `max_radius_can_fly_and_go_home` | `Float64` | Max safe radius (m) |
+| `battery_needed_to_go_home` | `Float64` | Battery % for RTH |
+| `battery_needed_to_land` | `Float64` | Battery % to land |
+| `camera/is_recording` | `Bool` | Recording status |
+| `flight_mode` | `String` | Current DJI flight mode string |
+| `manual_override_active` | `Bool` | Pilot override active |
+
+### Subscribed Topics (commands)
+
+| Topic | Type | Body |
+|-------|------|------|
+| `command/takeoff` | `Empty` | — |
+| `command/land` | `Empty` | — |
+| `command/rth` | `Empty` | — |
+| `command/abort_mission` | `Empty` | — |
+| `command/abort_all` | `Empty` | — |
+| `command/enable_virtual_stick` | `Empty` | — |
+| `command/abort_dji_native_mission` | `Empty` | — |
+| `command/deactivate_manual_override` | `Empty` | — |
+| `command/camera/start_recording` | `Empty` | — |
+| `command/camera/stop_recording` | `Empty` | — |
+| `command/goto_waypoint` | `Float64MultiArray` | `[lat, lon, alt, yaw, speed?]` |
+| `command/goto_waypoint_pid_tuning` | `Float64MultiArray` | `[lat,lon,alt,yaw,kp_pos,ki_pos,kd_pos,kp_yaw,ki_yaw,kd_yaw]` |
+| `command/goto_trajectory` | `String` | `"[(lat,lon,alt),...], finalYaw"` |
+| `command/goto_trajectory_dji_native` | `String` | `"(speed, [(lat,lon,alt),...])"` |
+| `command/goto_yaw` | `Float64` | Yaw angle (degrees) |
+| `command/goto_altitude` | `Float64` | Altitude (m) |
+| `command/gimbal_pitch` | `Float64` | Pitch (degrees) |
+| `command/gimbal_yaw` | `Float64` | Yaw joint angle |
+| `command/zoom_ratio` | `Float64` | Zoom ratio |
+| `command/set_rth_altitude` | `Float64` | RTH altitude (m) |
+| `command/stick` | `Float64MultiArray` | `[leftX, leftY, rightX, rightY]` ∈ [-1,1] |
+
+### MAVROS-Compatible Bridge (`wildbridge_mavros`)
+
+For applications built for PX4/ArduPilot. `WildBridgeMavrosNode` publishes standard MAVROS topics:
+
+| Topic | Type |
+|-------|------|
+| `mavros/global_position/global` | `NavSatFix` |
+| `mavros/local_position/pose` | `PoseStamped` (metres from home) |
+| `mavros/local_position/velocity_local` | `TwistStamped` |
+| `mavros/imu/data` | `Imu` |
+| `mavros/battery` | `BatteryState` |
+| `mavros/global_position/compass_hdg` | `Float64` |
+| `mavros/global_position/rel_alt` | `Float64` |
+| `mavros/global_position/satellites` | `UInt32` |
+| `mavros/state/connected` / `armed` / `mode` | `Bool` / `Bool` / `String` |
+| `wildbridge/waypoint_reached` | `Bool` |
+| `wildbridge/distance_to_home` | `Float64` |
+| `wildbridge/flight_time_remaining` | `Float64` |
+
+**Setpoint subscribers**: `mavros/setpoint_position/local` (PoseStamped → GPS WP), `mavros/setpoint_position/global` (NavSatFix → direct), `mavros/setpoint_velocity/cmd_vel` (TwistStamped → AVS, max 10 m/s), `mavros/setpoint_attitude/attitude` (PoseStamped → gimbal pitch).
+
+**Services**: `mavros/cmd/arming`, `mavros/cmd/takeoff`, `mavros/cmd/land`, `mavros/cmd/rtl`, `mavros/set_mode/offboard`, `wildbridge/enable_virtual_stick`, `wildbridge/abort_mission`.
+
+### Usage
+
+**Docker (single-drone, auto-discovery):**
+```bash
+cd GroundStation
+docker build -t wildbridge-ros .
+docker run --rm --network=host wildbridge-ros
+```
+
+The image is based on `ros:humble` with CycloneDDS, `cv-bridge`, `vision-opencv`, `image-transport`, plus all Python dependencies.
+
+**Manual multi-drone launch:**
+```bash
+cd GroundStation/ROS
+colcon build --symlink-install && source install/setup.bash
+
+# Edit swarm_connection.launch.py for your drone IPs/MACs, then:
+ros2 launch wildview_bringup swarm_connection.launch.py
+
+# Example commands
+ros2 topic pub /drone_1/command/takeoff std_msgs/msg/Empty "{}"
+ros2 topic pub /drone_1/command/goto_waypoint std_msgs/msg/Float64MultiArray \
+  "data: [49.306254, 4.593728, 20.0, 90.0, 5.0]"
+```
+
+The `swarm_connection.launch.py` resolves each drone's IP from its MAC address via `ip neigh show` (ARP table), then launches one `dji_node` per drone.
+
+**MAVROS auto-discovery:**
+```bash
+ros2 run wildbridge_mavros auto_mavros_bridge
+# Discovers all drones, queries /config for drone name, launches with /{name} namespace
+```
+
+---
+
+## Project Structure
+
+```
+WildBridge/
+├── WildBridgeApp/
+│   ├── android-sdk-v5-as/               # Main Android project (open this in Android Studio)
+│   │   ├── VirtualStickFragment.kt      # Fragment: battery listener, video init stubs
+│   │   └── local.properties             # Place AIRCRAFT_API_KEY here
+│   ├── android-sdk-v5-sample/           # Full sample app with WildBridge additions
+│   │   └── src/main/
+│   │       ├── java/dji/sampleV5/aircraft/webrtc/  # WebRTC server (Kotlin)
+│   │       ├── res/layout/
+│   │       │   ├── frag_virtual_stick_page.xml      # Virtual Stick UI
+│   │       │   └── frag_webrtc_stream.xml           # WebRTC UI
+│   │       └── assets/webrtc_viewer.html            # Browser WebRTC viewer
+│   └── android-sdk-v5-uxsdk/           # DJI UXSDK UI components
+└── GroundStation/
+    ├── Python/
+    │   └── djiInterface.py             # DJIInterface class (HTTP + TCP telemetry)
+    ├── webrtc_client/
+    │   └── webrtc_drone_viewer.py      # Python WebRTC viewer (aiortc + OpenCV)
+    ├── Dockerfile                      # ros:humble + CycloneDDS container
+    ├── entrypoint.sh                   # Container entry point
+    ├── run_docker.sh                   # Docker run helper
+    └── ROS/
+        ├── dji_controller/             # ROS 2 control + telemetry node
+        ├── wildbridge_mavros/          # MAVROS-compatible bridge + auto-discovery
+        └── wildview_bringup/           # Launch files and config
+```
+
+---
+
+## Troubleshooting
+
+**Connection refused:**
+- Verify the WildBridge app is running on the RC (servers start on launch).
+- Check the RC is on the same LAN as the GS.
+
+**Drone does not respond to navigation commands:**
+- Press **Enable Virtual Stick** in the app or call `/send/enableVirtualStick`.
+- Check `isManualOverrideActive` in telemetry; call `/send/deactivateManualOverride` if needed.
+
+**WebRTC not connecting:**
+- Check the WebRTC screen shows "RUNNING" status.
+- Try the Python viewer: `python webrtc_drone_viewer.py --server ws://{RC_IP}:8082 --debug`
+
+---
 
 ## Research and Citation
 
-This work is part of the WildDrone project, funded by the European Union's Horizon Europe Research Program (Grant Agreement No. 101071224). The WildDrone project has also received funding in part from the EPSRC-funded Autonomous Drones for Nature Conservation Missions grant (EP/X029077/1).
+This work is part of the **WildDrone** project, funded by the European Union's Horizon Europe Research Programme under the Marie Skłodowska-Curie Grant Agreement No. 101071224, with additional funding from the EPSRC grant *Autonomous Drones for Nature Conservation Missions* (EP/X029077/1) and the Independent Research Fund Denmark (10.46540/4264-00105B).
 
-**Academic Papers**:
 ```bibtex
 @inproceedings{Rolland2025WildBridge,
-  author    = {Edouard Rolland and Kilian Meier and Murat Bronz and Aditya Shrikhande and Tom Richardson and Ulrik Pagh Schultz Lundquist and Anders Christensen},
-  title     = {WildBridge: Ground Station Interface for Lightweight Multi-Drone Control and Telemetry on DJI Platforms},
-  booktitle = {Proceedings of the 13th International Conference on Robot Intelligence Technology and Applications (RiTA 2025)},
+  author    = {Edouard G.A. Rolland and Kilian Meier and Murat Bronz and
+               Aditya M. Shrikhande and Tom Richardson and
+               Ulrik P.S. Lundquist and Anders L. Christensen},
+  title     = {{WildBridge}: Ground Station Interface for Lightweight
+               Multi-Drone Control and Telemetry on {DJI} Platforms},
+  booktitle = {Proceedings of the 13th International Conference on
+               Robot Intelligence Technology and Applications (RiTA 2025)},
   year      = {2025},
-  month = {December},
+  month     = {December},
   publisher = {Springer},
   address   = {London, United Kingdom},
   note      = {In press},
@@ -32,393 +558,13 @@ This work is part of the WildDrone project, funded by the European Union's Horiz
 }
 ```
 
-### Key Features
-
-- **Real-time Telemetry**: TCP socket streaming (port 8081) for continuous flight data at 20Hz
-- **HTTP Command Interface**: RESTful API (port 8080) for drone control commands
-- **Live Video Streaming**: RTSP video feed compatible with OpenCV, FFmpeg, and VLC
-- **DJI Native Waypoint Missions**: Support for KMZ-based wayline missions via DJI's native system
-- **PID-based Navigation**: Custom trajectory following with pure pursuit algorithm
-- **Multi-drone Coordination**: Support for up to 10 concurrent drones with sub-100ms latency
-- **Wildlife Monitoring**: Integrated YOLO-based object detection and geolocation
-- **Scientific Applications**: Proven in conservation, wildfire detection, and atmospheric research
-- **Cross-platform Integration**: Compatible with Python, ROS 2, and standard TCP/HTTP clients
-
-## Supported Hardware
-
-### DJI Drones (Mobile SDK V5 Compatible)
-- **DJI Mini 3/Mini 3 Pro**
-- **DJI Mini 4 Pro**
-- **DJI Mavic 3 Enterprise Series**
-- **DJI Matrice 30 Series (M30/M30T)**
-- **DJI Matrice 300 RTK**
-- **DJI Matrice 350 RTK**
-- Full list [here](https://developer.dji.com/doc/mobile-sdk-tutorial/en/)
-
-### Remote Controllers
-- **DJI RC Pro** - Primary supported controller
-- **DJI RC Plus** - Enterprise compatibility
-- **DJI RC-N3** - Standard controller (tested with smartphones)
-
-## Performance Characteristics
-
-Based on controlled experiments with consumer-grade hardware:
-
-### Telemetry Performance
-- **Latency**: <113ms mean, <290ms 90th percentile (up to 10 drones at 32Hz)
-- **Scalability**: Tested up to 10 concurrent drones
-
-### Video Streaming Performance
-- **Latency**: 1.4-1.6s (1-4 drones), 1.8-1.9s (5-6 drones)
-- **Scalability Limit**: 6 concurrent video streams before degradation
-- **Format**: Standard Definition via RTSP
-- **Compatibility**: FFmpeg, OpenCV, VLC
-
-## Quick Start
-
-### Prerequisites
-
-1. **Hardware Setup**
-   - DJI drone and compatible remote controller
-   - Local Wi-Fi network (5GHz recommended)
-   - Ground station computer
-
-2. **Software Installation**
-
-
-
-#### First, you need to install the WildBridge App on your controller: Step-by-Step Android Installation 
-
-1. **Enable Developer Mode and USB Debugging on your Android Device**
-   - Put your Android device in developer mode.
-   - Enable USB debugging in developer options.
-
-2. **Install Android Studio**
-   - Download and install Android Studio Koala 2024.1.1:
-     [Download Android Studio Koala 2024.1.1](https://redirector.gvt1.com/edgedl/android/studio/ide-zips/2024.1.2.13/android-studio-2024.1.2.13-linux.tar.gz)
-
-3. **Clone the WildBridge Repository**
-   - Open a terminal and run:
-     ```bash
-     git clone https://github.com/WildDrone/WildBridge.git
-     ```
-
-4. **Open the Project in Android Studio**
-   - In Android Studio, select "Open" and choose:
-     ```
-     WildBridge/WildBridgeApp/android-sdk-v5-as
-     ```
-
-5. **Become a DJI developer and get an API key**
-   - Register as a DJI developer and get an API key: [https://developer.dji.com/](https://developer.dji.com/)
-   - Past your API key in:
-     ```
-     WildBridge/WildBridgeApp/android-sdk-v5-as/local.properties 
-     ```
-     ```
-     AIRCRAFT_API_KEY="App key"
-     ```
-
-5. **Build and Deploy the App**
-   - Build the app in Android Studio. Install any prompted dependencies.
-   - Deploy the app to your controller.
-
-6. **Start the Server on the Drone Controller**
-   - In WildBridge, click "Testing Tools".
-   - Open the "Virtual Stick" page.
-   - The server is now running. You can send commands, view RTSP videofeed, and retrieve telemetry.
-
-Refer to the code snippets in the Quick Start section for examples of sending commands and retrieving telemetry.
-
-
-3. **Python GS Dependencies**
-   ```bash
-   pip install -r GroundStation/Python/requirements.txt
-   ```
-
-4. **ROS GS Dependencies**
-   ```bash
-   pip install -r GroundStation/ROS/requirements.txt
-   ```
-
-### Basic Usage
-
-#### 1. Remote Controller Setup
-- Connect RC to local Wi-Fi network
-- Note the RC's IP address from network settings
-- Install and launch WildBridge app
-- Navigate to "Testing Tools" -> "Virtual Stick"
-- When using control commands, press "Enable Virtual Stick"
-
-#### 2. Ground Station Connection
-
-**Telemetry Access via TCP Socket** (Python):
-```python
-import socket
-import json
-
-rc_ip = "192.168.1.100"  # Your RC IP
-sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-sock.connect((rc_ip, 8081))
-
-buffer = ""
-while True:
-    data = sock.recv(4096).decode('utf-8')
-    buffer += data
-    while '\n' in buffer:
-        line, buffer = buffer.split('\n', 1)
-        if line.strip():
-            telemetry = json.loads(line)
-            print(f"Battery: {telemetry['batteryLevel']}%")
-            print(f"Location: {telemetry['location']}")
-```
-
-**Video Streaming** (OpenCV):
-```python
-import cv2
-
-rc_ip = "192.168.1.100"  # Your RC IP
-rtsp_url = f"rtsp://aaa:aaa@{rc_ip}:8554/streaming/live/1"
-cap = cv2.VideoCapture(rtsp_url)
-ret, frame = cap.read()
-```
-
-**Control Commands** (HTTP POST):
-```python
-import requests
-
-rc_ip = "192.168.1.100"  # Your RC IP
-# Takeoff
-requests.post(f"http://{rc_ip}:8080/send/takeoff")
-
-# Navigate to waypoint with PID control
-data = "49.306254,4.593728,20,90"  # lat,lon,alt,yaw
-requests.post(f"http://{rc_ip}:8080/send/gotoWPwithPID", data=data)
-
-# DJI Native waypoint mission
-waypoints = "49.306,4.593,20; 49.307,4.594,25; 49.308,4.595,20"
-requests.post(f"http://{rc_ip}:8080/send/navigateTrajectoryDJINative", data=waypoints)
-```
-
-## API Reference
-
-### Telemetry Stream (TCP Socket - Port 8081)
-
-Connect to the TCP socket on port 8081 to receive continuous JSON telemetry at 20Hz.
-
-**Telemetry Fields:**
-| Field | Description |
-|-------|-------------|
-| `speed` | Aircraft velocity (x, y, z) |
-| `heading` | Compass heading in degrees |
-| `attitude` | Pitch, roll, yaw values |
-| `location` | GPS coordinates and altitude |
-| `gimbalAttitude` | Gimbal orientation |
-| `batteryLevel` | Battery percentage |
-| `satelliteCount` | GPS satellite count |
-| `homeLocation` | Home point coordinates |
-| `distanceToHome` | Distance to home in meters |
-| `waypointReached` | Waypoint status flag |
-| `isRecording` | Camera recording status |
-| `flightMode` | Current flight mode (GPS, MANUAL, GO_HOME, etc.) |
-| `remainingFlightTime` | Estimated flight time remaining |
-| `batteryNeededToGoHome` | Battery % needed for RTH |
-| `batteryNeededToLand` | Battery % needed to land |
-| `timeNeededToGoHome` | Time to return home (seconds) |
-| `maxRadiusCanFlyAndGoHome` | Max flyable radius (meters) |
-
-### Control Endpoints (HTTP POST - Port 8080)
-
-| Endpoint | Description | Parameters |
-|----------|-------------|------------|
-| `/send/takeoff` | Initiate takeoff | None |
-| `/send/land` | Initiate landing | None |
-| `/send/RTH` | Return to home | None |
-| `/send/gotoWP` | Navigate to waypoint | `lat,lon,alt` |
-| `/send/gotoWPwithPID` | Navigate with PID control | `lat,lon,alt,yaw` |
-| `/send/gotoYaw` | Rotate to heading | `yaw_angle` |
-| `/send/gotoAltitude` | Change altitude | `altitude` |
-| `/send/navigateTrajectory` | Follow trajectory (Virtual Stick) | `lat,lon,alt;...;lat,lon,alt,yaw` |
-| `/send/navigateTrajectoryDJINative` | DJI native waypoint mission | `lat,lon,alt;lat,lon,alt;...` |
-| `/send/abort/DJIMission` | Stop DJI native mission | None |
-| `/send/abortMission` | Stop and disable Virtual Stick | None |
-| `/send/enableVirtualStick` | Enable Virtual Stick mode | None |
-| `/send/stick` | Virtual stick input | `leftX,leftY,rightX,rightY` |
-| `/send/camera/zoom` | Camera zoom control | `zoom_ratio` |
-| `/send/camera/startRecording` | Start video recording | None |
-| `/send/camera/stopRecording` | Stop video recording | None |
-| `/send/gimbal/pitch` | Gimbal pitch control | `roll,pitch,yaw` |
-| `/send/gimbal/yaw` | Gimbal yaw control | `roll,pitch,yaw` |
-
-### Status Endpoints (HTTP GET - Port 8080)
-
-| Endpoint | Description |
-|----------|-------------|
-| `/status/waypointReached` | Check if waypoint reached |
-| `/status/intermediaryWaypointReached` | Check intermediary waypoint |
-| `/status/yawReached` | Check if target yaw reached |
-| `/status/altitudeReached` | Check if target altitude reached |
-| `/status/camera/isRecording` | Check recording status |
-
-### Legacy Telemetry Endpoints (HTTP GET - Port 8080)
-
-These endpoints are available for backward compatibility. For continuous telemetry, use the TCP socket on port 8081.
-
-| Endpoint | Description |
-|----------|-------------|
-| `/` | Connection test |
-| `/aircraft/allStates` | Complete telemetry package (JSON) |
-| `/aircraft/speed` | Aircraft velocity |
-| `/aircraft/heading` | Compass heading |
-| `/aircraft/attitude` | Pitch, roll, yaw |
-| `/aircraft/location` | GPS coordinates and altitude |
-| `/aircraft/gimbalAttitude` | Gimbal orientation |
-| `/home/location` | Home point coordinates |
-
-### Video Streaming
-- **RTSP URL**: `rtsp://aaa:aaa@{RC_IP}:8554/streaming/live/1`
-- **Format**: H.264, Standard Definition
-- **Latency**: 1.4-1.9 seconds (depending on network)
-
-## Project Structure
-
-```
-WildBridge/
-├── GroundStation/                      # Ground Control System (GS)
-│   ├── Python/                         # Python GS
-│   │   └── djiInterface.py             # Full DJI communication API
-│   └── ROS/                            # ROS 2 integration
-│       ├── dji_controller/             # Main drone control package
-│       ├── drone_videofeed/            # RTSP video streaming package
-│       └── wildview_bringup/           # Launch configuration
-└── WildBridgeApp/                      # Android application
-    ├── android-sdk-v5-as/              # Main app project
-    ├── android-sdk-v5-sample/          # Sample implementations
-    └── android-sdk-v5-uxsdk/           # UI components
-```
-
-### ROS 2 Integration
-
-WildBridge includes a complete ROS 2 implementation developed using **ROS Humble**, demonstrating how WildBridge HTTP requests can be seamlessly integrated into robotics applications.
-
-#### Features
-- **Multi-drone Support**: Simultaneous control of multiple DJI drones
-- **Real-time Telemetry**: Publishing drone states as ROS topics
-- **RTSP Video Streaming**: Live video feed integration with ROS Image messages
-- **Command Interface**: ROS service calls for drone control
-- **Dynamic Discovery**: Automatic drone detection via MAC address lookup
-
-#### Package Structure
-```
-GroundStation/ROS/
-├── dji_controller/          # Main drone control package
-│   ├── controller.py        # ROS node for drone commands and telemetry
-│   └── dji_interface.py     # HTTP interface wrapper
-├── drone_videofeed/         # RTSP video streaming package
-│   └── rtsp.py             # Video feed ROS node
-└── wildview_bringup/        # Launch configuration
-    └── swarm_connection.launch.py  # Multi-drone launch file
-```
-
-#### ROS Topics
-
-**Published Topics** (per drone):
-- `/drone_N/speed` - Current velocity magnitude
-- `/drone_N/location` - GPS coordinates (NavSatFix)
-- `/drone_N/attitude` - Pitch, roll, yaw
-- `/drone_N/battery_level` - Battery percentage
-- `/drone_N/video_frames` - Live camera feed (Image)
-
-**Subscribed Topics** (commands):
-- `/drone_N/command/takeoff` - Takeoff command
-- `/drone_N/command/goto_waypoint` - Navigate to coordinates
-- `/drone_N/command/gimbal_pitch` - Gimbal control
-
-#### Usage Example
-```bash
-# Launch multi-drone system
-ros2 launch wildview_bringup swarm_connection.launch.py
-
-# Send takeoff command
-ros2 topic pub /drone_1/command/takeoff std_msgs/Empty
-
-# Navigate to waypoint [lat, lon, alt, yaw]
-ros2 topic pub /drone_1/command/goto_waypoint std_msgs/Float64MultiArray "{data: [49.306254, 4.593728, 20.0, 90.0]}"
-
-# Monitor telemetry
-ros2 topic echo /drone_1/location
-```
-
-This ROS2 implementation showcases how WildBridge's HTTP API can be wrapped for integration with existing robotics frameworks, enabling seamless multi-drone coordination in research applications.
-
-## Scientific Applications
-
-WildBridge has been validated in multiple research domains:
-
-- **Wildlife Conservation**: Real-time animal detection and geolocation
-- **Wildfire Detection**: Early fire detection and mapping
-- **Atmospheric Research**: Wind field profiling and measurement
-- **Multi-drone Coordination**: Swarm-based data collection
-- **Conservation Monitoring**: Long-term ecosystem studies
-
-## Limitations and Considerations
-
-### Technical Limitations
-- **Video Scalability**: Maximum 6 concurrent video streams
-- **Telemetry Rate**: Optimal performance up to 32Hz request rate
-- **Synchronization**: Video and telemetry streams are not synchronized
-- **SDK Dependency**: Relies on DJI Mobile SDK V5 evolution
-
-### Operational Considerations
-- **Setup Time**: Multi-drone configurations require network setup
-- **Environmental Factors**: Performance affected by Wi-Fi interference
-- **Data Synchronization**: Post-mission data alignment requires planning
-
-## Troubleshooting
-
-### Common Issues
-
-**Connection Problems**:
-- Verify RC IP address in network settings
-- Ensure WildBridge app is running (Virtual Stick page open)
-- For telemetry: connect to TCP port 8081
-- For commands: use HTTP POST to port 8080
-
-**Video Stream Issues**:
-- Test RTSP URL in VLC: `rtsp://aaa:aaa@{RC_IP}:8554/streaming/live/1` (Open Network Protocol, Ctrl+N)
-- Check network bandwidth for multiple streams
-- Verify firewall settings on ground station
-
-**Waypoint Navigation Issues**:
-- If you send a drone to a waypoint but it does not move, ensure that Virtual Stick is enabled. You can enable Virtual Stick in the DJI App or send a command to enable it. Once enabled, the drone should be able to move to the waypoint.
-
-### Debug Commands
-```bash
-# Test connectivity
-ping {RC_IP}
-
-# Test video stream
-vlc rtsp://aaa:aaa@{RC_IP}:8554/streaming/live/1
-
-# Monitor telemetry (TCP stream)
-nc {RC_IP} 8081
-
-# Check waypoint status
-curl http://{RC_IP}:8080/status/waypointReached
-
-# Send takeoff command
-curl -X POST http://{RC_IP}:8080/send/takeoff
-```
+---
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE.txt](LICENSE.txt) file for details.
+MIT License — see [LICENSE](LICENSE) for details.
 
 ## Contributing
 
-Contributions are welcome! Please reach out!
-
-1. **Bug Reports**: Use GitHub issues with reproduction steps
-2. **Feature Requests**: Describe use case and scientific application
-
-For questions or collaboration inquiries, please contact the WildDrone consortium at [https://wilddrone.eu](https://wilddrone.eu).
+Bug reports and feature requests: [GitHub Issues](https://github.com/WildDrone/WildBridge/issues).  
+For collaboration enquiries, contact the WildDrone consortium at [wilddrone.eu](https://wilddrone.eu).

@@ -23,6 +23,16 @@ import dji.sampleV5.aircraft.utils.wpml.WaypointInfoModel
 import dji.v5.manager.aircraft.waypoint3.WaypointMissionManager
 import dji.v5.utils.common.ContextUtil
 import dji.sdk.wpmz.value.mission.*
+import dji.sdk.wpmz.value.mission.WaylineActionInfo
+import dji.sdk.wpmz.value.mission.WaylineActionType
+import dji.sdk.wpmz.value.mission.ActionGimbalRotateParam
+import dji.sdk.wpmz.value.mission.WaylineGimbalActuatorRotateMode
+import dji.sdk.wpmz.value.mission.WaylineActionGroup
+import dji.sdk.wpmz.value.mission.WaylineActionTrigger
+import dji.sdk.wpmz.value.mission.WaylineActionTriggerType
+import dji.sdk.wpmz.value.mission.WaylineActionNodeList
+import dji.sdk.wpmz.value.mission.WaylineActionTreeNode
+import dji.sdk.wpmz.value.mission.WaylineActionsRelationType
 import dji.v5.et.set
 import java.io.File
 import java.text.SimpleDateFormat
@@ -34,12 +44,105 @@ import java.util.zip.ZipFile
 
 object DroneController {
 
-    private lateinit var basicAircraftControlVM: BasicAircraftControlVM
-    lateinit var virtualStickVM: VirtualStickVM
+    private var basicAircraftControlVM: BasicAircraftControlVM? = null
+    var virtualStickVM: VirtualStickVM? = null
+
+    // ==================== Manual Override System ====================
+    // When true, the pilot has taken manual control via RC sticks.
+    // This flag latches ON automatically when RC stick input exceeds the deadzone,
+    // and only clears when the user explicitly deactivates it (via checkbox or HTTP).
+    // While active, all autonomous HTTP commands (waypoints, trajectories, etc.) are rejected.
+    @Volatile
+    var isManualOverrideActive = false
+        private set
+
+    // RC stick deadzone threshold [0..660]. DJI RC sticks report ±660.
+    // 200 ≈ 30 % deflection — requires a clear, deliberate push to activate
+    // override, making accidental triggering from calibration drift or small
+    // incidental touches virtually impossible.
+    const val RC_STICK_DEADZONE = 200
+
+    // Listener interface so the UI can react to automatic activation
+    interface ManualOverrideListener {
+        fun onManualOverrideActivated()
+    }
+    var manualOverrideListener: ManualOverrideListener? = null
+
+    /**
+     * Called when RC stick input exceeds the deadzone during autonomous flight.
+     * Activates the manual override latch and kills any running control loops.
+     */
+    fun activateManualOverride() {
+        if (!isManualOverrideActive) {
+            isManualOverrideActive = true
+            cancelActiveControlLoop()
+            setDroneStatus(DroneStatus.MANUAL_OVERRIDE)
+            ToastUtils.showToast("⚠ MANUAL OVERRIDE ACTIVE — autonomous commands blocked")
+            manualOverrideListener?.onManualOverrideActivated()
+        }
+    }
+
+    /**
+     * Called ONLY by the user pressing the deactivate button/checkbox.
+     * Clears the manual override latch so autonomous commands work again.
+     */
+    fun deactivateManualOverride() {
+        isManualOverrideActive = false
+        setDroneStatus(DroneStatus.IDLE)
+        ToastUtils.showToast("Manual override cleared — autonomous commands enabled")
+    }
+
+    /**
+     * Check if an autonomous command should be allowed to execute.
+     * Returns true if the command should be REJECTED (manual override is active).
+     */
+    fun shouldRejectAutonomousCommand(commandName: String = ""): Boolean {
+        if (isManualOverrideActive) {
+            val msg = if (commandName.isNotEmpty())
+                "Command '$commandName' rejected — manual override active"
+            else
+                "Autonomous command rejected — manual override active"
+            ToastUtils.showToast(msg)
+            return true
+        }
+        return false
+    }
+    // ==================== End Manual Override ====================
+
+    // ==================== Drone Status ====================
+    /**
+     * High-level operational state of the drone, derived from app-side command tracking.
+     * The UI layer can also upgrade IDLE → HOVERING using FC telemetry (isFlying key).
+     */
+    enum class DroneStatus {
+        IDLE, TAKING_OFF, HOVERING, NAVIGATING, LANDING, RETURNING_HOME, MANUAL_OVERRIDE, ABORTING
+    }
+
+    interface DroneStatusListener {
+        fun onDroneStatusChanged(status: DroneStatus)
+    }
+    var droneStatusListener: DroneStatusListener? = null
+
+    @Volatile
+    var droneStatus: DroneStatus = DroneStatus.IDLE
+        private set
+
+    private val statusResetHandler = Handler(Looper.getMainLooper())
+
+    private fun setDroneStatus(status: DroneStatus) {
+        droneStatus = status
+        droneStatusListener?.onDroneStatusChanged(status)
+    }
+    // ==================== End Drone Status ====================
 
     fun init(basicVM: BasicAircraftControlVM, stickVM: VirtualStickVM ) {
         basicAircraftControlVM = basicVM
         virtualStickVM = stickVM
+    }
+
+    fun destroy() {
+        basicAircraftControlVM = null
+        virtualStickVM = null
     }
 
     //WAYPOINT MISSION
@@ -55,10 +158,125 @@ object DroneController {
         return (compassHeadKey.get(0.0)).toDouble()
     }
 
-    private var isWaypointReached = false
-    private var isYawReached = false
-    private var isAltitudeReached = false
-    private var isIntermediaryWaypointReached = false
+    private var _isWaypointReached = false
+    private var _isYawReached = false
+    private var _isAltitudeReached = false
+    private var _isIntermediaryWaypointReached = false
+
+    // Control loop management - to prevent ghost waypoint navigation
+    private var activeControlLoopHandler: Handler? = null
+    private var activeControlLoopRunnable: Runnable? = null
+    
+    // Kill switch - when false, ALL control loops must stop immediately
+    @Volatile
+    private var controlLoopEnabled = false
+
+    /**
+     * True while a PID/virtual-stick control loop is actively running.
+     * Used externally (e.g. VirtualStickVM) to gate the manual-override check so that
+     * RC stick noise or drift doesn't spuriously activate override when the drone is idle.
+     */
+    val isAutonomousFlightActive: Boolean
+        get() = controlLoopEnabled
+
+    /**
+     * Mirrors the FC isFlying telemetry key. Updated by the Activity via the
+     * isFlyingKey listener so VirtualStickVM can gate manual-override detection:
+     * sticks only latch override when the drone is actually airborne (prevents
+     * ground-level calibration drift false-positives) or when an autonomous loop
+     * is running (catches pilot intervention mid-mission).
+     */
+    @Volatile
+    var isAirborne: Boolean = false
+
+    // Unique ID for each control loop session - loops check this to ensure they're still valid
+    @Volatile
+    private var currentControlLoopId: Long = 0
+    
+    // Timestamp when control loop started - used to give virtual stick time to enable
+    @Volatile
+    private var controlLoopStartTime: Long = 0
+    
+    // Grace period (ms) to allow virtual stick to enable before checking its state
+    private val VIRTUAL_STICK_ENABLE_GRACE_PERIOD_MS = 1000L
+
+    /**
+     * Cancel any active control loop (gotoWP, gotoYaw, gotoAltitude, navigateTrajectory, etc.)
+     * This MUST be called before starting a new control loop or when disabling virtual sticks
+     */
+    fun cancelActiveControlLoop() {
+        // Disable control loop and increment ID to invalidate any running loops
+        controlLoopEnabled = false
+        currentControlLoopId++
+        
+        activeControlLoopRunnable?.let { runnable ->
+            activeControlLoopHandler?.removeCallbacks(runnable)
+        }
+        activeControlLoopHandler?.removeCallbacksAndMessages(null)
+        activeControlLoopHandler = null
+        activeControlLoopRunnable = null
+        // Reset stick to neutral position
+        setStick(0F, 0F, 0F, 0F)
+        // Reset navigation status — but don't overwrite TAKING_OFF, LANDING, RTH, MANUAL, ABORTING
+        if (droneStatus == DroneStatus.NAVIGATING) setDroneStatus(DroneStatus.IDLE)
+    }
+    
+    /**
+     * Start a new control loop session - returns the loop ID that must be checked each iteration
+     */
+    private fun startNewControlLoopSession(): Long {
+        cancelActiveControlLoop()  // Cancel any previous loop first
+        controlLoopEnabled = true
+        currentControlLoopId++
+        controlLoopStartTime = System.currentTimeMillis()
+        setDroneStatus(DroneStatus.NAVIGATING)
+        return currentControlLoopId
+    }
+    
+    /**
+     * Check if the control loop with given ID should continue running.
+     * Returns false if:
+     * - The control loop was explicitly cancelled (controlLoopEnabled = false)
+     * - A new control loop was started (loopId doesn't match)
+     * - Manual override is active (pilot took control via RC sticks)
+     * - The drone is no longer in virtual stick mode (user took manual control)
+     */
+    private fun shouldControlLoopContinue(loopId: Long): Boolean {
+        // Check if loop was cancelled or a new one started
+        if (!controlLoopEnabled || loopId != currentControlLoopId) {
+            return false
+        }
+
+        // If manual override was triggered, stop immediately
+        if (isManualOverrideActive) {
+            controlLoopEnabled = false
+            return false
+        }
+        
+        // Give virtual stick time to enable before checking its state
+        // enableVirtualStick() is async, so we need a grace period
+        val timeSinceStart = System.currentTimeMillis() - controlLoopStartTime
+        if (timeSinceStart < VIRTUAL_STICK_ENABLE_GRACE_PERIOD_MS) {
+            // Still in grace period, don't check virtual stick state yet
+            return true
+        }
+        
+        // Check if drone is still in virtual stick mode
+        // If virtual stick gets disabled while a loop is running, kill the loop.
+        val isVirtualStickEnabled = virtualStickVM?.currentVirtualStickStateInfo?.value?.state?.isVirtualStickEnable ?: false
+        if (!isVirtualStickEnabled) {
+            // Virtual stick was disabled externally.
+            // NOTE: Do NOT call activateManualOverride() here — virtual stick can be disabled
+            // by the system itself (e.g. disableVirtualStick() called by startTakeOff(), signal
+            // loss recovery, FC safety checks) which would spuriously latch manual override and
+            // block subsequent autonomous commands.  Real pilot RC-stick intervention is detected
+            // in VirtualStickVM.tryUpdateVirtualStickByRc() while isAutonomousFlightActive is true.
+            controlLoopEnabled = false
+            return false
+        }
+        
+        return true
+    }
 
     // Keep track of last KMZ pushed/started
     private var lastMissionNameNoExt: String = ""
@@ -74,27 +292,72 @@ object DroneController {
 
     // STREAM STABILITY
     fun enableVirtualStick() {
-        virtualStickVM.enableVirtualStick(object : CommonCallbacks.CompletionCallback {
-            override fun onSuccess() {
-                ToastUtils.showToast("enableVirtualStick success.")
-            }
-
-            override fun onFailure(error: IDJIError) {
-                ToastUtils.showToast("enableVirtualStick error,$error")
-            }
+        // Cancel any active control loop first to prevent ghost navigation
+        cancelActiveControlLoop()
+        virtualStickVM?.enableVirtualStick(object : CommonCallbacks.CompletionCallback {
+            override fun onSuccess() { }
+            override fun onFailure(error: IDJIError) { /* SDK may report "already enabled" — not a real error */ }
         })
     }
 
     fun disableVirtualStick() {
-        virtualStickVM.disableVirtualStick(object : CommonCallbacks.CompletionCallback {
-            override fun onSuccess() {
-                ToastUtils.showToast("disableVirtualStick success.")
-            }
+        // Cancel any active control loop first
+        cancelActiveControlLoop()
+        virtualStickVM?.disableVirtualStick(object : CommonCallbacks.CompletionCallback {
+            override fun onSuccess() { }
+            override fun onFailure(error: IDJIError) { /* SDK may report "already disabled" — not a real error */ }
+        })
+    }
 
+    /**
+     * Comprehensive abort function that stops ALL types of missions/navigation:
+     * 1. Cancels any active control loops (PID navigation)
+     * 2. Resets virtual sticks to neutral
+     * 3. Attempts to disable virtual stick (may fail if control authority was lost - that's OK)
+     * 4. Stops any DJI native waypoint missions
+     * 
+     * This function is designed to be resilient - it will attempt all abort actions
+     * regardless of individual failures, ensuring the drone stops moving.
+     */
+    fun abortAllMissions() {
+        // 1. Cancel any active PID control loops immediately
+        setDroneStatus(DroneStatus.ABORTING)
+        cancelActiveControlLoop()
+        // ABORTING is a transient display state — return to IDLE after 2 s
+        statusResetHandler.postDelayed({
+            if (droneStatus == DroneStatus.ABORTING) setDroneStatus(DroneStatus.IDLE)
+        }, 2_000L)
+        
+        // 2. Reset sticks to neutral
+        setStick(0F, 0F, 0F, 0F)
+        
+        // 3. Try to disable virtual stick (may fail if we don't have control authority - that's OK)
+        virtualStickVM?.disableVirtualStick(object : CommonCallbacks.CompletionCallback {
+            override fun onSuccess() {
+                // Virtual stick disabled successfully
+            }
             override fun onFailure(error: IDJIError) {
-                ToastUtils.showToast("disableVirtualStick error,${error})")
+                // Ignore - we may not have had control authority, which is fine
+                // The important thing is we've cancelled the control loops
             }
         })
+        
+        // 4. Also try to stop any DJI native waypoint mission
+        try {
+            if (lastMissionNameNoExt.isNotEmpty()) {
+                WaypointMissionManager.getInstance().stopMission(lastMissionNameNoExt, object : CommonCallbacks.CompletionCallback {
+                    override fun onSuccess() { }
+                    override fun onFailure(error: IDJIError) { }
+                })
+            }
+            // Also try pause in case there's an unnamed mission running
+            WaypointMissionManager.getInstance().pauseMission(object : CommonCallbacks.CompletionCallback {
+                override fun onSuccess() { }
+                override fun onFailure(error: IDJIError) { }
+            })
+        } catch (e: Exception) {
+            // Ignore any errors - we just want to try our best to stop everything
+        }
     }
 
     fun calculateDistance(
@@ -152,41 +415,76 @@ object DroneController {
             rightX: Float = 0F,
             rightY: Float = 0F
     ) {
-        virtualStickVM.setLeftPosition(
+        virtualStickVM?.setLeftPosition(
                 (leftX * Stick.MAX_STICK_POSITION_ABS).toInt(),
                 (leftY * Stick.MAX_STICK_POSITION_ABS).toInt()
         )
-        virtualStickVM.setRightPosition(
+        virtualStickVM?.setRightPosition(
                 (rightX * Stick.MAX_STICK_POSITION_ABS).toInt(),
                 (rightY * Stick.MAX_STICK_POSITION_ABS).toInt()
         )
     }
 
     fun startTakeOff() {
-
-        basicAircraftControlVM.startTakeOff(object : CommonCallbacks.CompletionCallbackWithParam<EmptyMsg> {
+        // Disable virtual sticks first to ensure no control loops are running before takeoff
+        disableVirtualStick()
+        setDroneStatus(DroneStatus.TAKING_OFF)
+        basicAircraftControlVM?.startTakeOff(object : CommonCallbacks.CompletionCallbackWithParam<EmptyMsg> {
             override fun onSuccess(t: EmptyMsg?) {
                 ToastUtils.showToast("start takeOff onSuccess.")
+                // Auto-reset after ~12 s; telemetry will upgrade IDLE → HOVERING if airborne
+                statusResetHandler.postDelayed({
+                    if (droneStatus == DroneStatus.TAKING_OFF) setDroneStatus(DroneStatus.IDLE)
+                }, 12_000L)
             }
             override fun onFailure(error: IDJIError) {
+                setDroneStatus(DroneStatus.IDLE)
                 ToastUtils.showToast("start takeOff onFailure, $error")
             }
         })
     }
 
     fun startLanding() {
-        basicAircraftControlVM.startLanding(object : CommonCallbacks.CompletionCallbackWithParam<EmptyMsg> {
+        setDroneStatus(DroneStatus.LANDING)
+        statusResetHandler.postDelayed({
+            if (droneStatus == DroneStatus.LANDING) setDroneStatus(DroneStatus.IDLE)
+        }, 40_000L)
+        basicAircraftControlVM?.startLanding(object : CommonCallbacks.CompletionCallbackWithParam<EmptyMsg> {
             override fun onSuccess(t: EmptyMsg?) {
                 ToastUtils.showToast("start landing onSuccess.")
             }
             override fun onFailure(error: IDJIError) {
+                setDroneStatus(DroneStatus.IDLE)
                 ToastUtils.showToast("start landing onFailure, $error")
             }
         })
     }
 
     fun startReturnToHome() {
-        basicAircraftControlVM.startReturnToHome(object :
+        // CRITICAL: Disable virtual stick before RTH to prevent conflicts
+        // Virtual stick mode can interfere with RTH causing erratic behaviorW
+        setDroneStatus(DroneStatus.RETURNING_HOME)
+        statusResetHandler.postDelayed({
+            if (droneStatus == DroneStatus.RETURNING_HOME) setDroneStatus(DroneStatus.IDLE)
+        }, 120_000L)
+        cancelActiveControlLoop()
+        
+        virtualStickVM?.disableVirtualStick(object : CommonCallbacks.CompletionCallback {
+            override fun onSuccess() {
+                // Virtual stick disabled, now safe to start RTH
+                executeRTH()
+            }
+
+            override fun onFailure(error: IDJIError) {
+                // Virtual stick may already be disabled or we don't have control authority
+                // Still try RTH - the DJI SDK may handle it
+                executeRTH()
+            }
+        })
+    }
+    
+    private fun executeRTH() {
+        basicAircraftControlVM?.startReturnToHome(object :
                 CommonCallbacks.CompletionCallbackWithParam<EmptyMsg> {
             override fun onSuccess(t: EmptyMsg?) {
                 ToastUtils.showToast("start RTH onSuccess.")
@@ -199,17 +497,51 @@ object DroneController {
     }
 
 
+    private fun stopCurrentMission() {
+        if (lastMissionNameNoExt.isNotEmpty()) {
+            WaypointMissionManager.getInstance().stopMission(lastMissionNameNoExt, object : CommonCallbacks.CompletionCallback {
+                override fun onSuccess() { /* no-op */ }
+                override fun onFailure(error: IDJIError) { /* ignore */ }
+            })
+        } else {
+            // Try to pause/stop any active mission even if we don't track the name
+             WaypointMissionManager.getInstance().pauseMission(object : CommonCallbacks.CompletionCallback {
+                override fun onSuccess() { /* no-op */ }
+                override fun onFailure(error: IDJIError) { /* ignore */ }
+            })
+        }
+    }
+
     fun gotoYaw(targetYaw: Double) {
-        isYawReached = false
+        stopCurrentMission()
+        // Start new control loop session
+        val loopId = startNewControlLoopSession()
+        
+        _isYawReached = false
         val controlLoopYaw = Handler(Looper.getMainLooper())
         val updateInterval = 100.0 // Update every 100 ms
         val maxYawRate = 30.0 // degrees per second
         val yawPID = PID(3.0, 0.0, 0.0, updateInterval/1000, -maxYawRate to maxYawRate)
 
-        virtualStickVM.enableVirtualStickAdvancedMode()
+        virtualStickVM?.enableVirtualStickAdvancedMode()
+        // Enable Virtual Stick and advanced mode
+        // NOTE: Use VM directly, not enableVirtualStick() which would cancel the loop we just started
+        virtualStickVM?.enableVirtualStick(object : CommonCallbacks.CompletionCallback {
+            override fun onSuccess() { }
+            override fun onFailure(error: IDJIError) {
+                /* SDK may report "already enabled" — not a real error */
+            }
+        })
+        virtualStickVM?.enableVirtualStickAdvancedMode()
 
-        controlLoopYaw.post(object : Runnable {
+        val runnable = object : Runnable {
             override fun run() {
+                // CHECK IF WE SHOULD STILL BE RUNNING
+                if (!shouldControlLoopContinue(loopId)) {
+                    setStick(0F, 0F, 0F, 0F)
+                    return
+                }
+                
                 val currentPosition = getLocation3D()
                 val currentYaw = getHeading()
                 val yawError = normalizeAngle(targetYaw - currentYaw)
@@ -218,7 +550,8 @@ object DroneController {
                 // Stop if the error is within a threshold
                 if (abs(yawError) < 0.5) {
                     setStick(0F, 0F, 0F, 0F)
-                    isYawReached = true
+                    _isYawReached = true
+                    controlLoopEnabled = false
                     return
                 }
 
@@ -233,22 +566,47 @@ object DroneController {
                     this.rollPitchCoordinateSystem = FlightCoordinateSystem.BODY
                 }
 
-                virtualStickVM.sendVirtualStickAdvancedParam(flightControlParam)
+                virtualStickVM?.sendVirtualStickAdvancedParam(flightControlParam)
                 controlLoopYaw.postDelayed(this, updateInterval.toLong())
             }
-        })
+        }
+        
+        // Store references to allow cancellation
+        activeControlLoopHandler = controlLoopYaw
+        activeControlLoopRunnable = runnable
+        controlLoopYaw.post(runnable)
     }
 
     fun gotoAltitude(targetAltitude: Double) {
-        isAltitudeReached = false
+        stopCurrentMission()
+        // Start new control loop session
+        val loopId = startNewControlLoopSession()
+
+        // Enable Virtual Stick and advanced mode
+        // NOTE: Use VM directly, not enableVirtualStick() which would cancel the loop we just started
+        virtualStickVM?.enableVirtualStick(object : CommonCallbacks.CompletionCallback {
+            override fun onSuccess() { }
+            override fun onFailure(error: IDJIError) { /* SDK may report "already enabled" — not a real error */ }
+        })
+        virtualStickVM?.enableVirtualStickAdvancedMode()
+
+        _isAltitudeReached = false
         val controlLoopHandler = Handler(Looper.getMainLooper())
         val updateInterval = 100L // Update every 100 ms
+        
+        // Capture initial yaw ONCE to prevent oscillation from compass noise
+        val initialYaw = getHeading()
 
         // Enable advanced Virtual Stick mode
-        virtualStickVM.enableVirtualStickAdvancedMode()
+        virtualStickVM?.enableVirtualStickAdvancedMode()
 
-        controlLoopHandler.post(object : Runnable {
+        val runnable = object : Runnable {
             override fun run() {
+                // CHECK IF WE SHOULD STILL BE RUNNING
+                if (!shouldControlLoopContinue(loopId)) {
+                    setStick(0F, 0F, 0F, 0F)
+                    return
+                }
 
                 val currentPosition = getLocation3D()
                 val altitudeError = targetAltitude - currentPosition.altitude
@@ -256,7 +614,8 @@ object DroneController {
 
                 if (distanceToAltitude < 0.4) { // Stop if close enough to the target altitude
                     setStick(0F, 0F, 0F, 0F)
-                    isAltitudeReached = true
+                    _isAltitudeReached = true
+                    controlLoopEnabled = false
                     return
                 }
 
@@ -270,12 +629,11 @@ object DroneController {
                 val maxVerticalSpeed = 4.0 // Maximum vertical speed in m/s
                 verticalSpeed = verticalSpeed.coerceIn(-maxVerticalSpeed, maxVerticalSpeed)
 
-                val currentYaw = getHeading()
-
+                // Use initial yaw captured at start to prevent oscillation from compass noise
                 val flightControlParam = VirtualStickFlightControlParam().apply {
                     this.pitch = 0.0
                     this.roll = 0.0
-                    this.yaw = currentYaw
+                    this.yaw = initialYaw
                     this.verticalThrottle = verticalSpeed
                     this.verticalControlMode = VerticalControlMode.VELOCITY
                     this.rollPitchControlMode = RollPitchControlMode.VELOCITY
@@ -283,24 +641,46 @@ object DroneController {
                     this.rollPitchCoordinateSystem = FlightCoordinateSystem.BODY
                 }
 
-                virtualStickVM.sendVirtualStickAdvancedParam(flightControlParam)
+                virtualStickVM?.sendVirtualStickAdvancedParam(flightControlParam)
 
                 // Schedule the next update
                 controlLoopHandler.postDelayed(this, updateInterval)
             }
-        })
+        }
+        
+        // Store references to allow cancellation
+        activeControlLoopHandler = controlLoopHandler
+        activeControlLoopRunnable = runnable
+        controlLoopHandler.post(runnable)
     }
 
     fun gotoWP(targetLatitude: Double, targetLongitude: Double, targetAltitude: Double) {
+        stopCurrentMission()
+        // Start new control loop session
+        val loopId = startNewControlLoopSession()
+        
         val controlLoop = Handler(Looper.getMainLooper())
         val updateInterval: Long = 100 // Update every 100 ms
 
-        // Enable virtual stick with function defined before
-        isWaypointReached = false
-        virtualStickVM.enableVirtualStickAdvancedMode()
+        // Enable Virtual Stick and advanced mode
+        // NOTE: Use VM directly, not enableVirtualStick() which would cancel the loop we just started
+        _isWaypointReached = false
+        virtualStickVM?.enableVirtualStickAdvancedMode()
+        virtualStickVM?.enableVirtualStick(object : CommonCallbacks.CompletionCallback {
+            override fun onSuccess() { }
+            override fun onFailure(error: IDJIError) {
+                /* SDK may report "already enabled" — not a real error */
+            }
+        })
+        virtualStickVM?.enableVirtualStickAdvancedMode()
 
-        controlLoop.post(object : Runnable {
+        val runnable = object : Runnable {
             override fun run() {
+                // CHECK IF WE SHOULD STILL BE RUNNING
+                if (!shouldControlLoopContinue(loopId)) {
+                    setStick(0F, 0F, 0F, 0F)
+                    return
+                }
 
                 val currentPosition = getLocation3D()
                 val distanceToWaypoint = calculateDistance(
@@ -314,7 +694,8 @@ object DroneController {
 
                 if (distanceToWaypoint < 0.5 && abs(altError) < 0.5) { // Stop if close enough to the waypoint
                     setStick(0F, 0F, 0F, 0F)
-                    isWaypointReached = true
+                    _isWaypointReached = true
+                    controlLoopEnabled = false
                     return
                 }
                 // Calculate the desired yaw angle to face the waypoint
@@ -372,30 +753,54 @@ object DroneController {
                 }
 
                 // Send the virtual stick control data
-                virtualStickVM.sendVirtualStickAdvancedParam(flightControlParam)
+                virtualStickVM?.sendVirtualStickAdvancedParam(flightControlParam)
                 // Schedule the next update
                 controlLoop.postDelayed(this, updateInterval)
             }
-        })
+        }
+        
+        // Store references to allow cancellation
+        activeControlLoopHandler = controlLoop
+        activeControlLoopRunnable = runnable
+        controlLoop.post(runnable)
     }
 
     fun navigateToWaypointWithPID(targetLatitude: Double, targetLongitude: Double, targetAlt: Double, targetYaw: Double, maxSpeed: Double) {
+        stopCurrentMission()
+        // Start new control loop session
+        val loopId = startNewControlLoopSession()
 
         val updateInterval = 100.0  // Update every 100 ms
         val maxYawRate = 30.0 // degrees per second
 
-        virtualStickVM.enableVirtualStickAdvancedMode()
+        virtualStickVM?.enableVirtualStickAdvancedMode()
+        // Enable Virtual Stick and advanced mode
+        // NOTE: Use VM directly, not enableVirtualStick() which would cancel the loop we just started
+        virtualStickVM?.enableVirtualStick(object : CommonCallbacks.CompletionCallback {
+            override fun onSuccess() { }
+            override fun onFailure(error: IDJIError) {
+                /* SDK may report "already enabled" — not a real error */
+            }
+        })
+        virtualStickVM?.enableVirtualStickAdvancedMode()
 
         val distancePID = PID(0.65, 0.0001, 0.001, updateInterval/1000, 0.0 to maxSpeed)
         val yawPID = PID(3.0, 0.0000, 0.00, updateInterval/1000, -maxYawRate to maxYawRate)
 
         val controlLoop = Handler(Looper.getMainLooper())
 
-        isWaypointReached = false
-        virtualStickVM.enableVirtualStickAdvancedMode()
+        _isWaypointReached = false
+        virtualStickVM?.enableVirtualStickAdvancedMode()
 
-        controlLoop.post(object : Runnable {
+
+        val runnable = object : Runnable {
             override fun run() {
+                // CHECK IF WE SHOULD STILL BE RUNNING
+                if (!shouldControlLoopContinue(loopId)) {
+                    setStick(0F, 0F, 0F, 0F)
+                    return
+                }
+                
                 val currentPosition = getLocation3D()
                 val currentYaw = getHeading()
 
@@ -414,7 +819,9 @@ object DroneController {
 
                 if (distance < 2 && abs(yawError) < 4 && abs(altError) < 2) { // Stop if close enough to the waypoint
                     setStick(0F, 0F, 0F, 0F)
-                    isWaypointReached = true
+                    _isWaypointReached = true
+                    controlLoopEnabled = false
+                    disableVirtualStick() // Disable virtual stick to let drone hold GPS position
                     return
                 }
 
@@ -429,10 +836,15 @@ object DroneController {
                     this.rollPitchCoordinateSystem = FlightCoordinateSystem.BODY
                 }
 
-                virtualStickVM.sendVirtualStickAdvancedParam(flightControlParam)
+                virtualStickVM?.sendVirtualStickAdvancedParam(flightControlParam)
                 controlLoop.postDelayed(this, updateInterval.toLong())
             }
-        })
+        }
+        
+        // Store references to allow cancellation
+        activeControlLoopHandler = controlLoop
+        activeControlLoopRunnable = runnable
+        controlLoop.post(runnable)
     }
 
     fun navigateTrajectory(
@@ -442,15 +854,28 @@ object DroneController {
         minSpeedFinal: Double = 1.0,
         slowdownRadius: Double = 4.0
     ) {
+        stopCurrentMission()
         if (waypoints.size < 2) return
+        
+        // Start new control loop session
+        val loopId = startNewControlLoopSession()
 
         val updateIntervalMs = 100L
 
         var currentIndex = 0
-        isWaypointReached = false
-        isIntermediaryWaypointReached = false
+        _isWaypointReached = false
+        _isIntermediaryWaypointReached = false
 
-        virtualStickVM.enableVirtualStickAdvancedMode()
+        virtualStickVM?.enableVirtualStickAdvancedMode()
+        // Enable Virtual Stick and advanced mode
+        // NOTE: Use VM directly, not enableVirtualStick() which would cancel the loop we just started
+        virtualStickVM?.enableVirtualStick(object : CommonCallbacks.CompletionCallback {
+            override fun onSuccess() { }
+            override fun onFailure(error: IDJIError) {
+                /* SDK may report "already enabled" — not a real error */
+            }
+        })
+        virtualStickVM?.enableVirtualStickAdvancedMode()
         val controlLoop = Handler(Looper.getMainLooper())
 
         // Helper: Compute great-circle distance (meters) between two lat/lon
@@ -503,8 +928,14 @@ object DroneController {
             return dot / segLen2 // 0=start, 1=end, >1=after end
         }
 
-        controlLoop.post(object : Runnable {
+        val runnable = object : Runnable {
             override fun run() {
+                // CHECK IF WE SHOULD STILL BE RUNNING
+                if (!shouldControlLoopContinue(loopId)) {
+                    setStick(0F, 0F, 0F, 0F)
+                    return
+                }
+                
                 val current = getLocation3D()
                 val currentYaw = getHeading()
 
@@ -519,9 +950,6 @@ object DroneController {
                 // Project drone onto the segment [start, end]
                 val segLen = calculateDistance(start.first, start.second, end.first, end.second)
                 val projRatio = progress.coerceIn(0.0, 1.0)
-                val projLat = start.first + (end.first - start.first) * projRatio
-                val projLon = start.second + (end.second - start.second) * projRatio
-                val projAlt = start.third + (end.third - start.third) * projRatio
 
                 // Pure pursuit: lookahead point further along the segment
                 val lookaheadRatio = ((segLen * projRatio) + lookaheadDistance) / segLen
@@ -565,7 +993,8 @@ object DroneController {
 
                 if (reached) {
                     setStick(0F, 0F, 0F, 0F)
-                    isWaypointReached = true
+                    _isWaypointReached = true
+                    controlLoopEnabled = false
                     return
                 }
 
@@ -588,19 +1017,33 @@ object DroneController {
                     this.rollPitchCoordinateSystem = FlightCoordinateSystem.BODY
                 }
 
-                virtualStickVM.sendVirtualStickAdvancedParam(flightControlParam)
+                virtualStickVM?.sendVirtualStickAdvancedParam(flightControlParam)
                 controlLoop.postDelayed(this, updateIntervalMs)
             }
-        })
+        }
+        
+        // Store references to allow cancellation
+        activeControlLoopHandler = controlLoop
+        activeControlLoopRunnable = runnable
+        controlLoop.post(runnable)
     }
 
     // === DJI Native Wayline (KMZ) flow ===
-    private fun generateTrajectoryName(): String {
+    fun generateTrajectoryName(): String {
         val dateFormat = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault())
         return "trajectory_${dateFormat.format(Date())}"
     }
 
-    private fun createWaypointFromLatLon(
+    fun getKmzDirectory(): String = kmzDir
+
+    fun getLastMissionNameNoExt(): String = lastMissionNameNoExt
+    
+    fun getLastMissionKmzPath(): String = lastMissionKmzPath
+
+    /**
+     * Create a waypoint model from lat/lon/height with gimbal pitch set to -90 (looking down)
+     */
+    fun createWaypointFromLatLon(
         lat: Double,
         lon: Double,
         heightMeters: Double,
@@ -631,20 +1074,30 @@ object DroneController {
         waypoint.useGlobalYawParam = false
         waypoint.isWaylineWaypointYawParamSet = true
 
-        val gimbalParam = WaylineWaypointGimbalHeadingParam().apply {
-            headingMode = WaylineWaypointGimbalHeadingMode.find(0)
-            pitchAngle = 30.0
-        }
-        waypoint.gimbalHeadingParam = gimbalParam
-        waypoint.isWaylineWaypointGimbalHeadingParamSet = true
-        waypoint.useGlobalGimbalHeadingParam = false
+        // Set gimbal pitch angle directly on the waypoint
+        waypoint.gimbalPitchAngle = -90.0  // Gimbal looking straight down during trajectory following
+
+        // Use global gimbal heading param (set at template level)
+        waypoint.useGlobalGimbalHeadingParam = true
 
         waypointInfo.waylineWaypoint = waypoint
-        waypointInfo.actionInfos = ArrayList()
+
+        // Create gimbal rotate action to set pitch to -90 degrees (looking straight down)
+        val gimbalRotateParam = ActionGimbalRotateParam()
+        gimbalRotateParam.enablePitch = true
+        gimbalRotateParam.pitch = -90.0  // Look straight down
+        gimbalRotateParam.rotateMode = WaylineGimbalActuatorRotateMode.ABSOLUTE_ANGLE
+        gimbalRotateParam.payloadPositionIndex = 0
+        
+        val gimbalAction = WaylineActionInfo()
+        gimbalAction.actionType = WaylineActionType.GIMBAL_ROTATE
+        gimbalAction.gimbalRotateParam = gimbalRotateParam
+        
+        waypointInfo.actionInfos = arrayListOf(gimbalAction)
         return waypointInfo
     }
 
-    private fun createWaylineMission(): WaylineMission {
+    fun createWaylineMission(): WaylineMission {
         val m = WaylineMission()
         val now = System.currentTimeMillis().toDouble()
         m.createTime = now
@@ -652,16 +1105,18 @@ object DroneController {
         return m
     }
 
-    private fun createMissionConfig(): WaylineMissionConfig {
+    fun createMissionConfig(
+        finishAction: WaylineFinishedAction = WaylineFinishedAction.NO_ACTION,
+        lostAction: WaylineExitOnRCLostAction = WaylineExitOnRCLostAction.GO_BACK
+    ): WaylineMissionConfig {
         val c = WaylineMissionConfig()
         c.flyToWaylineMode = WaylineFlyToWaylineMode.SAFELY
-        // Use KMZ's settings; we set defaults commonly used
-        c.finishAction = WaylineFinishedAction.NO_ACTION
+        c.finishAction = finishAction
         c.droneInfo = WaylineDroneInfo()
         c.securityTakeOffHeight = 20.0
         c.isSecurityTakeOffHeightSet = true
         c.exitOnRCLostBehavior = WaylineExitOnRCLostBehavior.EXCUTE_RC_LOST_ACTION
-        c.exitOnRCLostType = WaylineExitOnRCLostAction.GO_BACK
+        c.exitOnRCLostType = lostAction
         c.globalTransitionalSpeed = 10.0
         c.payloadInfo = ArrayList()
         return c
@@ -673,11 +1128,11 @@ object DroneController {
         val waypoints = waypointInfoModels.map { it.waylineWaypoint }
         val info = WaylineTemplateWaypointInfo()
         info.waypoints = waypoints
-        info.actionGroups = ArrayList()
+        info.actionGroups = transformActionsToGroups(waypointInfoModels)  // Build proper action groups
         info.globalFlightHeight = 100.0
         info.isGlobalFlightHeightSet = true
-        info.globalTurnMode = WaylineWaypointTurnMode.TO_POINT_AND_PASS_WITH_CONTINUITY_CURVATURE
-        info.useStraightLine = false
+        info.globalTurnMode = WaylineWaypointTurnMode.TO_POINT_AND_STOP_WITH_DISCONTINUITY_CURVATURE
+        info.useStraightLine = true
         info.isTemplateGlobalTurnModeSet = true
 
         val poi = if (waypoints.isNotEmpty()) {
@@ -692,13 +1147,73 @@ object DroneController {
         }
         info.globalYawParam = yawParam
         info.isTemplateGlobalYawParamSet = true
-        info.pitchMode = WaylineWaypointPitchMode.USE_POINT_SETTING
+        
+        // Set global gimbal heading param to look straight down (-90 degrees pitch)
+        val globalGimbalParam = WaylineWaypointGimbalHeadingParam()
+        globalGimbalParam.headingMode = WaylineWaypointGimbalHeadingMode.find(0)
+        globalGimbalParam.pitchAngle = -90.0  // Look straight down
+        info.globalGimbalHeadingParam = globalGimbalParam
+        info.isTemplateGlobalGimbalHeadingParamSet = true
+        
+        info.pitchMode = WaylineWaypointPitchMode.USE_POINT_SETTING  // Use point setting to apply gimbal pitch
         return info
     }
 
-    private fun createTemplate(
+    // Transform waypoint actions into proper action groups for KMZ
+    private fun transformActionsToGroups(waypointInfoModels: List<WaypointInfoModel>): ArrayList<WaylineActionGroup> {
+        val actionGroups = ArrayList<WaylineActionGroup>()
+        
+        for (i in waypointInfoModels.indices) {
+            val actionInfos = waypointInfoModels[i].actionInfos
+            if (actionInfos.isNotEmpty()) {
+                val actionGroup = WaylineActionGroup()
+                
+                // Set trigger to execute when reaching waypoint
+                val trigger = WaylineActionTrigger()
+                trigger.setTriggerType(WaylineActionTriggerType.REACH_POINT)
+                actionGroup.setTrigger(trigger)
+                
+                actionGroup.setGroupId(actionGroups.size)
+                actionGroup.setStartIndex(i)
+                actionGroup.setEndIndex(i)
+                actionGroup.setActions(actionInfos)
+                
+                // Build action tree structure
+                val nodeLists = ArrayList<WaylineActionNodeList>()
+                
+                // Root node
+                val root = WaylineActionNodeList()
+                val treeNodes = ArrayList<WaylineActionTreeNode>()
+                val rootNode = WaylineActionTreeNode()
+                rootNode.setNodeType(WaylineActionsRelationType.SEQUENCE)
+                rootNode.setChildrenNum(actionInfos.size)
+                treeNodes.add(rootNode)
+                root.setNodes(treeNodes)
+                nodeLists.add(root)
+                
+                // Children nodes (one for each action)
+                val children = WaylineActionNodeList()
+                val childrenNodeList = ArrayList<WaylineActionTreeNode>()
+                for (j in actionInfos.indices) {
+                    val child = WaylineActionTreeNode()
+                    child.setNodeType(WaylineActionsRelationType.LEAF)
+                    child.setActionIndex(j)
+                    childrenNodeList.add(child)
+                }
+                children.setNodes(childrenNodeList)
+                nodeLists.add(children)
+                
+                actionGroup.setNodeLists(nodeLists)
+                actionGroups.add(actionGroup)
+            }
+        }
+        
+        return actionGroups
+    }
+
+    fun createTemplate(
         waypointInfoModels: List<WaypointInfoModel>,
-        trajectorySpeed: Double
+        trajectorySpeed: Double = 5.0
     ): Template {
         val t = Template()
         t.waypointInfo = createTemplateWaypointInfo(waypointInfoModels)
@@ -716,7 +1231,7 @@ object DroneController {
         return t
     }
 
-    private fun extractWaylineIdsFromKmz(kmzPath: String): ArrayList<Int> {
+    fun extractWaylineIdsFromKmz(kmzPath: String): ArrayList<Int> {
         val result = arrayListOf<Int>()
         runCatching {
             ZipFile(File(kmzPath)).use { zip ->
@@ -731,6 +1246,137 @@ object DroneController {
             }
         }
         return result
+    }
+
+    /**
+     * Generate and save a KMZ file from waypoint models
+     * Returns the path to the saved KMZ file
+     */
+    fun generateAndSaveKmz(
+        waypointInfoModels: List<WaypointInfoModel>,
+        missionName: String = generateTrajectoryName(),
+        trajectorySpeed: Double = 5.0,
+        finishAction: WaylineFinishedAction = WaylineFinishedAction.GO_HOME,
+        lostAction: WaylineExitOnRCLostAction = WaylineExitOnRCLostAction.GO_BACK
+    ): String {
+        WPMZManager.getInstance().init(ContextUtil.getContext())
+        
+        val waylineMission = createWaylineMission()
+        val missionConfig = createMissionConfig(finishAction, lostAction)
+        val template = createTemplate(waypointInfoModels, trajectorySpeed)
+        
+        val kmzOutPath = kmzDir + missionName + ".kmz"
+        WPMZManager.getInstance().generateKMZFile(kmzOutPath, waylineMission, missionConfig, template)
+        
+        lastMissionNameNoExt = missionName
+        lastMissionKmzPath = kmzOutPath
+        
+        return kmzOutPath
+    }
+
+    /**
+     * Push a KMZ file to the aircraft
+     */
+    fun pushKmzToAircraft(
+        kmzPath: String,
+        onProgress: ((Double) -> Unit)? = null,
+        onSuccess: () -> Unit,
+        onFailure: (IDJIError) -> Unit
+    ) {
+        lastMissionKmzPath = kmzPath
+        lastMissionNameNoExt = File(kmzPath).nameWithoutExtension
+        
+        WaypointMissionManager.getInstance().pushKMZFileToAircraft(kmzPath, object :
+            CommonCallbacks.CompletionCallbackWithProgress<Double> {
+            override fun onProgressUpdate(progress: Double) {
+                onProgress?.invoke(progress)
+            }
+            override fun onSuccess() {
+                onSuccess()
+            }
+            override fun onFailure(error: IDJIError) {
+                onFailure(error)
+            }
+        })
+    }
+
+    /**
+     * Start a mission that has been pushed to the aircraft
+     */
+    fun startMission(
+        missionNameNoExt: String = lastMissionNameNoExt,
+        kmzPath: String = lastMissionKmzPath,
+        onSuccess: () -> Unit,
+        onFailure: (IDJIError) -> Unit
+    ) {
+        if (missionNameNoExt.isEmpty()) {
+            // Create a simple error without using ErrorType enum
+            val noMissionError = object : IDJIError {
+                override fun errorType() = null
+                override fun errorCode() = "NO_MISSION"
+                override fun description() = "No mission loaded"
+                override fun isError(p0: String?) = true
+                override fun innerCode() = "NO_MISSION"
+                override fun hint() = "Load a mission first"
+            }
+            onFailure(noMissionError)
+            return
+        }
+        
+        val ids = extractWaylineIdsFromKmz(kmzPath).ifEmpty { arrayListOf(0) }
+        WaypointMissionManager.getInstance().startMission(
+            missionNameNoExt,
+            ids,
+            object : CommonCallbacks.CompletionCallback {
+                override fun onSuccess() {
+                    onSuccess()
+                }
+                override fun onFailure(error: IDJIError) {
+                    onFailure(error)
+                }
+            }
+        )
+    }
+
+    /**
+     * Pause the current mission
+     */
+    fun pauseMission(
+        onSuccess: () -> Unit,
+        onFailure: (IDJIError) -> Unit
+    ) {
+        WaypointMissionManager.getInstance().pauseMission(object :
+            CommonCallbacks.CompletionCallback {
+            override fun onSuccess() {
+                onSuccess()
+            }
+            override fun onFailure(error: IDJIError) {
+                onFailure(error)
+            }
+        })
+    }
+
+    /**
+     * Stop the current mission
+     */
+    fun stopMission(
+        missionNameNoExt: String = lastMissionNameNoExt,
+        onSuccess: () -> Unit,
+        onFailure: (IDJIError) -> Unit
+    ) {
+        if (missionNameNoExt.isEmpty()) {
+            pauseMission(onSuccess, onFailure)
+            return
+        }
+        WaypointMissionManager.getInstance().stopMission(missionNameNoExt, object :
+            CommonCallbacks.CompletionCallback {
+            override fun onSuccess() {
+                onSuccess()
+            }
+            override fun onFailure(error: IDJIError) {
+                onFailure(error)
+            }
+        })
     }
 
     fun navigateTrajectoryNative(
@@ -766,7 +1412,7 @@ object DroneController {
 
         // Generate KMZ
         val missionName = generateTrajectoryName()
-        val kmzOutPath = kmzDir + missionName + ".kmz"
+        val kmzOutPath = "$kmzDir$missionName.kmz"
         WPMZManager.getInstance().generateKMZFile(kmzOutPath, mission, config, template)
 
         lastMissionNameNoExt = missionName
@@ -820,21 +1466,21 @@ object DroneController {
 
     // Getter pour isWaypointReached
     fun isWaypointReached(): Boolean {
-        return isWaypointReached
+        return _isWaypointReached
     }
 
     // Getter pour isYawReached
     fun isYawReached(): Boolean {
-        return isYawReached
+        return _isYawReached
     }
 
     // Idem pour isAltitudeReached, etc.
     fun isAltitudeReached(): Boolean {
-        return isAltitudeReached
+        return _isAltitudeReached
     }
 
     fun isIntermediaryWaypointReached(): Boolean {
-        return isIntermediaryWaypointReached
+        return _isIntermediaryWaypointReached
     }
 
     private val goHomeHeightKey: DJIKey<Int> = FlightControllerKey.KeyGoHomeHeight.create()
