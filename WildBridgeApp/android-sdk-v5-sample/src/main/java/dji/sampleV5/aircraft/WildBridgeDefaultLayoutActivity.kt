@@ -59,6 +59,7 @@ import dji.sdk.keyvalue.value.common.EmptyMsg
 import dji.sdk.keyvalue.value.common.LocationCoordinate2D
 import dji.sdk.keyvalue.value.common.LocationCoordinate3D
 import dji.sdk.keyvalue.value.common.Velocity3D
+import dji.sdk.keyvalue.value.camera.CameraStorageInfos
 import dji.sdk.keyvalue.value.camera.CameraStorageLocation
 import dji.sdk.keyvalue.value.flightcontroller.FlightMode
 import dji.sdk.keyvalue.value.flightcontroller.LowBatteryRTHInfo
@@ -280,6 +281,17 @@ class WildBridgeDefaultLayoutActivity : DefaultLayoutActivity() {
     private val flightModeKey: DJIKey<FlightMode> = FlightControllerKey.KeyFlightMode.create()
     private val isFlyingKey: DJIKey<Boolean> = FlightControllerKey.KeyIsFlying.create()
     private val productTypeKey: DJIKey<ProductType> = ProductKey.KeyProductType.create()
+
+    private data class DroneStorageStatus(
+        val label: String,
+        val summary: String
+    ) {
+        val menuLabel: String
+            get() = "$label (${summary})"
+
+        val dialogText: String
+            get() = "$label: $summary"
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -590,11 +602,13 @@ class WildBridgeDefaultLayoutActivity : DefaultLayoutActivity() {
     }
 
     private fun showWildBridgeSettingsMenu(anchor: android.view.View) {
+        val sdCardStatus = getDroneStorageStatus(CameraStorageLocation.SDCARD, "SD card")
+        val internalStatus = getDroneStorageStatus(CameraStorageLocation.INTERNAL, "Internal")
         PopupMenu(this, anchor).apply {
             menu.add(0, 1, 0, "Change Drone Name")
             menu.add(0, 2, 1, "Set WHIP Server")
-            menu.add(0, 3, 2, "Format Drone SD Card")
-            menu.add(0, 4, 3, "Format Drone Internal Storage")
+            menu.add(0, 3, 2, "Format ${sdCardStatus.menuLabel}")
+            menu.add(0, 4, 3, "Format ${internalStatus.menuLabel}")
             setOnMenuItemClickListener { item -> handleWildBridgeMenuItem(item.itemId) }
             show()
         }
@@ -748,14 +762,41 @@ class WildBridgeDefaultLayoutActivity : DefaultLayoutActivity() {
     }
 
     private fun showFormatStorageDialog(location: CameraStorageLocation, label: String) {
+        val status = getDroneStorageStatus(location, label)
         AlertDialog.Builder(this)
             .setTitle("Format $label")
-            .setMessage("This deletes all media on the drone $label. Stop recording first, then continue only if you are sure.")
+            .setMessage("${status.dialogText}\n\nThis deletes all media on the drone $label. Stop recording first, then continue only if you are sure.")
             .setPositiveButton("Format") { _, _ ->
                 formatDroneStorage(location, label)
             }
             .setNegativeButton("Cancel", null)
             .show()
+    }
+
+    private fun getDroneStorageStatus(location: CameraStorageLocation, label: String): DroneStorageStatus {
+        val key: DJIKey<CameraStorageInfos> = KeyTools.createKey(CameraKey.KeyCameraStorageInfos, ComponentIndexType.LEFT_OR_MAIN)
+        val storageInfos: CameraStorageInfos? = KeyManager.getInstance().getValue(key)
+        val info = storageInfos?.cameraStorageInfoList?.firstOrNull { it.storageType == location }
+        val parts = listOfNotNull(
+            info?.getStorageLeftCapacity()?.takeIf { it >= 0 }?.let { "${formatCapacity(it)} free" },
+            info?.getStorageState()?.name?.takeIf { it.isNotBlank() && it != "UNKNOWN" },
+            info?.getAvailableVideoDuration()?.takeIf { it >= 0 }?.let { "video ${formatDuration(it)}" }
+        )
+        return DroneStorageStatus(label, parts.ifEmpty { listOf("status unavailable") }.joinToString(", "))
+    }
+
+    private fun formatCapacity(megabytes: Int): String {
+        return if (megabytes >= 1024) {
+            String.format(java.util.Locale.US, "%.1f GB", megabytes / 1024.0)
+        } else {
+            "$megabytes MB"
+        }
+    }
+
+    private fun formatDuration(seconds: Int): String {
+        val hours = seconds / 3600
+        val minutes = (seconds % 3600) / 60
+        return if (hours > 0) "${hours}h ${minutes}m" else "${minutes}m"
     }
 
     private fun formatDroneStorage(location: CameraStorageLocation, label: String) {
