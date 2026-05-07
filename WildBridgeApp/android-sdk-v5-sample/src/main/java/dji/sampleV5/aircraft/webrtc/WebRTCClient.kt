@@ -17,7 +17,7 @@ import java.util.concurrent.atomic.AtomicBoolean
  */
 class WebRTCClient(
     val clientId: String,
-    private val context: Context,
+    context: Context,
     private val videoCapturer: VideoCapturer,
     private val options: WebRTCMediaOptions = WebRTCMediaOptions(),
     private val messageCallback: (String, JSONObject) -> Unit
@@ -81,6 +81,7 @@ class WebRTCClient(
     private var metadataChannelReady = false
     private val executor = Executors.newSingleThreadExecutor()
     private val isDisposing = AtomicBoolean(false)
+    private val appContext = context.applicationContext
     
     var connectionListener: PeerConnectionListener? = null
 
@@ -117,12 +118,12 @@ class WebRTCClient(
     private fun createVideoTrack() {
         Log.d(TAG, "Creating video track for client: $clientId")
         
-        val factory = getFactory(context)
+        val factory = getFactory(appContext)
         videoSource = factory.createVideoSource(false)
         
         videoCapturer.initialize(
             null,  // SurfaceTextureHelper not needed for our custom capturer
-            context,
+            appContext,
             videoSource!!.capturerObserver
         )
         videoCapturer.startCapture(
@@ -155,7 +156,7 @@ class WebRTCClient(
         // Prefer stable resolution over adaptive CPU downscale.
         disableCpuOveruseDetection(rtcConfig)
         
-        peerConnection = getFactory(context).createPeerConnection(rtcConfig, createPeerConnectionObserver())
+        peerConnection = getFactory(appContext).createPeerConnection(rtcConfig, createPeerConnectionObserver())
         
         Log.d(TAG, "Peer connection created")
     }
@@ -493,6 +494,7 @@ class WebRTCClient(
         }
 
         Log.d(TAG, "Disposing WebRTCClient for: $clientId")
+        connectionListener = null
         
         executor.execute {
             when (videoCapturer) {

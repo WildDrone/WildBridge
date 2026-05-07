@@ -150,6 +150,12 @@ class MegaphoneVM : DJIViewModel() {
     }
 
     override fun onCleared() {
+        handler?.removeCallbacksAndMessages(null)
+        handlerMain?.removeCallbacksAndMessages(null)
+        handlerThread?.quitSafely()
+        handler = null
+        handlerMain = null
+        handlerThread = null
         removeRealTimeListener()
         removeMegaphoneInfoListener()
         KeyManager.getInstance().cancelListen(this)

@@ -82,10 +82,6 @@ More refer to the release notes." </string>
     <string name="webrtc_client_connected">Client connected</string>
     <string name="webrtc_client_disconnected">Client disconnected</string>
     <string name="webrtc_restart_required">Restart server to apply change</string>
-    <string name="webrtc_resolution">Resolution:</string>
-    <string name="webrtc_resolution_sd">480p</string>
-    <string name="webrtc_resolution_hd">720p</string>
-    <string name="webrtc_resolution_fullhd">1080p</string>
 
     <!-- Trajectory Recording strings -->
     <string name="item_trajectory_recording_title">Circular Trajectory</string>

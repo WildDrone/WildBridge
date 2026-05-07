@@ -15,7 +15,7 @@ import java.util.concurrent.ConcurrentHashMap
  * It handles the signaling server and manages all peer connections with viewers.
  */
 class WebRTCStreamer(
-    private val context: Context,
+    context: Context,
     private val cameraIndex: ComponentIndexType = ComponentIndexType.LEFT_OR_MAIN,
     private val signalingPort: Int = 8081,
     private val droneName: String = "drone_1",
@@ -26,11 +26,18 @@ class WebRTCStreamer(
         private const val TAG = "WebRTCStreamer"
     }
 
+    private val appContext = context.applicationContext
+
     private var signalingServer: WebRTCSignalingServer? = null
     private val activeConnections = ConcurrentHashMap<String, WebRTCClient>()
     private val mainHandler = Handler(Looper.getMainLooper())
     private var sharedFrameSource: SharedDJIFrameSource? = null
     private var whipPublisher: WhipPublisher? = null
+    @Volatile private var currentOptions: WebRTCMediaOptions = options
+    @Volatile private var currentWhipUrl: String? = null
+    private var badMetricsWindows = 0
+    private var recoveryCount = 0
+    private var lastRecoveryAtMs = 0L
     
     var listener: WebRTCStreamerListener? = null
 
@@ -40,6 +47,7 @@ class WebRTCStreamer(
         fun onServerError(error: String)
         fun onClientConnected(clientId: String, totalClients: Int)
         fun onClientDisconnected(clientId: String, totalClients: Int)
+        fun onMetrics(metrics: WebRTCStreamMetrics) {}
     }
 
     /**
@@ -100,6 +108,11 @@ class WebRTCStreamer(
      */
     fun stop() {
         Log.d(TAG, "Stopping WebRTC streamer...")
+        mainHandler.removeCallbacksAndMessages(null)
+        val stoppedListener = listener
+        listener = null
+        currentWhipUrl = null
+        badMetricsWindows = 0
         
         // Stop WHIP publisher if active
         whipPublisher?.stop()
@@ -121,8 +134,12 @@ class WebRTCStreamer(
         signalingServer?.stopServer()
         signalingServer = null
         
-        mainHandler.post {
-            listener?.onServerStopped()
+        if (Looper.myLooper() == Looper.getMainLooper()) {
+            stoppedListener?.onServerStopped()
+        } else {
+            mainHandler.post {
+                stoppedListener?.onServerStopped()
+            }
         }
         
         Log.d(TAG, "WebRTC streamer stopped")
@@ -144,15 +161,16 @@ class WebRTCStreamer(
         }
 
         TelemetryProvider.startListening()
+    currentWhipUrl = whipUrl
 
         // Use a SharedVideoCapturerHandle backed by the shared DJI frame source.
         // This is the same mechanism used for per-client WebRTC but only one instance.
         val capturer = SharedVideoCapturerHandle("whip", getOrCreateSharedSource())
 
         whipPublisher = WhipPublisher(
-            context = context,
+            context = appContext,
             videoCapturer = capturer,
-            options = options,
+            options = currentOptions,
             whipUrl = whipUrl
         ).apply {
             this.listener = object : WhipPublisher.WhipListener {
@@ -192,9 +210,20 @@ class WebRTCStreamer(
      */
     fun changeResolution(width: Int, height: Int) {
         Log.d(TAG, "Changing resolution to ${width}x${height} for ${activeConnections.size} client(s)")
+        sharedFrameSource?.changeResolution(width, height)
+        whipPublisher?.changeResolution(width, height)
         activeConnections.values.forEach { client ->
             client.changeResolution(width, height)
         }
+    }
+
+    /**
+     * Store the new media defaults for future clients and apply resolution to
+     * already-active WebRTC/WHIP capturers without reconnecting.
+     */
+    fun changeMediaOptions(options: WebRTCMediaOptions) {
+        currentOptions = options
+        changeResolution(options.videoResolutionWidth, options.videoResolutionHeight)
     }
 
     /**
@@ -207,8 +236,53 @@ class WebRTCStreamer(
 
     private fun getOrCreateSharedSource(): SharedDJIFrameSource {
         return sharedFrameSource ?: SharedDJIFrameSource(cameraIndex, droneName).also {
+            it.metricsListener = ::handleFrameSourceMetrics
             sharedFrameSource = it
         }
+    }
+
+    private fun handleFrameSourceMetrics(metrics: WebRTCStreamMetrics) {
+        val enriched = metrics.copy(
+            recoveryCount = recoveryCount,
+            status = if (whipPublisher != null || signalingServer != null) metrics.status else "idle"
+        )
+        maybeRecoverStreaming(enriched)
+        mainHandler.post { listener?.onMetrics(enriched) }
+    }
+
+    private fun maybeRecoverStreaming(metrics: WebRTCStreamMetrics) {
+        if (metrics.observerCount == 0) {
+            badMetricsWindows = 0
+            return
+        }
+
+        val stalled = metrics.inputFps > 1.0 && metrics.outputFps < 1.0
+        val erroring = metrics.processingErrors > 0 && metrics.outputFps < metrics.targetFps * 0.25
+        badMetricsWindows = if (stalled || erroring) badMetricsWindows + 1 else 0
+
+        val now = System.currentTimeMillis()
+        if (badMetricsWindows >= 3 && now - lastRecoveryAtMs > 15_000L) {
+            lastRecoveryAtMs = now
+            recoveryCount++
+            badMetricsWindows = 0
+            val reason = "low output fps ${metrics.outputFps} with input fps ${metrics.inputFps}"
+            Log.w(TAG, "Recovering WebRTC pipeline: $reason")
+            sharedFrameSource?.recoverCapture(reason)
+            restartWhipPublisher(reason)
+        }
+    }
+
+    private fun restartWhipPublisher(reason: String) {
+        val whipUrl = currentWhipUrl ?: return
+        val oldPublisher = whipPublisher ?: return
+        Log.w(TAG, "Restarting WHIP publisher: $reason")
+        oldPublisher.stop()
+        whipPublisher = null
+        mainHandler.postDelayed({
+            if (currentWhipUrl == whipUrl) {
+                startWhip(whipUrl)
+            }
+        }, 1000L)
     }
 
     private fun createPeerConnection(clientId: String) {
@@ -219,9 +293,9 @@ class WebRTCStreamer(
         
         val client = WebRTCClient(
             clientId = clientId,
-            context = context,
+            context = appContext,
             videoCapturer = videoCapturer,
-            options = options,
+            options = currentOptions,
             messageCallback = { id, message ->
                 signalingServer?.sendToClient(id, message)
             }

@@ -84,6 +84,7 @@ open class GimbalSettingWidget @JvmOverloads constructor(
     }
 
     override fun onDetachedFromWindow() {
+        loadingDialog.dismiss()
         super.onDetachedFromWindow()
         if (!isInEditMode) {
             widgetModel.cleanup()
@@ -92,19 +93,19 @@ open class GimbalSettingWidget @JvmOverloads constructor(
 
     override fun onClick(v: View) {
         if (v.id == R.id.setting_menu_gimbal_reset_param) {
-            widgetModel.resetGimbal()
+            addDisposable(widgetModel.resetGimbal()
                 .doOnComplete { ViewUtil.showToast(context, R.string.uxsdk_gimbal_gimbal_reset_params_success, Toast.LENGTH_SHORT) }
                 .doOnError { throwable: Throwable ->
                     LogUtils.e(TAG, "resetGimbal fail $throwable")
                     ViewUtil.showToast(context, R.string.uxsdk_gimbal_gimbal_reset_params_fail, Toast.LENGTH_SHORT)
-                }.subscribe()
+                }.subscribe())
         } else if (v.id == R.id.setting_menu_gimbal_calibration) {
             if (areMotors) {
                 ViewUtil.showToast(context, R.string.uxsdk_setting_ui_gimbal_calibration_tip, Toast.LENGTH_SHORT)
                 return
             }
             ViewUtil.showToast(context, R.string.uxsdk_setting_ui_gimbal_auto_calibration_tip, Toast.LENGTH_SHORT)
-            widgetModel.calibrateGimbal().subscribe()
+            addDisposable(widgetModel.calibrateGimbal().subscribe())
         }
         else if (v.id ==R.id.setting_menu_gimbal_adjust) {
             widgetModel.setGimbalClicked()

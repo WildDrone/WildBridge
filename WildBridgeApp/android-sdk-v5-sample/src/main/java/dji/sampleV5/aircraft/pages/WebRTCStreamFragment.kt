@@ -17,6 +17,7 @@ import android.widget.TextView
 import dji.sampleV5.aircraft.R
 import dji.sampleV5.aircraft.util.ToastUtils
 import dji.sampleV5.aircraft.webrtc.WebRTCMediaOptions
+import dji.sampleV5.aircraft.webrtc.WebRTCStreamMetrics
 import dji.sampleV5.aircraft.webrtc.WebRTCStreamer
 import dji.sdk.keyvalue.value.common.ComponentIndexType
 import dji.v5.manager.datacenter.MediaDataCenter
@@ -40,12 +41,12 @@ class WebRTCStreamFragment : DJIFragment() {
     private lateinit var btnStartServer: Button
     private lateinit var btnStopServer: Button
     private lateinit var rgCamera: RadioGroup
-    private lateinit var rgResolution: RadioGroup
     private lateinit var tvServerStatus: TextView
     private lateinit var tvServerIp: TextView
     private lateinit var tvServerPort: TextView
     private lateinit var tvClientCount: TextView
     private lateinit var tvConnectionUrl: TextView
+    private lateinit var tvStreamMetrics: TextView
     private lateinit var btnCopyUrl: Button
     private lateinit var svCameraPreview: SurfaceView
     private lateinit var btnShowPreview: Button
@@ -96,18 +97,19 @@ class WebRTCStreamFragment : DJIFragment() {
         stopServer()
         removeCameraPreview()
         cameraStreamManager.removeAvailableCameraUpdatedListener(availableCameraListener)
+        mainHandler.removeCallbacksAndMessages(null)
     }
 
     private fun initViews(view: View) {
         btnStartServer = view.findViewById(R.id.btn_start_server)
         btnStopServer = view.findViewById(R.id.btn_stop_server)
         rgCamera = view.findViewById(R.id.rg_camera)
-        rgResolution = view.findViewById(R.id.rg_resolution)
         tvServerStatus = view.findViewById(R.id.tv_server_status)
         tvServerIp = view.findViewById(R.id.tv_server_ip)
         tvServerPort = view.findViewById(R.id.tv_server_port)
         tvClientCount = view.findViewById(R.id.tv_client_count)
         tvConnectionUrl = view.findViewById(R.id.tv_connection_url)
+        tvStreamMetrics = view.findViewById(R.id.tv_stream_metrics)
         btnCopyUrl = view.findViewById(R.id.btn_copy_url)
         svCameraPreview = view.findViewById(R.id.sv_camera_preview)
         btnShowPreview = view.findViewById(R.id.btn_show_preview)
@@ -115,6 +117,7 @@ class WebRTCStreamFragment : DJIFragment() {
         tvErrorMessage = view.findViewById(R.id.tv_error_message)
 
         tvServerPort.text = DEFAULT_PORT.toString()
+    updateMetrics(WebRTCStreamMetrics())
     }
 
     private fun setupListeners() {
@@ -140,20 +143,6 @@ class WebRTCStreamFragment : DJIFragment() {
             if (webRTCStreamer?.isRunning() == true) {
                 ToastUtils.showToast(getString(R.string.webrtc_restart_required))
             }
-        }
-
-        rgResolution.setOnCheckedChangeListener { _, checkedId ->
-            selectedOptions = when (checkedId) {
-                R.id.rb_resolution_sd -> WebRTCMediaOptions.sd()
-                R.id.rb_resolution_hd -> WebRTCMediaOptions.hd()
-                R.id.rb_resolution_fullhd -> WebRTCMediaOptions.fullHD()
-                else -> WebRTCMediaOptions.fullHD()
-            }
-            // Apply resolution change live if server is running
-            webRTCStreamer?.changeResolution(
-                selectedOptions.videoResolutionWidth,
-                selectedOptions.videoResolutionHeight
-            )
         }
 
         btnCopyUrl.setOnClickListener {
@@ -206,7 +195,7 @@ class WebRTCStreamFragment : DJIFragment() {
 
     @SuppressLint("SetTextI18n")
     private fun startServer() {
-        context?.let { ctx ->
+        context?.applicationContext?.let { ctx ->
             webRTCStreamer = WebRTCStreamer(
                 context = ctx,
                 cameraIndex = selectedCameraIndex,
@@ -245,6 +234,10 @@ class WebRTCStreamFragment : DJIFragment() {
                             ToastUtils.showToast(getString(R.string.webrtc_client_disconnected))
                         }
                     }
+
+                    override fun onMetrics(metrics: WebRTCStreamMetrics) {
+                        mainHandler.post { updateMetrics(metrics) }
+                    }
                 }
                 start()
             }
@@ -252,6 +245,7 @@ class WebRTCStreamFragment : DJIFragment() {
     }
 
     private fun stopServer() {
+        webRTCStreamer?.listener = null
         webRTCStreamer?.stop()
         webRTCStreamer = null
         updateUIForServerStopped()
@@ -295,6 +289,11 @@ class WebRTCStreamFragment : DJIFragment() {
         tvServerIp.text = getString(R.string.webrtc_ip_not_available)
         tvConnectionUrl.text = getString(R.string.webrtc_url_not_available)
         tvClientCount.text = "0"
+        updateMetrics(WebRTCStreamMetrics())
+    }
+
+    private fun updateMetrics(metrics: WebRTCStreamMetrics) {
+        tvStreamMetrics.text = metrics.compactLabel()
     }
 
     private fun showPreview() {

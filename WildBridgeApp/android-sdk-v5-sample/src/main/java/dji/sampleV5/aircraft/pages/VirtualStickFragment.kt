@@ -103,6 +103,7 @@ class VirtualStickFragment : DJIFragment() {
 
     // Periodic flight-log telemetry snapshot (every 5 s, only while a session is active)
     private var telemetryLogRunnable: Runnable? = null
+    private var distanceUpdateRunnable: Runnable? = null
 
     // WebRTC streaming
     private var webRTCStreamer: WebRTCStreamer? = null
@@ -589,13 +590,13 @@ class VirtualStickFragment : DJIFragment() {
         updateDistanceToHomeDisplay()
 
         // Set up a periodic update for distance to home
-        val distanceUpdateRunnable = object : Runnable {
+        distanceUpdateRunnable = object : Runnable {
             override fun run() {
                 updateDistanceToHomeDisplay()
                 mainHandler.postDelayed(this, 1000) // Update every second
             }
         }
-        mainHandler.post(distanceUpdateRunnable)
+        mainHandler.post(distanceUpdateRunnable!!)
 
         // Snapshot telemetry to the flight log every 5 seconds while a session is open.
         telemetryLogRunnable = object : Runnable {
@@ -1223,8 +1224,11 @@ class VirtualStickFragment : DJIFragment() {
         httpServer?.stop()
         telemetryServer?.stop()
         stopCameraStream()
+        distanceUpdateRunnable?.let { mainHandler.removeCallbacks(it) }
+        distanceUpdateRunnable = null
         telemetryLogRunnable?.let { mainHandler.removeCallbacks(it) }
         telemetryLogRunnable = null
+        DroneController.manualOverrideListener = null
         KeyManager.getInstance().cancelListen(this)
     }
 

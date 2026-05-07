@@ -195,21 +195,40 @@
             android:layout_marginStart="4dp"
             tools:ignore="HardcodedText" />
 
-        <!-- GPS satellite count -->
         <TextView
-            android:id="@+id/text_satellite_count"
+            android:id="@+id/text_control_profile"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="🛰 0"
-            android:textColor="#FFCCCCCC"
-            android:textSize="11sp"
-            android:textStyle="bold"
-            android:padding="4dp"
+            android:layout_marginStart="16dp"
+            android:layout_marginBottom="0dp"
             android:background="@drawable/uxsdk_background_black_rectangle"
-            app:layout_constraintStart_toEndOf="@+id/text_altitude"
-            app:layout_constraintBottom_toBottomOf="@+id/text_drone_name"
-            app:layout_constraintTop_toTopOf="@+id/text_drone_name"
+            android:ellipsize="end"
+            android:fontFamily="monospace"
+            android:maxLines="1"
+            android:padding="1dp"
+            android:text="CTRL MINI4"
+            android:textColor="#FFFFD166"
+            android:textSize="7sp"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            tools:ignore="HardcodedText" />
+
+        <TextView
+            android:id="@+id/text_webrtc_metrics"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
             android:layout_marginStart="4dp"
+            android:layout_marginBottom="0dp"
+            android:background="@drawable/uxsdk_background_black_rectangle"
+            android:ellipsize="end"
+            android:fontFamily="monospace"
+            android:maxLines="1"
+            android:padding="1dp"
+            android:text="WEBRTC idle out waiting src waiting fps 0.0/0 drop 0.0 proc 0.0ms clients 0"
+            android:textColor="#FFDDDDDD"
+            android:textSize="7sp"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintStart_toEndOf="@+id/text_control_profile"
             tools:ignore="HardcodedText" />
 
         <dji.v5.ux.core.widget.remainingflighttime.RemainingFlightTimeWidget

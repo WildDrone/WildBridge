@@ -93,9 +93,7 @@ class DJIV5VideoCapturer(
 
                 val frameNumber = frameCounter.incrementAndGet()
                 
-                // Determine output dimensions
-                val outputWidth = if (scaleToTarget) targetWidth else width
-                val outputHeight = if (scaleToTarget) targetHeight else height
+                val (outputWidth, outputHeight) = chooseOutputSize(width, height)
                 
                 // Capture synchronized telemetry metadata at this exact moment
                 metadataListener?.let { listener ->
@@ -119,11 +117,11 @@ class DJIV5VideoCapturer(
                 )
                 
                 // Scale to target resolution if enabled and dimensions differ
-                val needsScale = scaleToTarget && (width != targetWidth || height != targetHeight)
+                val needsScale = scaleToTarget && (width != outputWidth || height != outputHeight)
                 val outputBuffer = if (needsScale) {
                     val scaled = buffer.cropAndScale(
                         0, 0, width, height,  // Use full source frame
-                        targetWidth, targetHeight  // Scale to target
+                        outputWidth, outputHeight
                     )
                     buffer.release()  // Release the original; cropAndScale made a copy
                     scaled
@@ -139,6 +137,15 @@ class DJIV5VideoCapturer(
                 Log.e(TAG, "Error processing frame: ${e.message}", e)
             }
         }
+    }
+
+    private fun chooseOutputSize(sourceWidth: Int, sourceHeight: Int): Pair<Int, Int> {
+        if (!scaleToTarget) return sourceWidth to sourceHeight
+        val boundedWidth = targetWidth.coerceAtMost(sourceWidth).coerceAtLeast(2)
+        val boundedHeight = targetHeight.coerceAtMost(sourceHeight).coerceAtLeast(2)
+        val evenWidth = boundedWidth - (boundedWidth % 2)
+        val evenHeight = boundedHeight - (boundedHeight % 2)
+        return evenWidth.coerceAtLeast(2) to evenHeight.coerceAtLeast(2)
     }
 
     override fun initialize(

@@ -16,6 +16,7 @@ class TelemetryServer(
     private val executor = Executors.newCachedThreadPool()
     @Volatile
     private var isRunning = false
+    private var serverThread: Thread? = null
     private val clients = ConcurrentHashMap<Socket, PrintWriter>()
 
     /** Callback invoked (once) when the first client connects. Receives the client's IP address. */
@@ -26,7 +27,7 @@ class TelemetryServer(
     fun start() {
         if (isRunning) return
 
-        thread {
+        serverThread = thread(name = "TelemetryServer-$port", start = true) {
             try {
                 serverSocket = ServerSocket(port)
                 isRunning = true
@@ -102,11 +103,18 @@ class TelemetryServer(
 
     fun stop() {
         isRunning = false
+        onFirstClientConnected = null
         try {
+            clients.values.forEach { it.close() }
             clients.keys.forEach { it.close() }
             clients.clear()
             serverSocket?.close()
-            executor.shutdown()
+            serverSocket = null
+            executor.shutdownNow()
+            if (Thread.currentThread() != serverThread) {
+                serverThread?.join(1000)
+            }
+            serverThread = null
         } catch (e: Exception) {
             Log.e("TelemetryServer", "Error stopping server: ${e.message}")
         }

@@ -18,12 +18,28 @@ import java.util.concurrent.atomic.AtomicLong
  * when multiple viewers are connected.
  */
 class SharedDJIFrameSource(
-    private val cameraIndex: ComponentIndexType,
+    private val preferredCameraIndex: ComponentIndexType,
     private val droneName: String
 ) {
     companion object {
         private const val TAG = "SharedDJIFrameSource"
+
+        // Order in which we fall back when the preferred camera index is not
+        // exposed by the connected aircraft (e.g. M350 may not publish
+        // LEFT_OR_MAIN; Mini 4 Pro typically does).
+        private val CAMERA_PREFERENCE = listOf(
+            ComponentIndexType.LEFT_OR_MAIN,
+            ComponentIndexType.FPV,
+            ComponentIndexType.RIGHT,
+            ComponentIndexType.UP
+        )
     }
+
+    /** Currently used camera index. Resolved dynamically from the available
+     *  camera list reported by the SDK. Starts at the caller's preferred
+     *  index but is updated as soon as the SDK publishes the real list. */
+    @Volatile
+    private var activeCameraIndex: ComponentIndexType = preferredCameraIndex
 
     private val observers = ConcurrentHashMap<String, CapturerObserver>()
     private val metadataListeners = ConcurrentHashMap<String, DJIV5VideoCapturer.FrameMetadataListener>()
@@ -34,13 +50,93 @@ class SharedDJIFrameSource(
     @Volatile private var scaleToTarget: Boolean = true
     @Volatile private var targetFps: Int = 30
     @Volatile private var frameIntervalNs: Long = 1_000_000_000L / 30L
+    @Volatile var metricsListener: ((WebRTCStreamMetrics) -> Unit)? = null
     private val lastSentTimestampNs = AtomicLong(0L)
     private val frameCounter = AtomicLong(0)
+    private val incomingFrameCounter = AtomicLong(0)
+    private val droppedFrameCounter = AtomicLong(0)
+    private val processingErrorCounter = AtomicLong(0)
+    private val recoveryCounter = AtomicLong(0)
+    private val sentFramesInWindow = AtomicLong(0)
+    private val inputFramesInWindow = AtomicLong(0)
+    private val droppedFramesInWindow = AtomicLong(0)
+    private val processingTimeNsInWindow = AtomicLong(0)
     private var lastSourceWidth = 0
     private var lastSourceHeight = 0
+    private var lastOutputWidth = 0
+    private var lastOutputHeight = 0
+    private var lastMetricsTimestampNs = System.nanoTime()
+    @Volatile private var lastError: String? = null
 
     private val cameraStreamManager: ICameraStreamManager by lazy {
         MediaDataCenter.getInstance().cameraStreamManager
+    }
+
+    private val availableCameraListener = object : ICameraStreamManager.AvailableCameraUpdatedListener {
+        override fun onAvailableCameraUpdated(availableCameraList: MutableList<ComponentIndexType>) {
+            onAvailableCamerasChanged(availableCameraList)
+        }
+
+        override fun onCameraStreamEnableUpdate(cameraStreamEnableMap: MutableMap<ComponentIndexType, Boolean>) {
+            // Not used — we only care about which cameras exist, not their enabled state.
+        }
+    }
+
+    init {
+        // Begin observing available cameras as early as possible so we can
+        // attach the frame listener to a camera index that actually exists
+        // on the connected aircraft.
+        try {
+            cameraStreamManager.addAvailableCameraUpdatedListener(availableCameraListener)
+        } catch (e: Exception) {
+            Log.w(TAG, "Could not register available-camera listener: ${e.message}")
+        }
+    }
+
+    /**
+     * Pick the best camera to stream from given the list reported by the SDK.
+     * Preference order:
+     *  1. The caller's preferred index (if present in the list).
+     *  2. Any entry from CAMERA_PREFERENCE that is present, in order.
+     *  3. The first entry in the list as a last resort.
+     */
+    private fun pickCameraIndex(available: List<ComponentIndexType>): ComponentIndexType? {
+        if (available.isEmpty()) return null
+        if (available.contains(preferredCameraIndex)) return preferredCameraIndex
+        for (candidate in CAMERA_PREFERENCE) {
+            if (available.contains(candidate)) return candidate
+        }
+        return available.first()
+    }
+
+    @Synchronized
+    private fun onAvailableCamerasChanged(available: List<ComponentIndexType>) {
+        val resolved = pickCameraIndex(available) ?: run {
+            Log.w(TAG, "Available camera list is empty — keeping current index $activeCameraIndex")
+            return
+        }
+        if (resolved == activeCameraIndex) {
+            Log.d(TAG, "Available cameras updated ($available); active index unchanged: $activeCameraIndex")
+            return
+        }
+        val previous = activeCameraIndex
+        activeCameraIndex = resolved
+        Log.i(TAG, "Active camera index changed: $previous -> $resolved (available: $available, preferred: $preferredCameraIndex)")
+
+        // If we're already streaming, re-attach the frame listener to the new index.
+        if (isCapturing.get()) {
+            try {
+                cameraStreamManager.removeFrameListener(frameListener)
+                cameraStreamManager.addFrameListener(
+                    activeCameraIndex,
+                    ICameraStreamManager.FrameFormat.NV21,
+                    frameListener
+                )
+                Log.i(TAG, "Re-attached frame listener on $activeCameraIndex")
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to re-attach frame listener on $activeCameraIndex: ${e.message}", e)
+            }
+        }
     }
 
     private val frameListener = object : ICameraStreamManager.CameraFrameListener {
@@ -58,9 +154,14 @@ class SharedDJIFrameSource(
 
             try {
                 val timestampNs = System.nanoTime()
+                incomingFrameCounter.incrementAndGet()
+                inputFramesInWindow.incrementAndGet()
 
                 val previousSent = lastSentTimestampNs.get()
                 if (previousSent != 0L && (timestampNs - previousSent) < frameIntervalNs) {
+                    droppedFrameCounter.incrementAndGet()
+                    droppedFramesInWindow.incrementAndGet()
+                    maybeEmitMetrics(timestampNs)
                     return
                 }
                 lastSentTimestampNs.set(timestampNs)
@@ -72,9 +173,11 @@ class SharedDJIFrameSource(
                 }
 
                 val frameNumber = frameCounter.incrementAndGet()
+                sentFramesInWindow.incrementAndGet()
 
-                val outputWidth = if (scaleToTarget) targetWidth else width
-                val outputHeight = if (scaleToTarget) targetHeight else height
+                val (outputWidth, outputHeight) = chooseOutputSize(width, height)
+                lastOutputWidth = outputWidth
+                lastOutputHeight = outputHeight
 
                 // Capture telemetry once and broadcast to all metadata listeners
                 val currentListeners = metadataListeners.values.toList()
@@ -92,9 +195,9 @@ class SharedDJIFrameSource(
                 // Create NV21 buffer and scale ONCE
                 val buffer = NV21Buffer(frameData, width, height, null)
 
-                val needsScale = scaleToTarget && (width != targetWidth || height != targetHeight)
+                val needsScale = scaleToTarget && (width != outputWidth || height != outputHeight)
                 val outputBuffer = if (needsScale) {
-                    val scaled = buffer.cropAndScale(0, 0, width, height, targetWidth, targetHeight)
+                    val scaled = buffer.cropAndScale(0, 0, width, height, outputWidth, outputHeight)
                     buffer.release()
                     scaled
                 } else {
@@ -108,11 +211,62 @@ class SharedDJIFrameSource(
                 repeat(extra) { videoFrame.retain() }
                 currentObservers.forEach { it.onFrameCaptured(videoFrame) }
                 videoFrame.release()
+                processingTimeNsInWindow.addAndGet(System.nanoTime() - timestampNs)
+                maybeEmitMetrics(timestampNs)
 
             } catch (e: Exception) {
+                processingErrorCounter.incrementAndGet()
+                lastError = e.message
                 Log.e(TAG, "Error processing frame: ${e.message}", e)
             }
         }
+    }
+
+    private fun chooseOutputSize(sourceWidth: Int, sourceHeight: Int): Pair<Int, Int> {
+        if (!scaleToTarget) return sourceWidth to sourceHeight
+        val boundedWidth = targetWidth.coerceAtMost(sourceWidth).coerceAtLeast(2)
+        val boundedHeight = targetHeight.coerceAtMost(sourceHeight).coerceAtLeast(2)
+        val evenWidth = boundedWidth - (boundedWidth % 2)
+        val evenHeight = boundedHeight - (boundedHeight % 2)
+        return evenWidth.coerceAtLeast(2) to evenHeight.coerceAtLeast(2)
+    }
+
+    private fun maybeEmitMetrics(nowNs: Long) {
+        val elapsedNs = nowNs - lastMetricsTimestampNs
+        if (elapsedNs < 1_000_000_000L) return
+
+        val elapsedSeconds = elapsedNs / 1_000_000_000.0
+        val inputFps = inputFramesInWindow.getAndSet(0) / elapsedSeconds
+        val sentFrames = sentFramesInWindow.getAndSet(0)
+        val outputFps = sentFrames / elapsedSeconds
+        val droppedFps = droppedFramesInWindow.getAndSet(0) / elapsedSeconds
+        val processingNs = processingTimeNsInWindow.getAndSet(0)
+        val averageProcessingMs = if (sentFrames > 0) processingNs / sentFrames / 1_000_000.0 else 0.0
+        lastMetricsTimestampNs = nowNs
+
+        metricsListener?.invoke(
+            WebRTCStreamMetrics(
+                sourceWidth = lastSourceWidth,
+                sourceHeight = lastSourceHeight,
+                outputWidth = lastOutputWidth,
+                outputHeight = lastOutputHeight,
+                requestedWidth = targetWidth,
+                requestedHeight = targetHeight,
+                targetFps = targetFps,
+                inputFps = inputFps,
+                outputFps = outputFps,
+                droppedFps = droppedFps,
+                averageFrameProcessingMs = averageProcessingMs,
+                totalFrames = frameCounter.get(),
+                totalDroppedFrames = droppedFrameCounter.get(),
+                processingErrors = processingErrorCounter.get(),
+                observerCount = observers.size,
+                activeCamera = activeCameraIndex.name,
+                status = if (isCapturing.get()) "running" else "idle",
+                recoveryCount = recoveryCounter.get().toInt(),
+                lastError = lastError
+            )
+        )
     }
 
     // ---- Client management ----
@@ -142,9 +296,9 @@ class SharedDJIFrameSource(
             targetFps = fps.coerceAtLeast(1)
             frameIntervalNs = 1_000_000_000L / targetFps.toLong()
             lastSentTimestampNs.set(0L)
-            Log.d(TAG, "Starting shared capture: ${targetWidth}x${targetHeight}@${targetFps}fps")
+            Log.d(TAG, "Starting shared capture: ${targetWidth}x${targetHeight}@${targetFps}fps on camera $activeCameraIndex (preferred: $preferredCameraIndex)")
             cameraStreamManager.addFrameListener(
-                cameraIndex,
+                activeCameraIndex,
                 ICameraStreamManager.FrameFormat.NV21,
                 frameListener
             )
@@ -169,12 +323,32 @@ class SharedDJIFrameSource(
         targetHeight = height
     }
 
+    @Synchronized
+    fun recoverCapture(reason: String) {
+        if (!isCapturing.get()) return
+        recoveryCounter.incrementAndGet()
+        lastSentTimestampNs.set(0L)
+        runCatching { cameraStreamManager.removeFrameListener(frameListener) }
+        cameraStreamManager.addFrameListener(
+            activeCameraIndex,
+            ICameraStreamManager.FrameFormat.NV21,
+            frameListener
+        )
+        Log.w(TAG, "Recovered DJI frame listener on $activeCameraIndex: $reason")
+    }
+
     fun dispose() {
         if (isCapturing.compareAndSet(true, false)) {
             cameraStreamManager.removeFrameListener(frameListener)
         }
+        try {
+            cameraStreamManager.removeAvailableCameraUpdatedListener(availableCameraListener)
+        } catch (e: Exception) {
+            Log.w(TAG, "Could not remove available-camera listener: ${e.message}")
+        }
         observers.clear()
         metadataListeners.clear()
+        metricsListener = null
         Log.d(TAG, "SharedDJIFrameSource disposed")
     }
 }

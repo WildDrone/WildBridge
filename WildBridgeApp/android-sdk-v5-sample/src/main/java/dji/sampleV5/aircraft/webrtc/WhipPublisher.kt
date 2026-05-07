@@ -27,7 +27,7 @@ import java.util.concurrent.atomic.AtomicBoolean
  * Reconnects automatically if the connection drops.
  */
 class WhipPublisher(
-    private val context: Context,
+    context: Context,
     private val videoCapturer: VideoCapturer,
     private val options: WebRTCMediaOptions = WebRTCMediaOptions(),
     private val whipUrl: String
@@ -38,6 +38,8 @@ class WhipPublisher(
         private const val RECONNECT_BASE_DELAY_MS = 2000L
         private const val RECONNECT_MAX_DELAY_MS = 30000L
     }
+
+    private val appContext = context.applicationContext
 
     private val executor = Executors.newSingleThreadExecutor()
     private val mainHandler = Handler(Looper.getMainLooper())
@@ -64,8 +66,11 @@ class WhipPublisher(
     }
 
     fun stop() {
-        if (!isRunning.getAndSet(false)) return
-        executor.execute {
+        val wasRunning = isRunning.getAndSet(false)
+        listener = null
+        mainHandler.removeCallbacksAndMessages(null)
+        executor.shutdownNow()
+        if (wasRunning) {
             teardown()
             Log.i(TAG, "WhipPublisher stopped")
         }
@@ -105,7 +110,12 @@ class WhipPublisher(
             val delay = (RECONNECT_BASE_DELAY_MS * (1L shl minOf(consecutiveFailures - 1, 4)))
                 .coerceAtMost(RECONNECT_MAX_DELAY_MS)
             Log.i(TAG, "Reconnecting in ${delay}ms...")
-            Thread.sleep(delay)
+            try {
+                Thread.sleep(delay)
+            } catch (_: InterruptedException) {
+                Thread.currentThread().interrupt()
+                break
+            }
         }
     }
 
@@ -116,11 +126,11 @@ class WhipPublisher(
     private fun publish() {
         Log.i(TAG, "Publishing to $whipUrl")
 
-        val factory = WebRTCClient.getFactory(context)
+        val factory = WebRTCClient.getFactory(appContext)
 
         // 1. Create video source & track
         videoSource = factory.createVideoSource(false)
-        videoCapturer.initialize(null, context, videoSource!!.capturerObserver)
+        videoCapturer.initialize(null, appContext, videoSource!!.capturerObserver)
         videoCapturer.startCapture(
             options.videoResolutionWidth,
             options.videoResolutionHeight,
