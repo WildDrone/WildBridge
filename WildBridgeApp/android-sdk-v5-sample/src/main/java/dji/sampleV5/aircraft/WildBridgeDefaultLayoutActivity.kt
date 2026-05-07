@@ -59,8 +59,10 @@ import dji.sdk.keyvalue.value.common.EmptyMsg
 import dji.sdk.keyvalue.value.common.LocationCoordinate2D
 import dji.sdk.keyvalue.value.common.LocationCoordinate3D
 import dji.sdk.keyvalue.value.common.Velocity3D
+import dji.sdk.keyvalue.value.camera.CameraMode
 import dji.sdk.keyvalue.value.camera.CameraStorageInfos
 import dji.sdk.keyvalue.value.camera.CameraStorageLocation
+import dji.sdk.keyvalue.value.camera.SDCardLoadState
 import dji.sdk.keyvalue.value.flightcontroller.FlightMode
 import dji.sdk.keyvalue.value.flightcontroller.LowBatteryRTHInfo
 import dji.sdk.keyvalue.value.gimbal.GimbalAngleRotation
@@ -97,6 +99,7 @@ import java.net.MulticastSocket
 import java.net.NetworkInterface
 import java.net.ServerSocket
 import java.net.Socket
+import java.lang.ref.WeakReference
 import java.util.Collections
 import java.util.concurrent.Executors
 import kotlin.concurrent.thread
@@ -158,6 +161,7 @@ class WildBridgeDefaultLayoutActivity : DefaultLayoutActivity() {
     private var nsdManager: NsdManager? = null
     private var mdnsServiceName: String? = null
     private var isMdnsRegistered = false
+    private var isMdnsRegistrationRequested = false
     
     // Drone Configuration
     private lateinit var sharedPreferences: SharedPreferences
@@ -281,6 +285,9 @@ class WildBridgeDefaultLayoutActivity : DefaultLayoutActivity() {
     private val flightModeKey: DJIKey<FlightMode> = FlightControllerKey.KeyFlightMode.create()
     private val isFlyingKey: DJIKey<Boolean> = FlightControllerKey.KeyIsFlying.create()
     private val productTypeKey: DJIKey<ProductType> = ProductKey.KeyProductType.create()
+    private val cameraModeKey: DJIKey<CameraMode> = KeyTools.createKey(CameraKey.KeyCameraMode, ComponentIndexType.LEFT_OR_MAIN)
+    private val cameraStorageLocationKey: DJIKey<CameraStorageLocation> = KeyTools.createKey(CameraKey.KeyCameraStorageLocation, ComponentIndexType.LEFT_OR_MAIN)
+    private val cameraStorageInfosKey: DJIKey<CameraStorageInfos> = KeyTools.createKey(CameraKey.KeyCameraStorageInfos, ComponentIndexType.LEFT_OR_MAIN)
 
     private data class DroneStorageStatus(
         val label: String,
@@ -348,6 +355,9 @@ class WildBridgeDefaultLayoutActivity : DefaultLayoutActivity() {
         
         // Setup key listeners for telemetry
         setupKeyListeners()
+
+        // Default field workflow: video mode, and SD card recording when available.
+        scheduleDefaultCameraRecordingConfiguration()
 
         // Ensure MANAGE_EXTERNAL_STORAGE is granted so flight logs survive uninstalls.
         ensureManageExternalStoragePermission()
@@ -635,6 +645,11 @@ class WildBridgeDefaultLayoutActivity : DefaultLayoutActivity() {
         KeyManager.getInstance().listen(timeNeededToLandKey, this) { _, newValue ->
             timeNeededToLandProcessor.onNext(newValue?.timeNeededToLand ?: 0)
         }
+        KeyManager.getInstance().listen(cameraStorageInfosKey, this) { _, newValue ->
+            if (isSdCardInserted(newValue)) {
+                preferSdCardStorage(newValue)
+            }
+        }
         // Keep isAirborne in DroneController in sync with FC telemetry — used by
         // VirtualStickVM to gate manual-override detection: only fire when airborne
         // (prevents ground-level RC drift false-positives) or during autonomous flight.
@@ -773,9 +788,66 @@ class WildBridgeDefaultLayoutActivity : DefaultLayoutActivity() {
             .show()
     }
 
+    private fun scheduleDefaultCameraRecordingConfiguration() {
+        val delaysMs = longArrayOf(0L, 2_000L, 6_000L)
+        delaysMs.forEach { delayMs ->
+            mainHandler.postDelayed({ configureDefaultCameraRecording() }, delayMs)
+        }
+    }
+
+    private fun configureDefaultCameraRecording() {
+        setDefaultVideoMode()
+        preferSdCardStorage(KeyManager.getInstance().getValue(cameraStorageInfosKey))
+    }
+
+    private fun setDefaultVideoMode() {
+        val currentMode = KeyManager.getInstance().getValue(cameraModeKey)
+        if (currentMode == CameraMode.VIDEO_NORMAL) {
+            return
+        }
+
+        KeyManager.getInstance().setValue(cameraModeKey, CameraMode.VIDEO_NORMAL, object : CommonCallbacks.CompletionCallback {
+            override fun onSuccess() {
+                Log.i(TAG, "Default camera mode set to video")
+            }
+
+            override fun onFailure(error: IDJIError) {
+                Log.w(TAG, "Could not set default camera mode to video: ${error.description()}")
+            }
+        })
+    }
+
+    private fun preferSdCardStorage(storageInfos: CameraStorageInfos?) {
+        if (!isSdCardInserted(storageInfos)) {
+            Log.i(TAG, "SD card storage not selected: SD card is not inserted")
+            return
+        }
+
+        val currentLocation = KeyManager.getInstance().getValue(cameraStorageLocationKey)
+        if (currentLocation == CameraStorageLocation.SDCARD) {
+            return
+        }
+
+        KeyManager.getInstance().setValue(cameraStorageLocationKey, CameraStorageLocation.SDCARD, object : CommonCallbacks.CompletionCallback {
+            override fun onSuccess() {
+                Log.i(TAG, "Default camera storage set to SD card")
+            }
+
+            override fun onFailure(error: IDJIError) {
+                Log.w(TAG, "Could not set default camera storage to SD card: ${error.description()}")
+            }
+        })
+    }
+
+    private fun isSdCardInserted(storageInfos: CameraStorageInfos?): Boolean {
+        return storageInfos
+            ?.cameraStorageInfoList
+            ?.firstOrNull { it.storageType == CameraStorageLocation.SDCARD }
+            ?.storageState == SDCardLoadState.INSERTED
+    }
+
     private fun getDroneStorageStatus(location: CameraStorageLocation, label: String): DroneStorageStatus {
-        val key: DJIKey<CameraStorageInfos> = KeyTools.createKey(CameraKey.KeyCameraStorageInfos, ComponentIndexType.LEFT_OR_MAIN)
-        val storageInfos: CameraStorageInfos? = KeyManager.getInstance().getValue(key)
+        val storageInfos: CameraStorageInfos? = KeyManager.getInstance().getValue(cameraStorageInfosKey)
         val info = storageInfos?.cameraStorageInfoList?.firstOrNull { it.storageType == location }
         val parts = listOfNotNull(
             info?.getStorageLeftCapacity()?.takeIf { it >= 0 }?.let { "${formatCapacity(it)} free" },
@@ -1187,31 +1259,31 @@ class WildBridgeDefaultLayoutActivity : DefaultLayoutActivity() {
     
     // ==================== mDNS/Zeroconf Service Registration ====================
     
-    private val registrationListener = object : NsdManager.RegistrationListener {
+    private val registrationListener = MdnsRegistrationListener(this)
+
+    private class MdnsRegistrationListener(activity: WildBridgeDefaultLayoutActivity) : NsdManager.RegistrationListener {
+        private val activityRef = WeakReference(activity)
+
         override fun onServiceRegistered(serviceInfo: NsdServiceInfo) {
-            mdnsServiceName = serviceInfo.serviceName
-            isMdnsRegistered = true
-            Log.i(TAG, "✓ mDNS service registered: ${serviceInfo.serviceName} (${MDNS_SERVICE_TYPE})")
+            activityRef.get()?.onMdnsServiceRegistered(serviceInfo)
         }
-        
+
         override fun onRegistrationFailed(serviceInfo: NsdServiceInfo, errorCode: Int) {
-            Log.e(TAG, "✗ mDNS registration failed: error $errorCode")
-            isMdnsRegistered = false
+            activityRef.get()?.onMdnsRegistrationFailed(errorCode)
         }
-        
+
         override fun onServiceUnregistered(serviceInfo: NsdServiceInfo) {
-            Log.i(TAG, "mDNS service unregistered: ${serviceInfo.serviceName}")
-            isMdnsRegistered = false
+            activityRef.get()?.onMdnsServiceUnregistered(serviceInfo)
         }
-        
+
         override fun onUnregistrationFailed(serviceInfo: NsdServiceInfo, errorCode: Int) {
-            Log.e(TAG, "mDNS unregistration failed: error $errorCode")
+            activityRef.get()?.onMdnsUnregistrationFailed(errorCode)
         }
     }
     
     private fun registerMdnsService() {
         try {
-            nsdManager = getSystemService(Context.NSD_SERVICE) as NsdManager
+            nsdManager = applicationContext.getSystemService(Context.NSD_SERVICE) as NsdManager
             
             val serviceInfo = NsdServiceInfo().apply {
                 // Service name will be the drone name (e.g., "cacatua")
@@ -1227,6 +1299,7 @@ class WildBridgeDefaultLayoutActivity : DefaultLayoutActivity() {
                 setAttribute("webrtc", WEBRTC_PORT.toString())
             }
             
+            isMdnsRegistrationRequested = true
             nsdManager?.registerService(
                 serviceInfo,
                 NsdManager.PROTOCOL_DNS_SD,
@@ -1237,16 +1310,53 @@ class WildBridgeDefaultLayoutActivity : DefaultLayoutActivity() {
             
         } catch (e: Exception) {
             Log.e(TAG, "Failed to register mDNS service: ${e.message}")
+            isMdnsRegistrationRequested = false
+            isMdnsRegistered = false
+            nsdManager = null
         }
+    }
+
+    private fun onMdnsServiceRegistered(serviceInfo: NsdServiceInfo) {
+        mdnsServiceName = serviceInfo.serviceName
+        isMdnsRegistrationRequested = false
+        isMdnsRegistered = true
+        Log.i(TAG, "✓ mDNS service registered: ${serviceInfo.serviceName} (${MDNS_SERVICE_TYPE})")
+    }
+
+    private fun onMdnsRegistrationFailed(errorCode: Int) {
+        Log.e(TAG, "✗ mDNS registration failed: error $errorCode")
+        isMdnsRegistrationRequested = false
+        isMdnsRegistered = false
+    }
+
+    private fun onMdnsServiceUnregistered(serviceInfo: NsdServiceInfo) {
+        Log.i(TAG, "mDNS service unregistered: ${serviceInfo.serviceName}")
+        isMdnsRegistrationRequested = false
+        isMdnsRegistered = false
+        mdnsServiceName = null
+        nsdManager = null
+    }
+
+    private fun onMdnsUnregistrationFailed(errorCode: Int) {
+        Log.e(TAG, "mDNS unregistration failed: error $errorCode")
+        isMdnsRegistrationRequested = false
+        isMdnsRegistered = false
+        mdnsServiceName = null
+        nsdManager = null
     }
     
     private fun unregisterMdnsService() {
-        if (isMdnsRegistered) {
+        if (isMdnsRegistered || isMdnsRegistrationRequested) {
             try {
                 nsdManager?.unregisterService(registrationListener)
                 Log.i(TAG, "Unregistering mDNS service")
             } catch (e: Exception) {
                 Log.e(TAG, "Error unregistering mDNS: ${e.message}")
+            } finally {
+                isMdnsRegistrationRequested = false
+                isMdnsRegistered = false
+                mdnsServiceName = null
+                nsdManager = null
             }
         }
     }
