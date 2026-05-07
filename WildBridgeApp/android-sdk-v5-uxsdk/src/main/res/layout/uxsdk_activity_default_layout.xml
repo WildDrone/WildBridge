@@ -156,10 +156,25 @@
             android:background="@drawable/uxsdk_background_black_rectangle"
             android:clickable="true"
             android:focusable="true"
-            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintStart_toEndOf="@+id/button_wildbridge_settings"
             app:layout_constraintBottom_toBottomOf="parent"
-            android:layout_marginStart="16dp"
+            android:layout_marginStart="4dp"
             android:layout_marginBottom="12dp" />
+
+        <ImageButton
+            android:id="@+id/button_wildbridge_settings"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:layout_marginStart="16dp"
+            android:layout_marginBottom="12dp"
+            android:background="@drawable/uxsdk_background_black_rectangle"
+            android:contentDescription="WildBridge settings"
+            android:padding="8dp"
+            android:scaleType="centerInside"
+            android:src="@android:drawable/ic_menu_manage"
+            android:tint="#FFFFFFFF"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintStart_toStartOf="parent" />
 
         <!-- Drone operational status indicator (icon + label, updates in real-time) -->
         <TextView

@@ -21,6 +21,8 @@ import android.content.SharedPreferences
 import android.hardware.Sensor
 import android.content.res.ColorStateList
 import android.widget.CheckBox
+import android.widget.ImageButton
+import android.widget.PopupMenu
 import android.widget.Switch
 import android.widget.ToggleButton
 import android.widget.EditText
@@ -581,6 +583,21 @@ class WildBridgeDefaultLayoutActivity : DefaultLayoutActivity() {
                 showDroneNameDialog(isFirstTime = false)
             }
         }
+
+        findViewById<ImageButton>(R.id.button_wildbridge_settings)?.setOnClickListener { anchor ->
+            showWildBridgeSettingsMenu(anchor)
+        }
+    }
+
+    private fun showWildBridgeSettingsMenu(anchor: android.view.View) {
+        PopupMenu(this, anchor).apply {
+            menu.add(0, 1, 0, "Change Drone Name")
+            menu.add(0, 2, 1, "Set WHIP Server")
+            menu.add(0, 3, 2, "Format Drone SD Card")
+            menu.add(0, 4, 3, "Format Drone Internal Storage")
+            setOnMenuItemClickListener { item -> handleWildBridgeMenuItem(item.itemId) }
+            show()
+        }
     }
     
     private fun updateDroneNameDisplay() {
@@ -979,7 +996,11 @@ class WildBridgeDefaultLayoutActivity : DefaultLayoutActivity() {
     }
     
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
-        return when (item.itemId) {
+        return if (handleWildBridgeMenuItem(item.itemId)) true else super.onOptionsItemSelected(item)
+    }
+
+    private fun handleWildBridgeMenuItem(itemId: Int): Boolean {
+        return when (itemId) {
             1 -> {
                 showDroneNameDialog(isFirstTime = false)
                 true
@@ -996,7 +1017,7 @@ class WildBridgeDefaultLayoutActivity : DefaultLayoutActivity() {
                 showFormatStorageDialog(CameraStorageLocation.INTERNAL, "internal storage")
                 true
             }
-            else -> super.onOptionsItemSelected(item)
+            else -> false
         }
     }
 
