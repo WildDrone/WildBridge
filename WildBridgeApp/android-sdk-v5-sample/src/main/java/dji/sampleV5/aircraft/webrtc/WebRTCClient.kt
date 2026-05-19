@@ -94,6 +94,7 @@ class WebRTCClient(
         when (videoCapturer) {
             is DJIV5VideoCapturer -> videoCapturer.changeResolution(width, height)
             is SharedVideoCapturerHandle -> videoCapturer.changeResolution(width, height)
+            is MockMp4VideoCapturer -> videoCapturer.changeResolution(width, height)
             else -> return
         }
         Log.d(TAG, "[$clientId] Resolution changed to ${width}x${height}")
@@ -105,6 +106,7 @@ class WebRTCClient(
         when (videoCapturer) {
             is DJIV5VideoCapturer -> videoCapturer.changeCaptureFormat(options.videoResolutionWidth, options.videoResolutionHeight, boundedFps)
             is SharedVideoCapturerHandle -> videoCapturer.changeFrameRate(boundedFps)
+            is MockMp4VideoCapturer -> videoCapturer.changeFrameRate(boundedFps)
         }
         peerConnection?.senders?.firstOrNull()?.let { configureVideoSenderForStability(it) }
         Log.d(TAG, "[$clientId] Frame rate changed to $boundedFps fps")
@@ -224,6 +226,7 @@ class WebRTCClient(
         when (videoCapturer) {
             is DJIV5VideoCapturer -> videoCapturer.metadataListener = metadataCallback
             is SharedVideoCapturerHandle -> videoCapturer.metadataListener = metadataCallback
+            is MockMp4VideoCapturer -> videoCapturer.metadataListener = metadataCallback
             else -> {
                 Log.w(TAG, "[$clientId] VideoCapturer type not supported for metadata")
                 return
@@ -284,31 +287,32 @@ class WebRTCClient(
         runCatching {
             val params = sender.parameters ?: return
             val encodings = params.encodings ?: emptyList()
+            val bitrateCap = options.senderBitrateBps()
 
             encodings.forEach { encoding ->
                 runCatching {
-                    encoding.maxBitrateBps = options.videoBitrate
+                    encoding.maxBitrateBps = bitrateCap
                 }
                 runCatching {
                     encoding.maxFramerate = currentFps
                 }
             }
 
-            // Force adaptation strategy toward FPS reduction before resolution reduction.
+            // Force adaptation strategy toward resolution reduction before FPS reduction.
             runCatching {
                 val preferenceClass = Class.forName("org.webrtc.RtpParameters\$DegradationPreference")
                 @Suppress("UNCHECKED_CAST")
                 val enumClass = preferenceClass as Class<out Enum<*>>
-                val maintainResolution = java.lang.Enum.valueOf(enumClass, "MAINTAIN_RESOLUTION")
+                val maintainFramerate = java.lang.Enum.valueOf(enumClass, "MAINTAIN_FRAMERATE")
                 val field = params.javaClass.getField("degradationPreference")
                 field.isAccessible = true
-                field.set(params, maintainResolution)
+                field.set(params, maintainFramerate)
             }
 
             sender.parameters = params
             Log.d(
                 TAG,
-                "[$clientId] Sender params tuned: maxBitrate=${options.videoBitrate}bps, maxFps=$currentFps, prefer=MAINTAIN_RESOLUTION"
+                "[$clientId] Sender params tuned: maxBitrate=${bitrateCap}bps, maxFps=$currentFps, prefer=MAINTAIN_FRAMERATE"
             )
         }.onFailure { e ->
             Log.w(TAG, "[$clientId] Unable to fully apply sender tuning: ${e.message}")
@@ -512,6 +516,7 @@ class WebRTCClient(
             when (videoCapturer) {
                 is DJIV5VideoCapturer -> videoCapturer.metadataListener = null
                 is SharedVideoCapturerHandle -> videoCapturer.metadataListener = null
+                is MockMp4VideoCapturer -> videoCapturer.metadataListener = null
             }
 
             try {

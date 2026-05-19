@@ -26,7 +26,7 @@ class DJIV5VideoCapturer(
     private val cameraIndex: ComponentIndexType = ComponentIndexType.LEFT_OR_MAIN,
     @Volatile var targetWidth: Int = FULL_HD_WIDTH,
     @Volatile var targetHeight: Int = FULL_HD_HEIGHT,
-    private val scaleToTarget: Boolean = true,
+    @Volatile private var scaleToTarget: Boolean = true,
     private val droneName: String = "drone_1"
 ) : VideoCapturer {
 
@@ -192,9 +192,22 @@ class DJIV5VideoCapturer(
      * Change the target resolution on-the-fly. Takes effect on the next frame.
      */
     fun changeResolution(width: Int, height: Int) {
-        Log.d(TAG, "Changing target resolution: ${targetWidth}x${targetHeight} -> ${width}x${height}")
-        targetWidth = width
-        targetHeight = height
+        val previousWidth = targetWidth
+        val previousHeight = targetHeight
+        val previousScale = scaleToTarget
+        if (width <= 0 || height <= 0) {
+            targetWidth = 0
+            targetHeight = 0
+            scaleToTarget = false
+        } else {
+            targetWidth = width
+            targetHeight = height
+            scaleToTarget = true
+        }
+        Log.d(
+            TAG,
+            "Changing target resolution: ${previousWidth}x${previousHeight} (scale=$previousScale) -> ${targetWidth}x${targetHeight} (scale=$scaleToTarget)"
+        )
     }
 
     override fun changeCaptureFormat(width: Int, height: Int, framerate: Int) {

@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>WildBridge Video and Connection Testing Tool</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <div class="appShell">
+  <header class="topbar">
+    <div class="brand" aria-label="WildBridge">
+      <img src="/assets/wildbridge-icon.png" alt="WildBridge logo">
+      <div>
+        <h1>WildBridge Video and Connection Testing Tool</h1>
+        <p id="subtitle">Discovery, telemetry health, WHIP/WHEP video, and connection diagnostics.</p>
+      </div>
+    </div>
+    <div class="actions">
+      <button id="discoverBtn" type="button">Discover</button>
+      <button id="reconnectBtn" type="button">Reconnect Video</button>
+    </div>
+  </header>
+
+  <main>
+    <section id="summary" class="summary"></section>
+    <details class="guide" aria-label="Usage guide">
+      <summary>How To Use</summary>
+      <ol>
+        <li>Connect the host and phones to the same WildBridge Wi-Fi network.</li>
+        <li>On each phone, enable wireless ADB if needed, then run <code>adb connect PHONE_IP:5555</code> from the host.</li>
+        <li>Launch the WildBridge app and set a unique drone name such as <code>mini1</code>, <code>mini2</code>, or the aircraft label you want to test.</li>
+        <li>Start this stack with <code>docker compose -f compose.video-test.yaml up -d --build</code> and open this page.</li>
+        <li>Use <strong>Discover</strong> to re-scan. A tile appears for each detected phone. Telemetry should turn green before the video path becomes ready.</li>
+        <li>For drone-free video testing, enable mock video in the WildBridge Default Layout on each phone. The phone will publish the bundled clip through the normal WHIP path.</li>
+        <li>Logs are written on the host under <code>GroundStation/video_test/logs/</code>; compare those with Android logcat and MediaMTX logs when investigating FPS drops or decode errors.</li>
+      </ol>
+    </details>
+    <nav class="tabs" aria-label="Testing views">
+      <button class="tabButton active" type="button" data-tab="video">Video</button>
+      <button class="tabButton" type="button" data-tab="charts">Charts</button>
+    </nav>
+    <section id="videoPanel" class="tabPanel active" data-panel="video">
+      <section id="grid" class="grid"></section>
+      <section id="emptyState" class="emptyState">No WildBridge phones detected yet. Start the app on a phone, keep it on the same network, then press Discover.</section>
+    </section>
+    <section id="chartsPanel" class="tabPanel" data-panel="charts">
+      <details class="chartControls" open>
+        <summary>Chart Settings</summary>
+        <div class="chartHint">Each line color represents a discovered drone. Ignored drones stay visible in discovery but are hidden from active charts and video playback.</div>
+      </details>
+      <div id="chartsGrid" class="chartsGrid"></div>
+    </section>
+  </main>
+  </div>
+
+  <template id="tileTemplate">
+    <article class="tile">
+      <div class="videoWrap">
+        <video autoplay muted playsinline></video>
+        <div class="badge statusBadge">starting</div>
+      </div>
+      <div class="tileBody">
+        <div class="tileTitle">
+          <h2></h2>
+          <span class="ip"></span>
+          <button class="ignoreBtn" type="button">Ignore</button>
+        </div>
+        <dl class="quickStats" aria-label="Video summary">
+          <div><dt>FPS</dt><dd data-stat="fps">-</dd></div>
+          <div><dt>Size</dt><dd data-stat="size">-</dd></div>
+          <div><dt>Lost</dt><dd data-stat="packetsLost">-</dd></div>
+          <div><dt>Drop</dt><dd data-stat="framesDropped">-</dd></div>
+          <div><dt>Tel</dt><dd data-stat="telemetry">-</dd></div>
+          <div><dt>MTX</dt><dd data-stat="mediaMtx">-</dd></div>
+        </dl>
+        <div class="events" aria-label="Recent video event"></div>
+      </div>
+    </article>
+  </template>
+
+  <dialog id="droneModal" class="droneModal">
+    <div class="modalHeader">
+      <div>
+        <h2 id="modalTitle">Drone</h2>
+        <p id="modalSubtitle">Connection details</p>
+      </div>
+      <button id="modalCloseBtn" type="button" aria-label="Close detail view">Close</button>
+    </div>
+    <div class="modalContent">
+      <div id="modalVideoHost" class="modalVideoHost"></div>
+      <details class="modalDetails" open>
+        <summary>Telemetry</summary>
+        <dl id="modalTelemetry" class="detailList"></dl>
+      </details>
+      <details class="modalDetails" open>
+        <summary>Video And Connection Stats</summary>
+        <dl id="modalStats" class="detailList"></dl>
+      </details>
+      <details class="modalDetails">
+        <summary>Recent Event</summary>
+        <pre id="modalEvent">-</pre>
+      </details>
+    </div>
+  </dialog>
+
+  <script async src="https://unpkg.com/lightweight-charts@5.0.0/dist/lightweight-charts.standalone.production.js"></script>
+  <script src="/app.js"></script>
+</body>
+</html>

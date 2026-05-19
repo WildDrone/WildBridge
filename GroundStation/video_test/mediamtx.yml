@@ -1,0 +1,27 @@
+# WildBridge six-drone WebRTC relay.
+# Phones publish via WHIP: http://<host>:8889/<drone_name>/whip
+# Browsers consume via WHEP: http://<host>:8889/<drone_name>/whep
+
+logLevel: info
+logDestinations: [stdout]
+
+api: yes
+apiAddress: :9997
+apiAllowOrigins: ['*']
+
+webrtc: yes
+webrtcAddress: :8889
+webrtcAllowOrigins: ['*']
+webrtcIPsFromInterfaces: yes
+webrtcICEServers2:
+  - url: stun:stun.l.google.com:19302
+
+rtsp: yes
+rtspAddress: :8554
+
+hls: no
+rtmp: no
+srt: no
+
+paths:
+  all_others:

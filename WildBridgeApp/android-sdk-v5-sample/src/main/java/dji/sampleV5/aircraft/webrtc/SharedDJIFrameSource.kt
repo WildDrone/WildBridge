@@ -57,6 +57,7 @@ class SharedDJIFrameSource(
     private val droppedFrameCounter = AtomicLong(0)
     private val processingErrorCounter = AtomicLong(0)
     private val recoveryCounter = AtomicLong(0)
+    private val frameWaitLock = Object()
     private val sentFramesInWindow = AtomicLong(0)
     private val inputFramesInWindow = AtomicLong(0)
     private val droppedFramesInWindow = AtomicLong(0)
@@ -78,7 +79,7 @@ class SharedDJIFrameSource(
         }
 
         override fun onCameraStreamEnableUpdate(cameraStreamEnableMap: MutableMap<ComponentIndexType, Boolean>) {
-            // Not used — we only care about which cameras exist, not their enabled state.
+            // Not used; frame availability is detected by the frame callback itself.
         }
     }
 
@@ -149,8 +150,9 @@ class SharedDJIFrameSource(
             format: ICameraStreamManager.FrameFormat
         ) {
             if (!isCapturing.get()) return
-            val currentObservers = observers.values.toList()
-            if (currentObservers.isEmpty()) return
+            val singleObserver = if (observers.size == 1) observers.values.firstOrNull() else null
+            val currentObservers = if (singleObserver == null) observers.values.toList() else emptyList()
+            if (singleObserver == null && currentObservers.isEmpty()) return
 
             try {
                 val timestampNs = System.nanoTime()
@@ -173,6 +175,9 @@ class SharedDJIFrameSource(
                 }
 
                 val frameNumber = frameCounter.incrementAndGet()
+                synchronized(frameWaitLock) {
+                    frameWaitLock.notifyAll()
+                }
                 sentFramesInWindow.incrementAndGet()
 
                 val (outputWidth, outputHeight) = chooseOutputSize(width, height)
@@ -180,8 +185,9 @@ class SharedDJIFrameSource(
                 lastOutputHeight = outputHeight
 
                 // Capture telemetry once and broadcast to all metadata listeners
-                val currentListeners = metadataListeners.values.toList()
-                if (currentListeners.isNotEmpty()) {
+                val singleListener = if (metadataListeners.size == 1) metadataListeners.values.firstOrNull() else null
+                val currentListeners = if (singleListener == null) metadataListeners.values.toList() else emptyList()
+                if (singleListener != null || currentListeners.isNotEmpty()) {
                     val metadata = TelemetryProvider.captureMetadata(
                         frameNumber = frameNumber,
                         timestampNs = timestampNs,
@@ -189,7 +195,11 @@ class SharedDJIFrameSource(
                         frameHeight = outputHeight,
                         droneName = droneName
                     )
-                    currentListeners.forEach { it.onFrameMetadata(metadata) }
+                    if (singleListener != null) {
+                        singleListener.onFrameMetadata(metadata)
+                    } else {
+                        currentListeners.forEach { it.onFrameMetadata(metadata) }
+                    }
                 }
 
                 // Create NV21 buffer and scale ONCE
@@ -207,9 +217,13 @@ class SharedDJIFrameSource(
                 // Broadcast the same VideoFrame to every observer.
                 // Retain once per extra observer; the first consumer uses the initial ref.
                 val videoFrame = VideoFrame(outputBuffer, 0, timestampNs)
-                val extra = currentObservers.size - 1
-                repeat(extra) { videoFrame.retain() }
-                currentObservers.forEach { it.onFrameCaptured(videoFrame) }
+                if (singleObserver != null) {
+                    singleObserver.onFrameCaptured(videoFrame)
+                } else {
+                    val extra = currentObservers.size - 1
+                    repeat(extra) { videoFrame.retain() }
+                    currentObservers.forEach { it.onFrameCaptured(videoFrame) }
+                }
                 videoFrame.release()
                 processingTimeNsInWindow.addAndGet(System.nanoTime() - timestampNs)
                 maybeEmitMetrics(timestampNs)
@@ -229,6 +243,22 @@ class SharedDJIFrameSource(
         val evenWidth = boundedWidth - (boundedWidth % 2)
         val evenHeight = boundedHeight - (boundedHeight % 2)
         return evenWidth.coerceAtLeast(2) to evenHeight.coerceAtLeast(2)
+    }
+
+    fun totalOutputFrames(): Long = frameCounter.get()
+
+    fun observerCount(): Int = observers.size
+
+    fun waitForOutputFrameAfter(frameCount: Long, timeoutMs: Long): Boolean {
+        val deadlineMs = System.currentTimeMillis() + timeoutMs
+        synchronized(frameWaitLock) {
+            while (frameCounter.get() <= frameCount) {
+                val remainingMs = deadlineMs - System.currentTimeMillis()
+                if (remainingMs <= 0L) return false
+                runCatching { frameWaitLock.wait(remainingMs) }
+            }
+        }
+        return true
     }
 
     private fun maybeEmitMetrics(nowNs: Long) {
@@ -291,12 +321,13 @@ class SharedDJIFrameSource(
     fun startClient(clientId: String, width: Int, height: Int, fps: Int) {
         // Use the first client's requested settings
         if (isCapturing.compareAndSet(false, true)) {
-            targetWidth = width
-            targetHeight = height
+            applyResolutionRequest(width, height)
             targetFps = fps.coerceAtLeast(1)
             frameIntervalNs = 1_000_000_000L / targetFps.toLong()
             lastSentTimestampNs.set(0L)
             Log.d(TAG, "Starting shared capture: ${targetWidth}x${targetHeight}@${targetFps}fps on camera $activeCameraIndex (preferred: $preferredCameraIndex)")
+            runCatching { cameraStreamManager.enableStream(activeCameraIndex, true) }
+                .onFailure { Log.w(TAG, "Could not enable stream on $activeCameraIndex: ${it.message}") }
             cameraStreamManager.addFrameListener(
                 activeCameraIndex,
                 ICameraStreamManager.FrameFormat.NV21,
@@ -318,9 +349,26 @@ class SharedDJIFrameSource(
     }
 
     fun changeResolution(width: Int, height: Int) {
-        Log.d(TAG, "Changing target resolution: ${targetWidth}x${targetHeight} -> ${width}x${height}")
+        val previousWidth = targetWidth
+        val previousHeight = targetHeight
+        val previousScale = scaleToTarget
+        applyResolutionRequest(width, height)
+        Log.d(
+            TAG,
+            "Changing target resolution: ${previousWidth}x${previousHeight} (scale=$previousScale) -> ${targetWidth}x${targetHeight} (scale=$scaleToTarget)"
+        )
+    }
+
+    private fun applyResolutionRequest(width: Int, height: Int) {
+        if (width <= 0 || height <= 0) {
+            targetWidth = 0
+            targetHeight = 0
+            scaleToTarget = false
+            return
+        }
         targetWidth = width
         targetHeight = height
+        scaleToTarget = true
     }
 
     fun changeFrameRate(fps: Int) {
@@ -337,12 +385,14 @@ class SharedDJIFrameSource(
         recoveryCounter.incrementAndGet()
         lastSentTimestampNs.set(0L)
         runCatching { cameraStreamManager.removeFrameListener(frameListener) }
+        runCatching { cameraStreamManager.enableStream(activeCameraIndex, true) }
+            .onFailure { Log.w(TAG, "Could not enable stream during listener reset on $activeCameraIndex: ${it.message}") }
         cameraStreamManager.addFrameListener(
             activeCameraIndex,
             ICameraStreamManager.FrameFormat.NV21,
             frameListener
         )
-        Log.w(TAG, "Recovered DJI frame listener on $activeCameraIndex: $reason")
+        Log.w(TAG, "Reset DJI frame listener on $activeCameraIndex: $reason")
     }
 
     fun dispose() {

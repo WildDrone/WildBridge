@@ -66,6 +66,34 @@
                     tools:layout_editor_absoluteY="0dp" />
             </dji.v5.ux.core.widget.fpv.FPVWidget>
 
+            <TextureView
+                android:id="@+id/mock_video_preview"
+                android:layout_width="0dp"
+                android:layout_height="0dp"
+                android:visibility="gone"
+                app:layout_constraintBottom_toBottomOf="parent"
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintTop_toTopOf="parent" />
+
+            <TextView
+                android:id="@+id/mock_video_preview_label"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="16dp"
+                android:layout_marginTop="16dp"
+                android:background="@drawable/uxsdk_background_black_rectangle"
+                android:paddingHorizontal="8dp"
+                android:paddingVertical="4dp"
+                android:text="MOCK VIDEO PREVIEW"
+                android:textColor="#FFFFD166"
+                android:textSize="11sp"
+                android:textStyle="bold"
+                android:visibility="gone"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintTop_toTopOf="parent"
+                tools:ignore="HardcodedText" />
+
             <!-- Detection bounding-box overlay (on top of FPV, below interaction) -->
             <dji.v5.ux.detection.DetectionOverlayView
                 android:id="@+id/detection_overlay"
@@ -105,6 +133,24 @@
             app:layout_constraintTop_toTopOf="parent"
             app:uxsdk_itemsMarginRight="@dimen/uxsdk_spacing_normal"
             app:uxsdk_itemsSpacing="14dp" />
+
+        <Switch
+            android:id="@+id/sw_mock_video"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="16dp"
+            android:layout_marginBottom="4dp"
+            android:background="@drawable/uxsdk_background_black_rectangle"
+            android:checked="false"
+            android:padding="4dp"
+            android:switchMinWidth="40dp"
+            android:text="MOCK VIDEO"
+            android:textColor="#FFFFD166"
+            android:textSize="11sp"
+            android:textStyle="bold"
+            app:layout_constraintBottom_toTopOf="@+id/sw_auto_sensing"
+            app:layout_constraintStart_toStartOf="parent"
+            tools:ignore="HardcodedText,UseSwitchCompatOrMaterialXml" />
 
         <!-- AutoSensing (AI detection) toggle — ON by default -->
         <Switch

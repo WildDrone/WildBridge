@@ -1,0 +1,633 @@
+{"ts":"2026-05-19T10:22:16.729150+00:00","type":"video_grid_started","port":8090,"logFile":"/logs/video-grid-20260519T102216Z.ndjson","drones":["mini1","mini2","mini3","mini4","mini5","mini6"]}
+{"ts":"2026-05-19T10:22:16.729410+00:00","type":"discovery_started","drones":["mini1","mini2","mini3","mini4","mini5","mini6"]}
+{"ts":"2026-05-19T10:22:16.737567+00:00","type":"mediamtx_paths","paths":[]}
+{"ts":"2026-05-19T10:22:16.822344+00:00","type":"telemetry_connected","drone":"mini4","ip":"192.168.50.200","port":8081}
+{"ts":"2026-05-19T10:22:16.823191+00:00","type":"telemetry_connected","drone":"mini3","ip":"192.168.50.224","port":8081}
+{"ts":"2026-05-19T10:22:16.824370+00:00","type":"telemetry_connected","drone":"mini2","ip":"192.168.50.183","port":8081}
+{"ts":"2026-05-19T10:22:16.837425+00:00","type":"telemetry_connected","drone":"mini6","ip":"192.168.50.219","port":8081}
+{"ts":"2026-05-19T10:22:16.950208+00:00","type":"telemetry_sample","drone":"mini6","packets":1,"batteryLevel":85,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:22:16.952336+00:00","type":"telemetry_sample","drone":"mini4","packets":1,"batteryLevel":85,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:22:16.964465+00:00","type":"telemetry_sample","drone":"mini3","packets":1,"batteryLevel":84,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:22:16.970189+00:00","type":"telemetry_sample","drone":"mini2","packets":1,"batteryLevel":87,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:22:18.061511+00:00","type":"telemetry_sample","drone":"mini3","packets":57,"batteryLevel":84,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:22:18.061676+00:00","type":"telemetry_sample","drone":"mini4","packets":57,"batteryLevel":85,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:22:18.740032+00:00","type":"mediamtx_paths","paths":[]}
+{"ts":"2026-05-19T10:22:19.259824+00:00","type":"telemetry_sample","drone":"mini3","packets":91,"batteryLevel":84,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:22:19.586341+00:00","type":"telemetry_sample","drone":"mini2","packets":54,"batteryLevel":87,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:22:19.687144+00:00","type":"telemetry_sample","drone":"mini6","packets":50,"batteryLevel":85,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:22:19.814987+00:00","type":"telemetry_error","drone":"mini5","ip":"192.168.50.92","error":"[Errno 113] No route to host"}
+{"ts":"2026-05-19T10:22:19.815173+00:00","type":"telemetry_error","drone":"mini1","ip":"192.168.50.172","error":"[Errno 113] No route to host"}
+{"ts":"2026-05-19T10:22:19.815147+00:00","type":"telemetry_disconnected","drone":"mini5","ip":"192.168.50.92","reconnects":1}
+{"ts":"2026-05-19T10:22:19.815443+00:00","type":"telemetry_disconnected","drone":"mini1","ip":"192.168.50.172","reconnects":1}
+{"ts":"2026-05-19T10:22:20.743751+00:00","type":"mediamtx_paths","paths":[]}
+{"ts":"2026-05-19T10:22:20.860649+00:00","type":"telemetry_sample","drone":"mini6","packets":106,"batteryLevel":85,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:22:21.553013+00:00","type":"telemetry_sample","drone":"mini2","packets":81,"batteryLevel":87,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:22:21.727057+00:00","type":"telemetry_sample","drone":"mini4","packets":89,"batteryLevel":85,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:22:21.738911+00:00","type":"discovery_started","drones":["mini1","mini2","mini3","mini4","mini5","mini6"]}
+{"ts":"2026-05-19T10:22:22.570381+00:00","type":"telemetry_sample","drone":"mini2","packets":131,"batteryLevel":87,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:22:22.697355+00:00","type":"telemetry_sample","drone":"mini3","packets":120,"batteryLevel":84,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:22:22.747159+00:00","type":"mediamtx_paths","paths":[]}
+{"ts":"2026-05-19T10:22:22.915055+00:00","type":"telemetry_sample","drone":"mini4","packets":141,"batteryLevel":85,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:22:23.401174+00:00","type":"telemetry_sample","drone":"mini6","packets":118,"batteryLevel":85,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:22:24.333803+00:00","type":"telemetry_sample","drone":"mini2","packets":140,"batteryLevel":87,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:22:24.716372+00:00","type":"telemetry_sample","drone":"mini3","packets":161,"batteryLevel":84,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:22:24.750589+00:00","type":"mediamtx_paths","paths":[]}
+{"ts":"2026-05-19T10:22:24.751798+00:00","type":"telemetry_sample","drone":"mini4","packets":190,"batteryLevel":85,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:22:24.871225+00:00","type":"telemetry_error","drone":"mini1","ip":"192.168.50.172","error":"[Errno 113] No route to host"}
+{"ts":"2026-05-19T10:22:24.871265+00:00","type":"telemetry_error","drone":"mini5","ip":"192.168.50.92","error":"[Errno 113] No route to host"}
+{"ts":"2026-05-19T10:22:24.871393+00:00","type":"telemetry_disconnected","drone":"mini5","ip":"192.168.50.92","reconnects":2}
+{"ts":"2026-05-19T10:22:24.871374+00:00","type":"telemetry_disconnected","drone":"mini1","ip":"192.168.50.172","reconnects":2}
+{"ts":"2026-05-19T10:22:25.618864+00:00","type":"telemetry_sample","drone":"mini6","packets":154,"batteryLevel":85,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:22:25.925453+00:00","type":"telemetry_sample","drone":"mini4","packets":235,"batteryLevel":85,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:22:26.582183+00:00","type":"telemetry_sample","drone":"mini3","packets":209,"batteryLevel":84,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:22:26.745322+00:00","type":"discovery_started","drones":["mini1","mini2","mini3","mini4","mini5","mini6"]}
+{"ts":"2026-05-19T10:22:26.754123+00:00","type":"mediamtx_paths","paths":[]}
+{"ts":"2026-05-19T10:22:27.721213+00:00","type":"telemetry_sample","drone":"mini6","packets":175,"batteryLevel":85,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:22:27.891472+00:00","type":"telemetry_sample","drone":"mini2","packets":175,"batteryLevel":87,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:22:28.753853+00:00","type":"telemetry_sample","drone":"mini6","packets":193,"batteryLevel":85,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:22:28.757246+00:00","type":"mediamtx_paths","paths":[]}
+{"ts":"2026-05-19T10:22:29.381511+00:00","type":"telemetry_sample","drone":"mini4","packets":292,"batteryLevel":85,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:22:29.927096+00:00","type":"telemetry_error","drone":"mini1","ip":"192.168.50.172","error":"[Errno 113] No route to host"}
+{"ts":"2026-05-19T10:22:29.927251+00:00","type":"telemetry_disconnected","drone":"mini1","ip":"192.168.50.172","reconnects":3}
+{"ts":"2026-05-19T10:22:29.927480+00:00","type":"telemetry_error","drone":"mini5","ip":"192.168.50.92","error":"[Errno 113] No route to host"}
+{"ts":"2026-05-19T10:22:29.927528+00:00","type":"telemetry_disconnected","drone":"mini5","ip":"192.168.50.92","reconnects":3}
+{"ts":"2026-05-19T10:22:30.759805+00:00","type":"mediamtx_paths","paths":[]}
+{"ts":"2026-05-19T10:22:30.913164+00:00","type":"telemetry_sample","drone":"mini3","packets":245,"batteryLevel":84,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:22:31.750978+00:00","type":"discovery_started","drones":["mini1","mini2","mini3","mini4","mini5","mini6"]}
+{"ts":"2026-05-19T10:22:32.062676+00:00","type":"telemetry_sample","drone":"mini4","packets":335,"batteryLevel":85,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:22:32.089176+00:00","type":"telemetry_sample","drone":"mini2","packets":182,"batteryLevel":87,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:22:32.714537+00:00","type":"telemetry_sample","drone":"mini3","packets":317,"batteryLevel":84,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:22:32.762805+00:00","type":"mediamtx_paths","paths":[]}
+{"ts":"2026-05-19T10:22:33.036192+00:00","type":"telemetry_sample","drone":"mini6","packets":221,"batteryLevel":85,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:22:33.330155+00:00","type":"telemetry_sample","drone":"mini2","packets":260,"batteryLevel":87,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:22:33.517201+00:00","type":"telemetry_sample","drone":"mini4","packets":382,"batteryLevel":85,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:22:34.099243+00:00","type":"telemetry_sample","drone":"mini6","packets":249,"batteryLevel":85,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:22:34.198723+00:00","type":"telemetry_sample","drone":"mini3","packets":389,"batteryLevel":84,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:22:34.354243+00:00","type":"telemetry_sample","drone":"mini2","packets":312,"batteryLevel":87,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:22:34.766358+00:00","type":"mediamtx_paths","paths":[]}
+{"ts":"2026-05-19T10:22:34.983017+00:00","type":"telemetry_error","drone":"mini5","ip":"192.168.50.92","error":"[Errno 113] No route to host"}
+{"ts":"2026-05-19T10:22:34.983238+00:00","type":"telemetry_disconnected","drone":"mini5","ip":"192.168.50.92","reconnects":4}
+{"ts":"2026-05-19T10:22:34.983942+00:00","type":"telemetry_error","drone":"mini1","ip":"192.168.50.172","error":"[Errno 113] No route to host"}
+{"ts":"2026-05-19T10:22:34.984072+00:00","type":"telemetry_disconnected","drone":"mini1","ip":"192.168.50.172","reconnects":4}
+{"ts":"2026-05-19T10:22:35.224437+00:00","type":"telemetry_sample","drone":"mini3","packets":485,"batteryLevel":84,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:22:35.550995+00:00","type":"telemetry_sample","drone":"mini4","packets":403,"batteryLevel":85,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:22:35.697185+00:00","type":"telemetry_sample","drone":"mini2","packets":318,"batteryLevel":87,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:22:35.712120+00:00","type":"telemetry_sample","drone":"mini6","packets":260,"batteryLevel":85,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:22:36.757048+00:00","type":"discovery_started","drones":["mini1","mini2","mini3","mini4","mini5","mini6"]}
+{"ts":"2026-05-19T10:22:36.768989+00:00","type":"mediamtx_paths","paths":[]}
+{"ts":"2026-05-19T10:22:37.108228+00:00","type":"telemetry_sample","drone":"mini3","packets":489,"batteryLevel":84,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:22:37.262402+00:00","type":"telemetry_sample","drone":"mini4","packets":426,"batteryLevel":85,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:22:38.029504+00:00","type":"telemetry_sample","drone":"mini6","packets":261,"batteryLevel":85,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:22:38.693806+00:00","type":"telemetry_sample","drone":"mini2","packets":332,"batteryLevel":87,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:22:38.771764+00:00","type":"mediamtx_paths","paths":[]}
+{"ts":"2026-05-19T10:22:38.976604+00:00","type":"telemetry_sample","drone":"mini3","packets":522,"batteryLevel":84,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:22:39.529000+00:00","type":"telemetry_sample","drone":"mini6","packets":277,"batteryLevel":85,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:22:39.749249+00:00","type":"telemetry_sample","drone":"mini2","packets":357,"batteryLevel":87,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:22:39.839451+00:00","type":"telemetry_sample","drone":"mini4","packets":436,"batteryLevel":85,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:22:40.039045+00:00","type":"telemetry_error","drone":"mini1","ip":"192.168.50.172","error":"[Errno 113] No route to host"}
+{"ts":"2026-05-19T10:22:40.039282+00:00","type":"telemetry_disconnected","drone":"mini1","ip":"192.168.50.172","reconnects":5}
+{"ts":"2026-05-19T10:22:40.039342+00:00","type":"telemetry_error","drone":"mini5","ip":"192.168.50.92","error":"[Errno 113] No route to host"}
+{"ts":"2026-05-19T10:22:40.039740+00:00","type":"telemetry_disconnected","drone":"mini5","ip":"192.168.50.92","reconnects":5}
+{"ts":"2026-05-19T10:22:40.653063+00:00","type":"telemetry_sample","drone":"mini6","packets":297,"batteryLevel":85,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:22:40.774885+00:00","type":"mediamtx_paths","paths":[]}
+{"ts":"2026-05-19T10:22:40.886930+00:00","type":"telemetry_sample","drone":"mini3","packets":581,"batteryLevel":84,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:22:41.762998+00:00","type":"discovery_started","drones":["mini1","mini2","mini3","mini4","mini5","mini6"]}
+{"ts":"2026-05-19T10:22:42.330382+00:00","type":"telemetry_sample","drone":"mini4","packets":482,"batteryLevel":85,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:22:42.363787+00:00","type":"telemetry_sample","drone":"mini2","packets":387,"batteryLevel":87,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:22:42.411919+00:00","type":"telemetry_sample","drone":"mini6","packets":309,"batteryLevel":85,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:22:42.527824+00:00","type":"telemetry_sample","drone":"mini3","packets":636,"batteryLevel":84,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:22:42.777856+00:00","type":"mediamtx_paths","paths":[]}
+{"ts":"2026-05-19T10:22:43.607095+00:00","type":"telemetry_sample","drone":"mini6","packets":325,"batteryLevel":85,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:22:43.919442+00:00","type":"telemetry_sample","drone":"mini2","packets":426,"batteryLevel":87,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:22:44.186519+00:00","type":"telemetry_sample","drone":"mini4","packets":522,"batteryLevel":85,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:22:44.781468+00:00","type":"mediamtx_paths","paths":[]}
+{"ts":"2026-05-19T10:22:44.866696+00:00","type":"telemetry_sample","drone":"mini3","packets":665,"batteryLevel":84,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:22:44.997840+00:00","type":"telemetry_sample","drone":"mini6","packets":326,"batteryLevel":85,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:22:45.095229+00:00","type":"telemetry_error","drone":"mini5","ip":"192.168.50.92","error":"[Errno 113] No route to host"}
+{"ts":"2026-05-19T10:22:45.095468+00:00","type":"telemetry_disconnected","drone":"mini5","ip":"192.168.50.92","reconnects":6}
+{"ts":"2026-05-19T10:22:45.095500+00:00","type":"telemetry_error","drone":"mini1","ip":"192.168.50.172","error":"[Errno 113] No route to host"}
+{"ts":"2026-05-19T10:22:45.095954+00:00","type":"telemetry_disconnected","drone":"mini1","ip":"192.168.50.172","reconnects":6}
+{"ts":"2026-05-19T10:22:45.422407+00:00","type":"telemetry_sample","drone":"mini2","packets":441,"batteryLevel":87,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:22:45.726329+00:00","type":"telemetry_sample","drone":"mini4","packets":540,"batteryLevel":85,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:22:46.190094+00:00","type":"telemetry_sample","drone":"mini6","packets":344,"batteryLevel":85,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:22:46.434150+00:00","type":"telemetry_sample","drone":"mini3","packets":695,"batteryLevel":84,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:22:46.768110+00:00","type":"discovery_started","drones":["mini1","mini2","mini3","mini4","mini5","mini6"]}
+{"ts":"2026-05-19T10:22:46.784628+00:00","type":"mediamtx_paths","paths":[]}
+{"ts":"2026-05-19T10:22:46.853203+00:00","type":"telemetry_sample","drone":"mini4","packets":559,"batteryLevel":85,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:22:47.215234+00:00","type":"telemetry_sample","drone":"mini2","packets":452,"batteryLevel":87,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:22:47.246098+00:00","type":"telemetry_sample","drone":"mini6","packets":355,"batteryLevel":85,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:22:47.451099+00:00","type":"telemetry_sample","drone":"mini3","packets":724,"batteryLevel":84,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:22:48.313530+00:00","type":"telemetry_sample","drone":"mini4","packets":579,"batteryLevel":85,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:22:48.788205+00:00","type":"mediamtx_paths","paths":[]}
+{"ts":"2026-05-19T10:22:48.804408+00:00","type":"telemetry_sample","drone":"mini3","packets":731,"batteryLevel":84,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:22:49.671066+00:00","type":"telemetry_sample","drone":"mini6","packets":366,"batteryLevel":85,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:22:50.151299+00:00","type":"telemetry_error","drone":"mini1","ip":"192.168.50.172","error":"[Errno 113] No route to host"}
+{"ts":"2026-05-19T10:22:50.151538+00:00","type":"telemetry_disconnected","drone":"mini1","ip":"192.168.50.172","reconnects":7}
+{"ts":"2026-05-19T10:22:50.151943+00:00","type":"telemetry_error","drone":"mini5","ip":"192.168.50.92","error":"[Errno 113] No route to host"}
+{"ts":"2026-05-19T10:22:50.152091+00:00","type":"telemetry_disconnected","drone":"mini5","ip":"192.168.50.92","reconnects":7}
+{"ts":"2026-05-19T10:22:50.790752+00:00","type":"mediamtx_paths","paths":[]}
+{"ts":"2026-05-19T10:22:51.540775+00:00","type":"telemetry_sample","drone":"mini2","packets":476,"batteryLevel":87,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:22:51.774002+00:00","type":"discovery_started","drones":["mini1","mini2","mini3","mini4","mini5","mini6"]}
+{"ts":"2026-05-19T10:22:52.250116+00:00","type":"telemetry_sample","drone":"mini3","packets":732,"batteryLevel":84,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:22:52.378739+00:00","type":"telemetry_sample","drone":"mini6","packets":380,"batteryLevel":85,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:22:52.764292+00:00","type":"telemetry_sample","drone":"mini2","packets":494,"batteryLevel":87,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:22:52.794355+00:00","type":"mediamtx_paths","paths":[]}
+{"ts":"2026-05-19T10:22:54.366777+00:00","type":"telemetry_sample","drone":"mini2","packets":496,"batteryLevel":87,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:22:54.436622+00:00","type":"telemetry_sample","drone":"mini4","packets":606,"batteryLevel":85,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:22:54.797084+00:00","type":"mediamtx_paths","paths":[]}
+{"ts":"2026-05-19T10:22:54.967166+00:00","type":"telemetry_sample","drone":"mini3","packets":744,"batteryLevel":84,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:22:55.207302+00:00","type":"telemetry_error","drone":"mini5","ip":"192.168.50.92","error":"[Errno 113] No route to host"}
+{"ts":"2026-05-19T10:22:55.207476+00:00","type":"telemetry_error","drone":"mini1","ip":"192.168.50.172","error":"[Errno 113] No route to host"}
+{"ts":"2026-05-19T10:22:55.207548+00:00","type":"telemetry_disconnected","drone":"mini5","ip":"192.168.50.92","reconnects":8}
+{"ts":"2026-05-19T10:22:55.207689+00:00","type":"telemetry_disconnected","drone":"mini1","ip":"192.168.50.172","reconnects":8}
+{"ts":"2026-05-19T10:22:55.232951+00:00","type":"telemetry_sample","drone":"mini6","packets":383,"batteryLevel":85,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:22:55.583255+00:00","type":"telemetry_sample","drone":"mini4","packets":675,"batteryLevel":85,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:22:56.197562+00:00","type":"telemetry_sample","drone":"mini3","packets":747,"batteryLevel":84,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:22:56.236494+00:00","type":"telemetry_sample","drone":"mini6","packets":398,"batteryLevel":85,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:22:56.338299+00:00","type":"telemetry_sample","drone":"mini2","packets":503,"batteryLevel":87,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:22:56.777671+00:00","type":"discovery_started","drones":["mini1","mini2","mini3","mini4","mini5","mini6"]}
+{"ts":"2026-05-19T10:22:56.800424+00:00","type":"mediamtx_paths","paths":[]}
+{"ts":"2026-05-19T10:22:57.203915+00:00","type":"telemetry_sample","drone":"mini3","packets":767,"batteryLevel":84,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:22:57.604488+00:00","type":"telemetry_sample","drone":"mini4","packets":705,"batteryLevel":85,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:22:58.222117+00:00","type":"telemetry_sample","drone":"mini3","packets":773,"batteryLevel":84,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:22:58.803368+00:00","type":"mediamtx_paths","paths":[]}
+{"ts":"2026-05-19T10:23:00.263353+00:00","type":"telemetry_error","drone":"mini5","ip":"192.168.50.92","error":"[Errno 113] No route to host"}
+{"ts":"2026-05-19T10:23:00.263555+00:00","type":"telemetry_error","drone":"mini1","ip":"192.168.50.172","error":"[Errno 113] No route to host"}
+{"ts":"2026-05-19T10:23:00.263621+00:00","type":"telemetry_disconnected","drone":"mini5","ip":"192.168.50.92","reconnects":9}
+{"ts":"2026-05-19T10:23:00.263758+00:00","type":"telemetry_disconnected","drone":"mini1","ip":"192.168.50.172","reconnects":9}
+{"ts":"2026-05-19T10:23:00.806466+00:00","type":"mediamtx_paths","paths":[]}
+{"ts":"2026-05-19T10:23:01.014391+00:00","type":"telemetry_sample","drone":"mini6","packets":405,"batteryLevel":85,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:23:01.138654+00:00","type":"telemetry_sample","drone":"mini4","packets":762,"batteryLevel":85,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:23:01.533855+00:00","type":"telemetry_sample","drone":"mini2","packets":521,"batteryLevel":87,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:23:01.632285+00:00","type":"telemetry_sample","drone":"mini3","packets":774,"batteryLevel":84,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:23:01.783967+00:00","type":"discovery_started","drones":["mini1","mini2","mini3","mini4","mini5","mini6"]}
+{"ts":"2026-05-19T10:23:02.054116+00:00","type":"telemetry_sample","drone":"mini6","packets":415,"batteryLevel":85,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:23:02.166192+00:00","type":"telemetry_sample","drone":"mini4","packets":791,"batteryLevel":85,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:23:02.715165+00:00","type":"telemetry_sample","drone":"mini2","packets":537,"batteryLevel":87,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:23:02.788857+00:00","type":"telemetry_sample","drone":"mini3","packets":787,"batteryLevel":84,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:23:02.810083+00:00","type":"mediamtx_paths","paths":[]}
+{"ts":"2026-05-19T10:23:03.079026+00:00","type":"telemetry_sample","drone":"mini6","packets":424,"batteryLevel":85,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:23:03.264334+00:00","type":"telemetry_sample","drone":"mini4","packets":795,"batteryLevel":85,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:23:03.982151+00:00","type":"telemetry_sample","drone":"mini2","packets":538,"batteryLevel":87,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:23:04.821378+00:00","type":"mediamtx_paths","paths":[{"name":"mini2","ready":true,"readers":0},{"name":"mini3","ready":true,"readers":0}]}
+{"ts":"2026-05-19T10:23:04.879667+00:00","type":"telemetry_sample","drone":"mini6","packets":429,"batteryLevel":85,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:23:05.319024+00:00","type":"telemetry_error","drone":"mini5","ip":"192.168.50.92","error":"[Errno 113] No route to host"}
+{"ts":"2026-05-19T10:23:05.319209+00:00","type":"telemetry_disconnected","drone":"mini5","ip":"192.168.50.92","reconnects":10}
+{"ts":"2026-05-19T10:23:05.319574+00:00","type":"telemetry_error","drone":"mini1","ip":"192.168.50.172","error":"[Errno 113] No route to host"}
+{"ts":"2026-05-19T10:23:05.327819+00:00","type":"telemetry_disconnected","drone":"mini1","ip":"192.168.50.172","reconnects":10}
+{"ts":"2026-05-19T10:23:05.375109+00:00","type":"telemetry_sample","drone":"mini4","packets":826,"batteryLevel":85,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:23:05.853829+00:00","type":"telemetry_sample","drone":"mini2","packets":547,"batteryLevel":87,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:23:05.908251+00:00","type":"telemetry_sample","drone":"mini6","packets":434,"batteryLevel":85,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:23:06.206902+00:00","type":"telemetry_sample","drone":"mini3","packets":794,"batteryLevel":84,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:23:06.790208+00:00","type":"discovery_started","drones":["mini1","mini2","mini3","mini4","mini5","mini6"]}
+{"ts":"2026-05-19T10:23:06.823911+00:00","type":"mediamtx_paths","paths":[{"name":"mini2","ready":true,"readers":0},{"name":"mini3","ready":true,"readers":0}]}
+{"ts":"2026-05-19T10:23:07.592338+00:00","type":"telemetry_sample","drone":"mini6","packets":437,"batteryLevel":85,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:23:08.008394+00:00","type":"telemetry_sample","drone":"mini4","packets":860,"batteryLevel":85,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:23:08.689474+00:00","type":"telemetry_sample","drone":"mini2","packets":552,"batteryLevel":87,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:23:08.803032+00:00","type":"telemetry_sample","drone":"mini6","packets":442,"batteryLevel":85,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:23:08.827658+00:00","type":"mediamtx_paths","paths":[{"name":"mini2","ready":true,"readers":0},{"name":"mini3","ready":true,"readers":0}]}
+{"ts":"2026-05-19T10:23:09.637549+00:00","type":"telemetry_sample","drone":"mini3","packets":818,"batteryLevel":84,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:23:09.830819+00:00","type":"telemetry_sample","drone":"mini6","packets":451,"batteryLevel":85,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:23:10.375091+00:00","type":"telemetry_error","drone":"mini5","ip":"192.168.50.92","error":"[Errno 113] No route to host"}
+{"ts":"2026-05-19T10:23:10.375303+00:00","type":"telemetry_disconnected","drone":"mini5","ip":"192.168.50.92","reconnects":11}
+{"ts":"2026-05-19T10:23:10.439121+00:00","type":"telemetry_error","drone":"mini1","ip":"192.168.50.172","error":"[Errno 113] No route to host"}
+{"ts":"2026-05-19T10:23:10.439337+00:00","type":"telemetry_disconnected","drone":"mini1","ip":"192.168.50.172","reconnects":11}
+{"ts":"2026-05-19T10:23:10.830878+00:00","type":"mediamtx_paths","paths":[{"name":"mini2","ready":true,"readers":0},{"name":"mini3","ready":true,"readers":0}]}
+{"ts":"2026-05-19T10:23:11.783551+00:00","type":"telemetry_sample","drone":"mini6","packets":452,"batteryLevel":85,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:23:11.795996+00:00","type":"discovery_started","drones":["mini1","mini2","mini3","mini4","mini5","mini6"]}
+{"ts":"2026-05-19T10:23:12.005375+00:00","type":"telemetry_sample","drone":"mini4","packets":885,"batteryLevel":85,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:23:12.393172+00:00","type":"telemetry_sample","drone":"mini2","packets":558,"batteryLevel":87,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:23:12.546996+00:00","type":"telemetry_sample","drone":"mini3","packets":831,"batteryLevel":84,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:23:12.786042+00:00","type":"telemetry_sample","drone":"mini6","packets":460,"batteryLevel":85,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:23:12.834451+00:00","type":"mediamtx_paths","paths":[{"name":"mini2","ready":true,"readers":0},{"name":"mini3","ready":true,"readers":0}]}
+{"ts":"2026-05-19T10:23:14.838092+00:00","type":"mediamtx_paths","paths":[{"name":"mini2","ready":true,"readers":0},{"name":"mini3","ready":true,"readers":0}]}
+{"ts":"2026-05-19T10:23:15.138806+00:00","type":"telemetry_sample","drone":"mini4","packets":893,"batteryLevel":85,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:23:15.431074+00:00","type":"telemetry_error","drone":"mini5","ip":"192.168.50.92","error":"[Errno 113] No route to host"}
+{"ts":"2026-05-19T10:23:15.431218+00:00","type":"telemetry_disconnected","drone":"mini5","ip":"192.168.50.92","reconnects":12}
+{"ts":"2026-05-19T10:23:15.496148+00:00","type":"telemetry_error","drone":"mini1","ip":"192.168.50.172","error":"[Errno 113] No route to host"}
+{"ts":"2026-05-19T10:23:15.496362+00:00","type":"telemetry_disconnected","drone":"mini1","ip":"192.168.50.172","reconnects":12}
+{"ts":"2026-05-19T10:23:15.705250+00:00","type":"telemetry_sample","drone":"mini2","packets":562,"batteryLevel":87,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:23:15.775639+00:00","type":"telemetry_sample","drone":"mini3","packets":836,"batteryLevel":84,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:23:16.333910+00:00","type":"telemetry_sample","drone":"mini4","packets":901,"batteryLevel":85,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:23:16.558347+00:00","type":"telemetry_sample","drone":"mini6","packets":470,"batteryLevel":85,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:23:16.728992+00:00","type":"telemetry_sample","drone":"mini2","packets":566,"batteryLevel":87,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:23:16.801031+00:00","type":"discovery_started","drones":["mini1","mini2","mini3","mini4","mini5","mini6"]}
+{"ts":"2026-05-19T10:23:16.841434+00:00","type":"mediamtx_paths","paths":[{"name":"mini2","ready":true,"readers":0},{"name":"mini3","ready":true,"readers":0}]}
+{"ts":"2026-05-19T10:23:17.003645+00:00","type":"telemetry_sample","drone":"mini3","packets":847,"batteryLevel":84,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:23:17.572596+00:00","type":"telemetry_sample","drone":"mini6","packets":509,"batteryLevel":85,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:23:17.620618+00:00","type":"telemetry_sample","drone":"mini4","packets":906,"batteryLevel":85,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:23:18.038975+00:00","type":"telemetry_sample","drone":"mini2","packets":577,"batteryLevel":87,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:23:18.622695+00:00","type":"telemetry_sample","drone":"mini6","packets":529,"batteryLevel":85,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:23:18.845385+00:00","type":"mediamtx_paths","paths":[{"name":"mini2","ready":true,"readers":0},{"name":"mini3","ready":true,"readers":0}]}
+{"ts":"2026-05-19T10:23:18.913439+00:00","type":"telemetry_sample","drone":"mini4","packets":957,"batteryLevel":85,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:23:19.057194+00:00","type":"telemetry_sample","drone":"mini3","packets":853,"batteryLevel":84,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:23:19.108163+00:00","type":"telemetry_sample","drone":"mini2","packets":589,"batteryLevel":87,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:23:20.034798+00:00","type":"telemetry_sample","drone":"mini4","packets":972,"batteryLevel":85,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:23:20.219444+00:00","type":"telemetry_sample","drone":"mini2","packets":592,"batteryLevel":87,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:23:20.383544+00:00","type":"telemetry_sample","drone":"mini3","packets":865,"batteryLevel":84,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:23:20.487286+00:00","type":"telemetry_error","drone":"mini5","ip":"192.168.50.92","error":"[Errno 113] No route to host"}
+{"ts":"2026-05-19T10:23:20.487507+00:00","type":"telemetry_disconnected","drone":"mini5","ip":"192.168.50.92","reconnects":13}
+{"ts":"2026-05-19T10:23:20.551237+00:00","type":"telemetry_error","drone":"mini1","ip":"192.168.50.172","error":"[Errno 113] No route to host"}
+{"ts":"2026-05-19T10:23:20.551466+00:00","type":"telemetry_disconnected","drone":"mini1","ip":"192.168.50.172","reconnects":13}
+{"ts":"2026-05-19T10:23:20.848762+00:00","type":"mediamtx_paths","paths":[{"name":"mini2","ready":true,"readers":0},{"name":"mini3","ready":true,"readers":0}]}
+{"ts":"2026-05-19T10:23:20.891657+00:00","type":"telemetry_sample","drone":"mini6","packets":540,"batteryLevel":85,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:23:21.340304+00:00","type":"telemetry_sample","drone":"mini2","packets":598,"batteryLevel":87,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:23:21.405316+00:00","type":"telemetry_sample","drone":"mini4","packets":994,"batteryLevel":85,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:23:21.411758+00:00","type":"telemetry_sample","drone":"mini3","packets":873,"batteryLevel":84,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:23:21.807604+00:00","type":"discovery_started","drones":["mini1","mini2","mini3","mini4","mini5","mini6"]}
+{"ts":"2026-05-19T10:23:22.181390+00:00","type":"telemetry_sample","drone":"mini6","packets":569,"batteryLevel":85,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:23:22.358612+00:00","type":"telemetry_sample","drone":"mini2","packets":606,"batteryLevel":87,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:23:22.852522+00:00","type":"mediamtx_paths","paths":[{"name":"mini2","ready":true,"readers":0},{"name":"mini3","ready":true,"readers":0}]}
+{"ts":"2026-05-19T10:23:23.089532+00:00","type":"telemetry_sample","drone":"mini4","packets":1016,"batteryLevel":85,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:23:23.196532+00:00","type":"telemetry_sample","drone":"mini6","packets":591,"batteryLevel":85,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:23:23.297121+00:00","type":"telemetry_sample","drone":"mini3","packets":877,"batteryLevel":84,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:23:23.380379+00:00","type":"telemetry_sample","drone":"mini2","packets":614,"batteryLevel":87,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:23:24.090174+00:00","type":"telemetry_sample","drone":"mini4","packets":1034,"batteryLevel":85,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:23:24.208509+00:00","type":"telemetry_sample","drone":"mini6","packets":602,"batteryLevel":85,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:23:24.834777+00:00","type":"telemetry_sample","drone":"mini3","packets":890,"batteryLevel":84,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:23:24.856421+00:00","type":"mediamtx_paths","paths":[{"name":"mini2","ready":true,"readers":0},{"name":"mini3","ready":true,"readers":0}]}
+{"ts":"2026-05-19T10:23:24.913707+00:00","type":"telemetry_sample","drone":"mini2","packets":615,"batteryLevel":87,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:23:25.228705+00:00","type":"telemetry_sample","drone":"mini4","packets":1039,"batteryLevel":85,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:23:25.544163+00:00","type":"telemetry_error","drone":"mini5","ip":"192.168.50.92","error":"[Errno 113] No route to host"}
+{"ts":"2026-05-19T10:23:25.544303+00:00","type":"telemetry_disconnected","drone":"mini5","ip":"192.168.50.92","reconnects":14}
+{"ts":"2026-05-19T10:23:25.607362+00:00","type":"telemetry_error","drone":"mini1","ip":"192.168.50.172","error":"[Errno 113] No route to host"}
+{"ts":"2026-05-19T10:23:25.607570+00:00","type":"telemetry_disconnected","drone":"mini1","ip":"192.168.50.172","reconnects":14}
+{"ts":"2026-05-19T10:23:25.850921+00:00","type":"telemetry_sample","drone":"mini6","packets":607,"batteryLevel":85,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:23:25.871129+00:00","type":"telemetry_sample","drone":"mini3","packets":896,"batteryLevel":84,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:23:25.918558+00:00","type":"telemetry_sample","drone":"mini2","packets":629,"batteryLevel":87,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:23:26.291883+00:00","type":"telemetry_sample","drone":"mini4","packets":1051,"batteryLevel":85,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:23:26.814108+00:00","type":"discovery_started","drones":["mini1","mini2","mini3","mini4","mini5","mini6"]}
+{"ts":"2026-05-19T10:23:26.860178+00:00","type":"mediamtx_paths","paths":[{"name":"mini2","ready":true,"readers":0},{"name":"mini3","ready":true,"readers":0},{"name":"mini4","ready":true,"readers":0}]}
+{"ts":"2026-05-19T10:23:27.536660+00:00","type":"telemetry_sample","drone":"mini3","packets":900,"batteryLevel":84,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:23:27.553997+00:00","type":"telemetry_sample","drone":"mini4","packets":1059,"batteryLevel":85,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:23:28.332561+00:00","type":"telemetry_sample","drone":"mini6","packets":622,"batteryLevel":85,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:23:28.863478+00:00","type":"mediamtx_paths","paths":[{"name":"mini2","ready":true,"readers":0},{"name":"mini3","ready":true,"readers":0},{"name":"mini4","ready":true,"readers":0}]}
+{"ts":"2026-05-19T10:23:29.332312+00:00","type":"telemetry_sample","drone":"mini2","packets":637,"batteryLevel":87,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:23:29.548154+00:00","type":"telemetry_sample","drone":"mini6","packets":629,"batteryLevel":85,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:23:29.644745+00:00","type":"telemetry_sample","drone":"mini4","packets":1066,"batteryLevel":85,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:23:30.564911+00:00","type":"telemetry_sample","drone":"mini6","packets":641,"batteryLevel":85,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:23:30.599104+00:00","type":"telemetry_error","drone":"mini5","ip":"192.168.50.92","error":"[Errno 113] No route to host"}
+{"ts":"2026-05-19T10:23:30.599252+00:00","type":"telemetry_disconnected","drone":"mini5","ip":"192.168.50.92","reconnects":15}
+{"ts":"2026-05-19T10:23:30.646440+00:00","type":"telemetry_sample","drone":"mini4","packets":1091,"batteryLevel":85,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:23:30.663134+00:00","type":"telemetry_error","drone":"mini1","ip":"192.168.50.172","error":"[Errno 113] No route to host"}
+{"ts":"2026-05-19T10:23:30.663312+00:00","type":"telemetry_disconnected","drone":"mini1","ip":"192.168.50.172","reconnects":15}
+{"ts":"2026-05-19T10:23:30.786142+00:00","type":"telemetry_sample","drone":"mini3","packets":904,"batteryLevel":84,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:23:30.866994+00:00","type":"mediamtx_paths","paths":[{"name":"mini2","ready":true,"readers":0},{"name":"mini3","ready":true,"readers":0},{"name":"mini4","ready":true,"readers":0}]}
+{"ts":"2026-05-19T10:23:30.906734+00:00","type":"telemetry_sample","drone":"mini2","packets":658,"batteryLevel":87,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:23:31.594209+00:00","type":"telemetry_sample","drone":"mini6","packets":646,"batteryLevel":85,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:23:31.820343+00:00","type":"discovery_started","drones":["mini1","mini2","mini3","mini4","mini5","mini6"]}
+{"ts":"2026-05-19T10:23:31.995203+00:00","type":"telemetry_sample","drone":"mini4","packets":1094,"batteryLevel":85,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:23:32.061203+00:00","type":"telemetry_sample","drone":"mini3","packets":911,"batteryLevel":84,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:23:32.304172+00:00","type":"telemetry_sample","drone":"mini2","packets":665,"batteryLevel":87,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:23:32.870758+00:00","type":"mediamtx_paths","paths":[{"name":"mini2","ready":true,"readers":0},{"name":"mini3","ready":true,"readers":0},{"name":"mini4","ready":true,"readers":0}]}
+{"ts":"2026-05-19T10:23:33.204389+00:00","type":"telemetry_sample","drone":"mini4","packets":1110,"batteryLevel":85,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:23:33.611641+00:00","type":"telemetry_sample","drone":"mini3","packets":915,"batteryLevel":84,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:23:33.643426+00:00","type":"telemetry_sample","drone":"mini2","packets":673,"batteryLevel":87,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:23:34.026506+00:00","type":"telemetry_sample","drone":"mini6","packets":647,"batteryLevel":85,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:23:34.275329+00:00","type":"telemetry_sample","drone":"mini4","packets":1124,"batteryLevel":85,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:23:34.834002+00:00","type":"telemetry_sample","drone":"mini2","packets":694,"batteryLevel":87,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:23:34.873869+00:00","type":"mediamtx_paths","paths":[{"name":"mini2","ready":true,"readers":0},{"name":"mini3","ready":true,"readers":0},{"name":"mini4","ready":true,"readers":0}]}
+{"ts":"2026-05-19T10:23:35.107554+00:00","type":"telemetry_sample","drone":"mini3","packets":936,"batteryLevel":84,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:23:35.571539+00:00","type":"telemetry_sample","drone":"mini4","packets":1137,"batteryLevel":85,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:23:35.655138+00:00","type":"telemetry_error","drone":"mini5","ip":"192.168.50.92","error":"[Errno 113] No route to host"}
+{"ts":"2026-05-19T10:23:35.655313+00:00","type":"telemetry_disconnected","drone":"mini5","ip":"192.168.50.92","reconnects":16}
+{"ts":"2026-05-19T10:23:35.983956+00:00","type":"telemetry_sample","drone":"mini6","packets":659,"batteryLevel":85,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:23:36.355835+00:00","type":"telemetry_sample","drone":"mini3","packets":945,"batteryLevel":84,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:23:36.793941+00:00","type":"telemetry_sample","drone":"mini2","packets":703,"batteryLevel":87,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:23:36.826594+00:00","type":"discovery_started","drones":["mini1","mini2","mini3","mini4","mini5","mini6"]}
+{"ts":"2026-05-19T10:23:36.876612+00:00","type":"mediamtx_paths","paths":[{"name":"mini2","ready":true,"readers":0},{"name":"mini3","ready":true,"readers":0},{"name":"mini4","ready":true,"readers":0},{"name":"mini6","ready":true,"readers":0}]}
+{"ts":"2026-05-19T10:23:36.886171+00:00","type":"telemetry_sample","drone":"mini4","packets":1148,"batteryLevel":85,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:23:37.667609+00:00","type":"telemetry_error","drone":"mini1","ip":"192.168.50.172","error":"timed out"}
+{"ts":"2026-05-19T10:23:37.667815+00:00","type":"telemetry_disconnected","drone":"mini1","ip":"192.168.50.172","reconnects":16}
+{"ts":"2026-05-19T10:23:38.158632+00:00","type":"telemetry_sample","drone":"mini2","packets":718,"batteryLevel":87,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:23:38.879739+00:00","type":"mediamtx_paths","paths":[{"name":"mini2","ready":true,"readers":0},{"name":"mini3","ready":true,"readers":0},{"name":"mini4","ready":true,"readers":0},{"name":"mini6","ready":true,"readers":0}]}
+{"ts":"2026-05-19T10:23:39.314157+00:00","type":"telemetry_sample","drone":"mini2","packets":735,"batteryLevel":87,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:23:39.429707+00:00","type":"telemetry_sample","drone":"mini3","packets":947,"batteryLevel":84,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:23:39.815323+00:00","type":"telemetry_error","drone":"mini1","ip":"192.168.50.172","error":"[Errno 113] No route to host"}
+{"ts":"2026-05-19T10:23:39.815559+00:00","type":"telemetry_disconnected","drone":"mini1","ip":"192.168.50.172","reconnects":17}
+{"ts":"2026-05-19T10:23:40.517969+00:00","type":"telemetry_sample","drone":"mini4","packets":1150,"batteryLevel":85,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:23:40.711184+00:00","type":"telemetry_error","drone":"mini5","ip":"192.168.50.92","error":"[Errno 113] No route to host"}
+{"ts":"2026-05-19T10:23:40.711421+00:00","type":"telemetry_disconnected","drone":"mini5","ip":"192.168.50.92","reconnects":17}
+{"ts":"2026-05-19T10:23:40.883376+00:00","type":"mediamtx_paths","paths":[{"name":"mini2","ready":true,"readers":0},{"name":"mini3","ready":true,"readers":0},{"name":"mini4","ready":true,"readers":0},{"name":"mini6","ready":true,"readers":0}]}
+{"ts":"2026-05-19T10:23:41.421908+00:00","type":"telemetry_sample","drone":"mini6","packets":663,"batteryLevel":85,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:23:41.759291+00:00","type":"telemetry_sample","drone":"mini4","packets":1170,"batteryLevel":85,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:23:41.832635+00:00","type":"discovery_started","drones":["mini1","mini2","mini3","mini4","mini5","mini6"]}
+{"ts":"2026-05-19T10:23:41.988510+00:00","type":"telemetry_sample","drone":"mini3","packets":961,"batteryLevel":84,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:23:42.887341+00:00","type":"mediamtx_paths","paths":[{"name":"mini2","ready":true,"readers":0},{"name":"mini3","ready":true,"readers":0},{"name":"mini4","ready":true,"readers":0},{"name":"mini6","ready":true,"readers":0}]}
+{"ts":"2026-05-19T10:23:42.988592+00:00","type":"telemetry_sample","drone":"mini3","packets":965,"batteryLevel":84,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:23:43.059091+00:00","type":"telemetry_sample","drone":"mini4","packets":1175,"batteryLevel":85,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:23:43.184337+00:00","type":"telemetry_sample","drone":"mini2","packets":744,"batteryLevel":87,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:23:43.334250+00:00","type":"telemetry_sample","drone":"mini6","packets":671,"batteryLevel":85,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:23:44.333970+00:00","type":"telemetry_sample","drone":"mini2","packets":768,"batteryLevel":87,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:23:44.871245+00:00","type":"telemetry_error","drone":"mini1","ip":"192.168.50.172","error":"[Errno 113] No route to host"}
+{"ts":"2026-05-19T10:23:44.871450+00:00","type":"telemetry_disconnected","drone":"mini1","ip":"192.168.50.172","reconnects":18}
+{"ts":"2026-05-19T10:23:44.891271+00:00","type":"mediamtx_paths","paths":[{"name":"mini2","ready":true,"readers":0},{"name":"mini3","ready":true,"readers":0},{"name":"mini4","ready":true,"readers":0},{"name":"mini6","ready":true,"readers":0}]}
+{"ts":"2026-05-19T10:23:45.291520+00:00","type":"telemetry_sample","drone":"mini4","packets":1184,"batteryLevel":85,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:23:45.579103+00:00","type":"telemetry_sample","drone":"mini2","packets":782,"batteryLevel":87,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:23:45.678812+00:00","type":"telemetry_sample","drone":"mini3","packets":969,"batteryLevel":84,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:23:45.767235+00:00","type":"telemetry_error","drone":"mini5","ip":"192.168.50.92","error":"[Errno 113] No route to host"}
+{"ts":"2026-05-19T10:23:45.767428+00:00","type":"telemetry_disconnected","drone":"mini5","ip":"192.168.50.92","reconnects":18}
+{"ts":"2026-05-19T10:23:46.297384+00:00","type":"telemetry_sample","drone":"mini4","packets":1208,"batteryLevel":85,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:23:46.521188+00:00","type":"telemetry_sample","drone":"mini6","packets":674,"batteryLevel":85,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:23:46.838871+00:00","type":"discovery_started","drones":["mini1","mini2","mini3","mini4","mini5","mini6"]}
+{"ts":"2026-05-19T10:23:46.894154+00:00","type":"mediamtx_paths","paths":[{"name":"mini2","ready":true,"readers":0},{"name":"mini3","ready":true,"readers":0},{"name":"mini4","ready":true,"readers":0},{"name":"mini6","ready":true,"readers":0}]}
+{"ts":"2026-05-19T10:23:47.006547+00:00","type":"telemetry_sample","drone":"mini2","packets":797,"batteryLevel":87,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:23:47.316420+00:00","type":"telemetry_sample","drone":"mini3","packets":985,"batteryLevel":84,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:23:47.324560+00:00","type":"telemetry_sample","drone":"mini4","packets":1215,"batteryLevel":85,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:23:48.069979+00:00","type":"telemetry_sample","drone":"mini6","packets":680,"batteryLevel":85,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:23:48.126452+00:00","type":"telemetry_sample","drone":"mini2","packets":812,"batteryLevel":87,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:23:48.328088+00:00","type":"telemetry_sample","drone":"mini4","packets":1227,"batteryLevel":85,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:23:48.897276+00:00","type":"mediamtx_paths","paths":[{"name":"mini2","ready":true,"readers":0},{"name":"mini3","ready":true,"readers":0},{"name":"mini4","ready":true,"readers":0},{"name":"mini6","ready":true,"readers":0}]}
+{"ts":"2026-05-19T10:23:49.144015+00:00","type":"telemetry_sample","drone":"mini3","packets":993,"batteryLevel":84,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:23:49.190788+00:00","type":"telemetry_sample","drone":"mini2","packets":818,"batteryLevel":87,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:23:49.489300+00:00","type":"telemetry_sample","drone":"mini4","packets":1228,"batteryLevel":85,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:23:49.926972+00:00","type":"telemetry_error","drone":"mini1","ip":"192.168.50.172","error":"[Errno 113] No route to host"}
+{"ts":"2026-05-19T10:23:49.927151+00:00","type":"telemetry_disconnected","drone":"mini1","ip":"192.168.50.172","reconnects":19}
+{"ts":"2026-05-19T10:23:50.639937+00:00","type":"telemetry_sample","drone":"mini2","packets":837,"batteryLevel":87,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:23:50.823245+00:00","type":"telemetry_error","drone":"mini5","ip":"192.168.50.92","error":"[Errno 113] No route to host"}
+{"ts":"2026-05-19T10:23:50.823498+00:00","type":"telemetry_disconnected","drone":"mini5","ip":"192.168.50.92","reconnects":19}
+{"ts":"2026-05-19T10:23:50.900950+00:00","type":"mediamtx_paths","paths":[{"name":"mini2","ready":true,"readers":0},{"name":"mini3","ready":true,"readers":0},{"name":"mini4","ready":true,"readers":0},{"name":"mini6","ready":true,"readers":0}]}
+{"ts":"2026-05-19T10:23:51.260494+00:00","type":"telemetry_sample","drone":"mini6","packets":683,"batteryLevel":85,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:23:51.392593+00:00","type":"telemetry_sample","drone":"mini4","packets":1242,"batteryLevel":85,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:23:51.473608+00:00","type":"telemetry_sample","drone":"mini3","packets":996,"batteryLevel":84,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:23:51.845014+00:00","type":"discovery_started","drones":["mini1","mini2","mini3","mini4","mini5","mini6"]}
+{"ts":"2026-05-19T10:23:52.501142+00:00","type":"telemetry_sample","drone":"mini4","packets":1256,"batteryLevel":85,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:23:52.905748+00:00","type":"mediamtx_paths","paths":[{"name":"mini2","ready":true,"readers":0},{"name":"mini3","ready":true,"readers":0},{"name":"mini4","ready":true,"readers":0},{"name":"mini6","ready":true,"readers":0}]}
+{"ts":"2026-05-19T10:23:53.224936+00:00","type":"telemetry_sample","drone":"mini2","packets":844,"batteryLevel":87,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:23:53.249539+00:00","type":"telemetry_sample","drone":"mini3","packets":1002,"batteryLevel":84,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:23:54.429276+00:00","type":"telemetry_sample","drone":"mini2","packets":895,"batteryLevel":87,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:23:54.909541+00:00","type":"mediamtx_paths","paths":[{"name":"mini2","ready":true,"readers":0},{"name":"mini3","ready":true,"readers":0},{"name":"mini4","ready":true,"readers":0},{"name":"mini6","ready":true,"readers":0}]}
+{"ts":"2026-05-19T10:23:54.983096+00:00","type":"telemetry_error","drone":"mini1","ip":"192.168.50.172","error":"[Errno 113] No route to host"}
+{"ts":"2026-05-19T10:23:54.983338+00:00","type":"telemetry_disconnected","drone":"mini1","ip":"192.168.50.172","reconnects":20}
+{"ts":"2026-05-19T10:23:55.055966+00:00","type":"telemetry_sample","drone":"mini3","packets":1006,"batteryLevel":84,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:23:55.190390+00:00","type":"telemetry_sample","drone":"mini6","packets":687,"batteryLevel":85,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:23:55.211519+00:00","type":"telemetry_sample","drone":"mini4","packets":1269,"batteryLevel":85,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:23:55.486113+00:00","type":"telemetry_sample","drone":"mini2","packets":910,"batteryLevel":87,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:23:55.879089+00:00","type":"telemetry_error","drone":"mini5","ip":"192.168.50.92","error":"[Errno 113] No route to host"}
+{"ts":"2026-05-19T10:23:55.879221+00:00","type":"telemetry_disconnected","drone":"mini5","ip":"192.168.50.92","reconnects":20}
+{"ts":"2026-05-19T10:23:56.236148+00:00","type":"telemetry_sample","drone":"mini6","packets":690,"batteryLevel":85,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:23:56.391948+00:00","type":"telemetry_sample","drone":"mini4","packets":1313,"batteryLevel":85,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:23:56.836647+00:00","type":"telemetry_sample","drone":"mini3","packets":1011,"batteryLevel":84,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:23:56.847541+00:00","type":"discovery_started","drones":["mini1","mini2","mini3","mini4","mini5","mini6"]}
+{"ts":"2026-05-19T10:23:56.913423+00:00","type":"mediamtx_paths","paths":[{"name":"mini2","ready":true,"readers":0},{"name":"mini3","ready":true,"readers":0},{"name":"mini4","ready":true,"readers":0},{"name":"mini6","ready":true,"readers":0}]}
+{"ts":"2026-05-19T10:23:57.433270+00:00","type":"telemetry_sample","drone":"mini2","packets":912,"batteryLevel":87,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:23:57.484168+00:00","type":"telemetry_sample","drone":"mini4","packets":1330,"batteryLevel":85,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:23:57.881360+00:00","type":"telemetry_sample","drone":"mini6","packets":693,"batteryLevel":85,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:23:58.756966+00:00","type":"telemetry_sample","drone":"mini4","packets":1346,"batteryLevel":85,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:23:58.809477+00:00","type":"telemetry_sample","drone":"mini3","packets":1020,"batteryLevel":84,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:23:58.917016+00:00","type":"mediamtx_paths","paths":[{"name":"mini2","ready":true,"readers":0},{"name":"mini3","ready":true,"readers":0},{"name":"mini4","ready":true,"readers":0},{"name":"mini6","ready":true,"readers":0}]}
+{"ts":"2026-05-19T10:24:00.025202+00:00","type":"telemetry_sample","drone":"mini4","packets":1351,"batteryLevel":85,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:24:00.039156+00:00","type":"telemetry_error","drone":"mini1","ip":"192.168.50.172","error":"[Errno 113] No route to host"}
+{"ts":"2026-05-19T10:24:00.039332+00:00","type":"telemetry_disconnected","drone":"mini1","ip":"192.168.50.172","reconnects":21}
+{"ts":"2026-05-19T10:24:00.125520+00:00","type":"telemetry_sample","drone":"mini3","packets":1024,"batteryLevel":84,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:24:00.920216+00:00","type":"mediamtx_paths","paths":[{"name":"mini2","ready":true,"readers":0},{"name":"mini3","ready":true,"readers":0},{"name":"mini4","ready":true,"readers":0},{"name":"mini6","ready":true,"readers":0}]}
+{"ts":"2026-05-19T10:24:00.935056+00:00","type":"telemetry_error","drone":"mini5","ip":"192.168.50.92","error":"[Errno 113] No route to host"}
+{"ts":"2026-05-19T10:24:00.935153+00:00","type":"telemetry_disconnected","drone":"mini5","ip":"192.168.50.92","reconnects":21}
+{"ts":"2026-05-19T10:24:01.028202+00:00","type":"telemetry_sample","drone":"mini6","packets":696,"batteryLevel":85,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:24:01.054241+00:00","type":"telemetry_sample","drone":"mini4","packets":1363,"batteryLevel":85,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:24:01.332344+00:00","type":"telemetry_sample","drone":"mini2","packets":943,"batteryLevel":87,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:24:01.852880+00:00","type":"discovery_started","drones":["mini1","mini2","mini3","mini4","mini5","mini6"]}
+{"ts":"2026-05-19T10:24:02.095645+00:00","type":"telemetry_sample","drone":"mini4","packets":1366,"batteryLevel":85,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:24:02.924140+00:00","type":"mediamtx_paths","paths":[{"name":"mini2","ready":true,"readers":0},{"name":"mini3","ready":true,"readers":0},{"name":"mini4","ready":true,"readers":0},{"name":"mini6","ready":true,"readers":0}]}
+{"ts":"2026-05-19T10:24:04.927387+00:00","type":"mediamtx_paths","paths":[{"name":"mini2","ready":true,"readers":0},{"name":"mini3","ready":true,"readers":0},{"name":"mini4","ready":true,"readers":0},{"name":"mini6","ready":true,"readers":0}]}
+{"ts":"2026-05-19T10:24:05.096058+00:00","type":"telemetry_error","drone":"mini1","ip":"192.168.50.172","error":"[Errno 113] No route to host"}
+{"ts":"2026-05-19T10:24:05.096214+00:00","type":"telemetry_disconnected","drone":"mini1","ip":"192.168.50.172","reconnects":22}
+{"ts":"2026-05-19T10:24:05.138724+00:00","type":"telemetry_sample","drone":"mini3","packets":1026,"batteryLevel":84,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:24:05.991099+00:00","type":"telemetry_error","drone":"mini5","ip":"192.168.50.92","error":"[Errno 113] No route to host"}
+{"ts":"2026-05-19T10:24:05.991242+00:00","type":"telemetry_disconnected","drone":"mini5","ip":"192.168.50.92","reconnects":22}
+{"ts":"2026-05-19T10:24:06.367147+00:00","type":"telemetry_sample","drone":"mini6","packets":697,"batteryLevel":85,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:24:06.672597+00:00","type":"telemetry_sample","drone":"mini2","packets":968,"batteryLevel":87,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:24:06.796327+00:00","type":"telemetry_sample","drone":"mini4","packets":1370,"batteryLevel":85,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:24:06.858886+00:00","type":"discovery_started","drones":["mini1","mini2","mini3","mini4","mini5","mini6"]}
+{"ts":"2026-05-19T10:24:06.931422+00:00","type":"mediamtx_paths","paths":[{"name":"mini2","ready":true,"readers":0},{"name":"mini3","ready":true,"readers":0},{"name":"mini4","ready":true,"readers":0},{"name":"mini6","ready":true,"readers":0}]}
+{"ts":"2026-05-19T10:24:07.953665+00:00","type":"telemetry_sample","drone":"mini4","packets":1385,"batteryLevel":85,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:24:08.632886+00:00","type":"telemetry_sample","drone":"mini6","packets":713,"batteryLevel":85,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:24:08.934656+00:00","type":"mediamtx_paths","paths":[{"name":"mini2","ready":true,"readers":0},{"name":"mini3","ready":true,"readers":0},{"name":"mini4","ready":true,"readers":0},{"name":"mini6","ready":true,"readers":0}]}
+{"ts":"2026-05-19T10:24:10.151065+00:00","type":"telemetry_error","drone":"mini1","ip":"192.168.50.172","error":"[Errno 113] No route to host"}
+{"ts":"2026-05-19T10:24:10.151232+00:00","type":"telemetry_disconnected","drone":"mini1","ip":"192.168.50.172","reconnects":23}
+{"ts":"2026-05-19T10:24:10.243208+00:00","type":"telemetry_sample","drone":"mini2","packets":972,"batteryLevel":87,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:24:10.526329+00:00","type":"telemetry_sample","drone":"mini4","packets":1413,"batteryLevel":85,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:24:10.937776+00:00","type":"mediamtx_paths","paths":[{"name":"mini2","ready":true,"readers":0},{"name":"mini3","ready":true,"readers":0},{"name":"mini4","ready":true,"readers":0},{"name":"mini6","ready":true,"readers":0}]}
+{"ts":"2026-05-19T10:24:11.047049+00:00","type":"telemetry_error","drone":"mini5","ip":"192.168.50.92","error":"[Errno 113] No route to host"}
+{"ts":"2026-05-19T10:24:11.047204+00:00","type":"telemetry_disconnected","drone":"mini5","ip":"192.168.50.92","reconnects":23}
+{"ts":"2026-05-19T10:24:11.779518+00:00","type":"telemetry_sample","drone":"mini3","packets":1037,"batteryLevel":84,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:24:11.865016+00:00","type":"discovery_started","drones":["mini1","mini2","mini3","mini4","mini5","mini6"]}
+{"ts":"2026-05-19T10:24:11.899971+00:00","type":"telemetry_sample","drone":"mini6","packets":719,"batteryLevel":85,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:24:12.086899+00:00","type":"telemetry_sample","drone":"mini4","packets":1453,"batteryLevel":85,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:24:12.178097+00:00","type":"telemetry_sample","drone":"mini2","packets":1011,"batteryLevel":87,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:24:12.873700+00:00","type":"telemetry_sample","drone":"mini3","packets":1046,"batteryLevel":84,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:24:12.940844+00:00","type":"mediamtx_paths","paths":[{"name":"mini2","ready":true,"readers":0},{"name":"mini3","ready":true,"readers":0},{"name":"mini4","ready":true,"readers":0},{"name":"mini6","ready":true,"readers":0}]}
+{"ts":"2026-05-19T10:24:13.371564+00:00","type":"telemetry_sample","drone":"mini2","packets":1024,"batteryLevel":87,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:24:14.473521+00:00","type":"telemetry_sample","drone":"mini6","packets":721,"batteryLevel":85,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:24:14.608409+00:00","type":"telemetry_sample","drone":"mini4","packets":1469,"batteryLevel":85,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:24:14.668040+00:00","type":"telemetry_sample","drone":"mini3","packets":1058,"batteryLevel":84,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:24:14.748549+00:00","type":"telemetry_sample","drone":"mini2","packets":1044,"batteryLevel":87,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:24:14.943744+00:00","type":"mediamtx_paths","paths":[{"name":"mini2","ready":true,"readers":0},{"name":"mini3","ready":true,"readers":0},{"name":"mini4","ready":true,"readers":0},{"name":"mini6","ready":true,"readers":0}]}
+{"ts":"2026-05-19T10:24:15.207986+00:00","type":"telemetry_error","drone":"mini1","ip":"192.168.50.172","error":"[Errno 113] No route to host"}
+{"ts":"2026-05-19T10:24:15.208152+00:00","type":"telemetry_disconnected","drone":"mini1","ip":"192.168.50.172","reconnects":24}
+{"ts":"2026-05-19T10:24:15.728505+00:00","type":"telemetry_sample","drone":"mini4","packets":1534,"batteryLevel":85,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:24:16.103000+00:00","type":"telemetry_sample","drone":"mini2","packets":1065,"batteryLevel":87,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:24:16.103057+00:00","type":"telemetry_error","drone":"mini5","ip":"192.168.50.92","error":"[Errno 113] No route to host"}
+{"ts":"2026-05-19T10:24:16.103243+00:00","type":"telemetry_disconnected","drone":"mini5","ip":"192.168.50.92","reconnects":24}
+{"ts":"2026-05-19T10:24:16.188675+00:00","type":"telemetry_sample","drone":"mini3","packets":1063,"batteryLevel":84,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:24:16.871012+00:00","type":"discovery_started","drones":["mini1","mini2","mini3","mini4","mini5","mini6"]}
+{"ts":"2026-05-19T10:24:16.947245+00:00","type":"mediamtx_paths","paths":[{"name":"mini2","ready":true,"readers":0},{"name":"mini3","ready":true,"readers":0},{"name":"mini4","ready":true,"readers":0},{"name":"mini6","ready":true,"readers":0}]}
+{"ts":"2026-05-19T10:24:17.593180+00:00","type":"telemetry_sample","drone":"mini4","packets":1541,"batteryLevel":85,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:24:17.730583+00:00","type":"telemetry_sample","drone":"mini3","packets":1074,"batteryLevel":84,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:24:18.951191+00:00","type":"mediamtx_paths","paths":[{"name":"mini2","ready":true,"readers":0},{"name":"mini3","ready":true,"readers":0},{"name":"mini4","ready":true,"readers":0},{"name":"mini6","ready":true,"readers":0}]}
+{"ts":"2026-05-19T10:24:19.683756+00:00","type":"telemetry_sample","drone":"mini4","packets":1553,"batteryLevel":85,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:24:19.916243+00:00","type":"telemetry_sample","drone":"mini6","packets":734,"batteryLevel":85,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:24:19.946734+00:00","type":"telemetry_sample","drone":"mini3","packets":1077,"batteryLevel":84,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:24:19.963221+00:00","type":"telemetry_sample","drone":"mini2","packets":1078,"batteryLevel":87,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:24:20.263200+00:00","type":"telemetry_error","drone":"mini1","ip":"192.168.50.172","error":"[Errno 113] No route to host"}
+{"ts":"2026-05-19T10:24:20.263388+00:00","type":"telemetry_disconnected","drone":"mini1","ip":"192.168.50.172","reconnects":25}
+{"ts":"2026-05-19T10:24:20.953872+00:00","type":"mediamtx_paths","paths":[{"name":"mini2","ready":true,"readers":0},{"name":"mini3","ready":true,"readers":0},{"name":"mini4","ready":true,"readers":0},{"name":"mini6","ready":true,"readers":0}]}
+{"ts":"2026-05-19T10:24:21.159302+00:00","type":"telemetry_error","drone":"mini5","ip":"192.168.50.92","error":"[Errno 113] No route to host"}
+{"ts":"2026-05-19T10:24:21.159535+00:00","type":"telemetry_disconnected","drone":"mini5","ip":"192.168.50.92","reconnects":25}
+{"ts":"2026-05-19T10:24:21.877025+00:00","type":"discovery_started","drones":["mini1","mini2","mini3","mini4","mini5","mini6"]}
+{"ts":"2026-05-19T10:24:21.884657+00:00","type":"telemetry_sample","drone":"mini2","packets":1093,"batteryLevel":86,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:24:22.141758+00:00","type":"telemetry_sample","drone":"mini4","packets":1579,"batteryLevel":85,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:24:22.361821+00:00","type":"telemetry_sample","drone":"mini3","packets":1083,"batteryLevel":84,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:24:22.552781+00:00","type":"telemetry_sample","drone":"mini6","packets":742,"batteryLevel":85,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:24:22.957706+00:00","type":"mediamtx_paths","paths":[{"name":"mini2","ready":true,"readers":0},{"name":"mini3","ready":true,"readers":0},{"name":"mini4","ready":true,"readers":0},{"name":"mini6","ready":true,"readers":0}]}
+{"ts":"2026-05-19T10:24:24.012383+00:00","type":"telemetry_sample","drone":"mini2","packets":1097,"batteryLevel":86,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:24:24.012574+00:00","type":"telemetry_sample","drone":"mini4","packets":1593,"batteryLevel":85,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:24:24.247221+00:00","type":"telemetry_sample","drone":"mini3","packets":1087,"batteryLevel":84,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:24:24.560542+00:00","type":"telemetry_sample","drone":"mini6","packets":743,"batteryLevel":85,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:24:24.961396+00:00","type":"mediamtx_paths","paths":[{"name":"mini2","ready":true,"readers":0},{"name":"mini3","ready":true,"readers":0},{"name":"mini4","ready":true,"readers":0},{"name":"mini6","ready":true,"readers":0}]}
+{"ts":"2026-05-19T10:24:25.284234+00:00","type":"telemetry_sample","drone":"mini2","packets":1106,"batteryLevel":86,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:24:25.284643+00:00","type":"telemetry_sample","drone":"mini4","packets":1611,"batteryLevel":85,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:24:25.319132+00:00","type":"telemetry_error","drone":"mini1","ip":"192.168.50.172","error":"[Errno 113] No route to host"}
+{"ts":"2026-05-19T10:24:25.319334+00:00","type":"telemetry_disconnected","drone":"mini1","ip":"192.168.50.172","reconnects":26}
+{"ts":"2026-05-19T10:24:25.674210+00:00","type":"telemetry_sample","drone":"mini3","packets":1093,"batteryLevel":84,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:24:26.215962+00:00","type":"telemetry_error","drone":"mini5","ip":"192.168.50.92","error":"[Errno 113] No route to host"}
+{"ts":"2026-05-19T10:24:26.216117+00:00","type":"telemetry_disconnected","drone":"mini5","ip":"192.168.50.92","reconnects":26}
+{"ts":"2026-05-19T10:24:26.773378+00:00","type":"telemetry_sample","drone":"mini4","packets":1634,"batteryLevel":85,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:24:26.883144+00:00","type":"discovery_started","drones":["mini1","mini2","mini3","mini4","mini5","mini6"]}
+{"ts":"2026-05-19T10:24:26.896022+00:00","type":"telemetry_sample","drone":"mini2","packets":1111,"batteryLevel":86,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:24:26.964821+00:00","type":"mediamtx_paths","paths":[{"name":"mini2","ready":true,"readers":0},{"name":"mini3","ready":true,"readers":0},{"name":"mini4","ready":true,"readers":0},{"name":"mini6","ready":true,"readers":0}]}
+{"ts":"2026-05-19T10:24:27.593185+00:00","type":"telemetry_sample","drone":"mini3","packets":1102,"batteryLevel":84,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:24:28.324333+00:00","type":"telemetry_sample","drone":"mini2","packets":1120,"batteryLevel":86,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:24:28.433078+00:00","type":"telemetry_sample","drone":"mini4","packets":1636,"batteryLevel":85,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:24:28.854266+00:00","type":"telemetry_sample","drone":"mini6","packets":745,"batteryLevel":85,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:24:28.968039+00:00","type":"mediamtx_paths","paths":[{"name":"mini2","ready":true,"readers":0},{"name":"mini3","ready":true,"readers":0},{"name":"mini4","ready":true,"readers":0},{"name":"mini6","ready":true,"readers":0}]}
+{"ts":"2026-05-19T10:24:29.120099+00:00","type":"telemetry_sample","drone":"mini3","packets":1116,"batteryLevel":84,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:24:29.828219+00:00","type":"telemetry_sample","drone":"mini4","packets":1688,"batteryLevel":84,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:24:30.088502+00:00","type":"telemetry_sample","drone":"mini2","packets":1125,"batteryLevel":86,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:24:30.376152+00:00","type":"telemetry_error","drone":"mini1","ip":"192.168.50.172","error":"[Errno 113] No route to host"}
+{"ts":"2026-05-19T10:24:30.376386+00:00","type":"telemetry_disconnected","drone":"mini1","ip":"192.168.50.172","reconnects":27}
+{"ts":"2026-05-19T10:24:30.652594+00:00","type":"telemetry_sample","drone":"mini3","packets":1137,"batteryLevel":84,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:24:30.970668+00:00","type":"mediamtx_paths","paths":[{"name":"mini2","ready":true,"readers":0},{"name":"mini3","ready":true,"readers":0},{"name":"mini4","ready":true,"readers":0},{"name":"mini6","ready":true,"readers":0}]}
+{"ts":"2026-05-19T10:24:31.226644+00:00","type":"telemetry_sample","drone":"mini4","packets":1691,"batteryLevel":84,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:24:31.236272+00:00","type":"telemetry_sample","drone":"mini2","packets":1132,"batteryLevel":86,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:24:31.271089+00:00","type":"telemetry_error","drone":"mini5","ip":"192.168.50.92","error":"[Errno 113] No route to host"}
+{"ts":"2026-05-19T10:24:31.271232+00:00","type":"telemetry_disconnected","drone":"mini5","ip":"192.168.50.92","reconnects":27}
+{"ts":"2026-05-19T10:24:31.337106+00:00","type":"telemetry_sample","drone":"mini6","packets":764,"batteryLevel":85,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:24:31.658288+00:00","type":"telemetry_sample","drone":"mini3","packets":1173,"batteryLevel":84,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:24:31.889694+00:00","type":"discovery_started","drones":["mini1","mini2","mini3","mini4","mini5","mini6"]}
+{"ts":"2026-05-19T10:24:32.245943+00:00","type":"telemetry_sample","drone":"mini4","packets":1737,"batteryLevel":84,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:24:32.332806+00:00","type":"telemetry_sample","drone":"mini2","packets":1142,"batteryLevel":86,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:24:32.682637+00:00","type":"telemetry_sample","drone":"mini3","packets":1227,"batteryLevel":84,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:24:32.974420+00:00","type":"mediamtx_paths","paths":[{"name":"mini2","ready":true,"readers":0},{"name":"mini3","ready":true,"readers":0},{"name":"mini4","ready":true,"readers":0},{"name":"mini6","ready":true,"readers":0}]}
+{"ts":"2026-05-19T10:24:33.307560+00:00","type":"telemetry_sample","drone":"mini4","packets":1760,"batteryLevel":84,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:24:33.348566+00:00","type":"telemetry_sample","drone":"mini2","packets":1162,"batteryLevel":86,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:24:33.785726+00:00","type":"telemetry_sample","drone":"mini6","packets":768,"batteryLevel":85,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:24:33.811639+00:00","type":"telemetry_sample","drone":"mini3","packets":1288,"batteryLevel":84,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:24:33.960371+00:00","type":"browser_stats","drone":"mini1","event":"connect_error","error":"WHEP 404: {\"status\":\"error\",\"error\":\"no stream is available on path 'mini1'\"}"}
+{"ts":"2026-05-19T10:24:33.963437+00:00","type":"browser_stats","drone":"mini5","event":"connect_error","error":"WHEP 404: {\"status\":\"error\",\"error\":\"no stream is available on path 'mini5'\"}"}
+{"ts":"2026-05-19T10:24:34.606318+00:00","type":"telemetry_sample","drone":"mini4","packets":1773,"batteryLevel":84,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:24:34.978398+00:00","type":"mediamtx_paths","paths":[{"name":"mini2","ready":true,"readers":1},{"name":"mini3","ready":true,"readers":1},{"name":"mini4","ready":true,"readers":1},{"name":"mini6","ready":true,"readers":1}]}
+{"ts":"2026-05-19T10:24:35.187400+00:00","type":"discovery_started","drones":["mini1","mini2","mini3","mini4","mini5","mini6"]}
+{"ts":"2026-05-19T10:24:35.432137+00:00","type":"telemetry_error","drone":"mini1","ip":"192.168.50.172","error":"[Errno 113] No route to host"}
+{"ts":"2026-05-19T10:24:35.432329+00:00","type":"telemetry_disconnected","drone":"mini1","ip":"192.168.50.172","reconnects":28}
+{"ts":"2026-05-19T10:24:35.861741+00:00","type":"telemetry_sample","drone":"mini6","packets":770,"batteryLevel":85,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:24:36.078253+00:00","type":"browser_stats","drone":"mini4","event":"whep_answer_set","url":"http://localhost:8889/mini4/whep"}
+{"ts":"2026-05-19T10:24:36.078544+00:00","type":"browser_stats","drone":"mini4","event":"track_attached"}
+{"ts":"2026-05-19T10:24:36.080075+00:00","type":"browser_stats","drone":"mini6","event":"track_attached"}
+{"ts":"2026-05-19T10:24:36.080237+00:00","type":"browser_stats","drone":"mini6","event":"whep_answer_set","url":"http://localhost:8889/mini6/whep"}
+{"ts":"2026-05-19T10:24:36.082081+00:00","type":"browser_stats","drone":"mini2","event":"track_attached"}
+{"ts":"2026-05-19T10:24:36.082398+00:00","type":"browser_stats","drone":"mini2","event":"whep_answer_set","url":"http://localhost:8889/mini2/whep"}
+{"ts":"2026-05-19T10:24:36.082488+00:00","type":"browser_stats","drone":"mini3","event":"track_attached"}
+{"ts":"2026-05-19T10:24:36.085873+00:00","type":"browser_stats","drone":"mini4","event":"video_waiting"}
+{"ts":"2026-05-19T10:24:36.085767+00:00","type":"browser_stats","drone":"mini3","event":"whep_answer_set","url":"http://localhost:8889/mini3/whep"}
+{"ts":"2026-05-19T10:24:36.086033+00:00","type":"browser_stats","drone":"mini2","event":"video_waiting"}
+{"ts":"2026-05-19T10:24:36.086101+00:00","type":"browser_stats","drone":"mini3","event":"video_waiting"}
+{"ts":"2026-05-19T10:24:36.085960+00:00","type":"browser_stats","drone":"mini6","event":"video_waiting"}
+{"ts":"2026-05-19T10:24:36.327168+00:00","type":"telemetry_error","drone":"mini5","ip":"192.168.50.92","error":"[Errno 113] No route to host"}
+{"ts":"2026-05-19T10:24:36.327464+00:00","type":"telemetry_disconnected","drone":"mini5","ip":"192.168.50.92","reconnects":28}
+{"ts":"2026-05-19T10:24:36.896028+00:00","type":"discovery_started","drones":["mini1","mini2","mini3","mini4","mini5","mini6"]}
+{"ts":"2026-05-19T10:24:36.981809+00:00","type":"mediamtx_paths","paths":[{"name":"mini2","ready":true,"readers":1},{"name":"mini3","ready":true,"readers":1},{"name":"mini4","ready":true,"readers":1},{"name":"mini6","ready":true,"readers":1}]}
+{"ts":"2026-05-19T10:24:37.993019+00:00","type":"telemetry_sample","drone":"mini6","packets":772,"batteryLevel":85,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:24:37.999559+00:00","type":"telemetry_sample","drone":"mini4","packets":1778,"batteryLevel":84,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:24:38.012338+00:00","type":"telemetry_sample","drone":"mini2","packets":1181,"batteryLevel":86,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:24:38.087509+00:00","type":"telemetry_sample","drone":"mini3","packets":1378,"batteryLevel":84,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:24:38.091089+00:00","type":"browser_stats","drone":"mini2","connectionState":"connected","iceConnectionState":"connected","fps":0,"framesDecoded":0,"framesDropped":0,"packetsLost":0,"jitter":0.029,"bytesReceived":2956,"frameWidth":0,"frameHeight":0,"connectionLosses":0,"stalls":0,"decodeErrors":0}
+{"ts":"2026-05-19T10:24:38.090380+00:00","type":"browser_stats","drone":"mini4","connectionState":"connected","iceConnectionState":"connected","fps":0,"framesDecoded":0,"framesDropped":0,"packetsLost":0,"jitter":0,"bytesReceived":908,"frameWidth":0,"frameHeight":0,"connectionLosses":0,"stalls":0,"decodeErrors":0}
+{"ts":"2026-05-19T10:24:38.092509+00:00","type":"browser_stats","drone":"mini3","connectionState":"connected","iceConnectionState":"connected","fps":1.5,"framesDecoded":3,"framesDropped":0,"packetsLost":0,"jitter":0.017,"bytesReceived":6327,"frameWidth":1280,"frameHeight":720,"connectionLosses":0,"stalls":0,"decodeErrors":0}
+{"ts":"2026-05-19T10:24:38.984901+00:00","type":"mediamtx_paths","paths":[{"name":"mini2","ready":true,"readers":1},{"name":"mini3","ready":true,"readers":1},{"name":"mini4","ready":true,"readers":1},{"name":"mini6","ready":true,"readers":1}]}
+{"ts":"2026-05-19T10:24:39.080473+00:00","type":"browser_stats","drone":"mini4","connectionState":"connected","iceConnectionState":"connected","fps":0,"framesDecoded":0,"framesDropped":0,"packetsLost":0,"jitter":0,"bytesReceived":908,"frameWidth":0,"frameHeight":0,"connectionLosses":0,"stalls":0,"decodeErrors":0}
+{"ts":"2026-05-19T10:24:39.081187+00:00","type":"browser_stats","drone":"mini2","connectionState":"connected","iceConnectionState":"connected","fps":0,"framesDecoded":0,"framesDropped":0,"packetsLost":0,"jitter":0.031,"bytesReceived":4020,"frameWidth":0,"frameHeight":0,"connectionLosses":0,"stalls":0,"decodeErrors":0}
+{"ts":"2026-05-19T10:24:39.082962+00:00","type":"browser_stats","drone":"mini3","connectionState":"connected","iceConnectionState":"connected","fps":1,"framesDecoded":4,"framesDropped":0,"packetsLost":0,"jitter":0.029,"bytesReceived":7315,"frameWidth":1280,"frameHeight":720,"connectionLosses":0,"stalls":0,"decodeErrors":0}
+{"ts":"2026-05-19T10:24:40.080309+00:00","type":"browser_stats","drone":"mini4","connectionState":"connected","iceConnectionState":"connected","fps":0,"framesDecoded":0,"framesDropped":0,"packetsLost":0,"jitter":0,"bytesReceived":908,"frameWidth":0,"frameHeight":0,"connectionLosses":0,"stalls":0,"decodeErrors":0}
+{"ts":"2026-05-19T10:24:40.082858+00:00","type":"browser_stats","drone":"mini2","connectionState":"connected","iceConnectionState":"connected","fps":0,"framesDecoded":0,"framesDropped":0,"packetsLost":0,"jitter":0.031,"bytesReceived":4020,"frameWidth":0,"frameHeight":0,"connectionLosses":0,"stalls":0,"decodeErrors":0}
+{"ts":"2026-05-19T10:24:40.083527+00:00","type":"browser_stats","drone":"mini3","connectionState":"connected","iceConnectionState":"connected","fps":0,"framesDecoded":4,"framesDropped":0,"packetsLost":0,"jitter":0.029,"bytesReceived":7315,"frameWidth":1280,"frameHeight":720,"connectionLosses":0,"stalls":0,"decodeErrors":0}
+{"ts":"2026-05-19T10:24:40.258171+00:00","type":"telemetry_sample","drone":"mini4","packets":1804,"batteryLevel":84,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:24:40.488067+00:00","type":"telemetry_error","drone":"mini1","ip":"192.168.50.172","error":"[Errno 113] No route to host"}
+{"ts":"2026-05-19T10:24:40.488239+00:00","type":"telemetry_disconnected","drone":"mini1","ip":"192.168.50.172","reconnects":29}
+{"ts":"2026-05-19T10:24:40.535308+00:00","type":"telemetry_sample","drone":"mini3","packets":1423,"batteryLevel":84,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:24:40.859276+00:00","type":"telemetry_sample","drone":"mini2","packets":1199,"batteryLevel":86,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:24:40.987922+00:00","type":"mediamtx_paths","paths":[{"name":"mini2","ready":true,"readers":1},{"name":"mini3","ready":true,"readers":1},{"name":"mini4","ready":true,"readers":1},{"name":"mini6","ready":true,"readers":1}]}
+{"ts":"2026-05-19T10:24:41.080210+00:00","type":"browser_stats","drone":"mini4","event":"video_progress_stalled","stalls":1}
+{"ts":"2026-05-19T10:24:41.080908+00:00","type":"browser_stats","drone":"mini4","connectionState":"connected","iceConnectionState":"connected","fps":1,"framesDecoded":1,"framesDropped":0,"packetsLost":0,"jitter":0.191,"bytesReceived":5099,"frameWidth":1280,"frameHeight":720,"connectionLosses":0,"stalls":1,"decodeErrors":0}
+{"ts":"2026-05-19T10:24:41.084084+00:00","type":"browser_stats","drone":"mini6","connectionState":"connected","iceConnectionState":"connected","fps":0.2,"framesDecoded":1,"framesDropped":0,"packetsLost":0,"jitter":0,"bytesReceived":3229,"frameWidth":1280,"frameHeight":720,"connectionLosses":0,"stalls":1,"decodeErrors":0}
+{"ts":"2026-05-19T10:24:41.083903+00:00","type":"browser_stats","drone":"mini6","event":"video_progress_stalled","stalls":1}
+{"ts":"2026-05-19T10:24:41.085037+00:00","type":"browser_stats","drone":"mini2","connectionState":"connected","iceConnectionState":"connected","fps":2,"framesDecoded":2,"framesDropped":0,"packetsLost":0,"jitter":0.139,"bytesReceived":8125,"frameWidth":1280,"frameHeight":720,"connectionLosses":0,"stalls":0,"decodeErrors":0}
+{"ts":"2026-05-19T10:24:41.084865+00:00","type":"browser_stats","drone":"mini3","connectionState":"connected","iceConnectionState":"connected","fps":1,"framesDecoded":5,"framesDropped":0,"packetsLost":0,"jitter":0.134,"bytesReceived":8287,"frameWidth":1280,"frameHeight":720,"connectionLosses":0,"stalls":0,"decodeErrors":0}
+{"ts":"2026-05-19T10:24:41.382961+00:00","type":"telemetry_error","drone":"mini5","ip":"192.168.50.92","error":"[Errno 113] No route to host"}
+{"ts":"2026-05-19T10:24:41.383144+00:00","type":"telemetry_disconnected","drone":"mini5","ip":"192.168.50.92","reconnects":29}
+{"ts":"2026-05-19T10:24:41.467489+00:00","type":"telemetry_sample","drone":"mini4","packets":1807,"batteryLevel":84,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:24:41.493295+00:00","type":"browser_stats","drone":"mini1","event":"connect_error","error":"WHEP 404: {\"status\":\"error\",\"error\":\"no stream is available on path 'mini1'\"}"}
+{"ts":"2026-05-19T10:24:41.496476+00:00","type":"browser_stats","drone":"mini5","event":"connect_error","error":"WHEP 404: {\"status\":\"error\",\"error\":\"no stream is available on path 'mini5'\"}"}
+{"ts":"2026-05-19T10:24:41.497705+00:00","type":"telemetry_sample","drone":"mini6","packets":779,"batteryLevel":85,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:24:41.870996+00:00","type":"telemetry_sample","drone":"mini3","packets":1640,"batteryLevel":83,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:24:41.901871+00:00","type":"discovery_started","drones":["mini1","mini2","mini3","mini4","mini5","mini6"]}
+{"ts":"2026-05-19T10:24:42.080325+00:00","type":"browser_stats","drone":"mini4","connectionState":"connected","iceConnectionState":"connected","fps":10,"framesDecoded":11,"framesDropped":0,"packetsLost":0,"jitter":0.265,"bytesReceived":20725,"frameWidth":1280,"frameHeight":720,"connectionLosses":0,"stalls":1,"decodeErrors":0}
+{"ts":"2026-05-19T10:24:42.081119+00:00","type":"browser_stats","drone":"mini6","connectionState":"connected","iceConnectionState":"connected","fps":2,"framesDecoded":3,"framesDropped":0,"packetsLost":0,"jitter":0.104,"bytesReceived":7737,"frameWidth":1280,"frameHeight":720,"connectionLosses":0,"stalls":1,"decodeErrors":0}
+{"ts":"2026-05-19T10:24:42.082027+00:00","type":"browser_stats","drone":"mini2","connectionState":"connected","iceConnectionState":"connected","fps":9,"framesDecoded":11,"framesDropped":0,"packetsLost":0,"jitter":0.235,"bytesReceived":21007,"frameWidth":1280,"frameHeight":720,"connectionLosses":0,"stalls":0,"decodeErrors":0}
+{"ts":"2026-05-19T10:24:42.084121+00:00","type":"browser_stats","drone":"mini3","connectionState":"connected","iceConnectionState":"connected","fps":2,"framesDecoded":7,"framesDropped":0,"packetsLost":0,"jitter":0.223,"bytesReceived":21833,"frameWidth":1280,"frameHeight":720,"connectionLosses":0,"stalls":0,"decodeErrors":0}
+{"ts":"2026-05-19T10:24:42.512740+00:00","type":"telemetry_sample","drone":"mini4","packets":1822,"batteryLevel":84,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:24:42.902713+00:00","type":"telemetry_sample","drone":"mini6","packets":800,"batteryLevel":85,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:24:42.990998+00:00","type":"mediamtx_paths","paths":[{"name":"mini2","ready":true,"readers":1},{"name":"mini3","ready":true,"readers":1},{"name":"mini4","ready":true,"readers":1},{"name":"mini6","ready":true,"readers":1}]}
+{"ts":"2026-05-19T10:24:43.079547+00:00","type":"browser_stats","drone":"mini4","connectionState":"connected","iceConnectionState":"connected","fps":3,"framesDecoded":14,"framesDropped":0,"packetsLost":0,"jitter":0.243,"bytesReceived":22333,"frameWidth":1280,"frameHeight":720,"connectionLosses":0,"stalls":1,"decodeErrors":0}
+{"ts":"2026-05-19T10:24:43.080089+00:00","type":"browser_stats","drone":"mini2","connectionState":"connected","iceConnectionState":"connected","fps":6,"framesDecoded":17,"framesDropped":0,"packetsLost":0,"jitter":0.222,"bytesReceived":23011,"frameWidth":1280,"frameHeight":720,"connectionLosses":0,"stalls":0,"decodeErrors":0}
+{"ts":"2026-05-19T10:24:43.080897+00:00","type":"browser_stats","drone":"mini3","connectionState":"connected","iceConnectionState":"connected","fps":4.01,"framesDecoded":11,"framesDropped":2,"packetsLost":0,"jitter":0.209,"bytesReceived":26277,"frameWidth":1280,"frameHeight":720,"connectionLosses":0,"stalls":0,"decodeErrors":0}
+{"ts":"2026-05-19T10:24:43.081721+00:00","type":"browser_stats","drone":"mini6","connectionState":"connected","iceConnectionState":"connected","fps":0,"framesDecoded":3,"framesDropped":0,"packetsLost":0,"jitter":0.104,"bytesReceived":7737,"frameWidth":1280,"frameHeight":720,"connectionLosses":0,"stalls":1,"decodeErrors":0}
+{"ts":"2026-05-19T10:24:43.470572+00:00","type":"telemetry_sample","drone":"mini3","packets":1694,"batteryLevel":83,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:24:43.558322+00:00","type":"telemetry_sample","drone":"mini4","packets":1828,"batteryLevel":84,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:24:43.604616+00:00","type":"telemetry_sample","drone":"mini2","packets":1251,"batteryLevel":86,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:24:43.913137+00:00","type":"telemetry_sample","drone":"mini6","packets":802,"batteryLevel":85,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:24:44.081600+00:00","type":"browser_stats","drone":"mini2","connectionState":"connected","iceConnectionState":"connected","fps":1,"framesDecoded":18,"framesDropped":0,"packetsLost":0,"jitter":0.218,"bytesReceived":23759,"frameWidth":1280,"frameHeight":720,"connectionLosses":0,"stalls":0,"decodeErrors":0}
+{"ts":"2026-05-19T10:24:44.082435+00:00","type":"browser_stats","drone":"mini3","connectionState":"connected","iceConnectionState":"connected","fps":4,"framesDecoded":15,"framesDropped":2,"packetsLost":0,"jitter":0.209,"bytesReceived":26277,"frameWidth":1280,"frameHeight":720,"connectionLosses":0,"stalls":0,"decodeErrors":0}
+{"ts":"2026-05-19T10:24:44.959049+00:00","type":"telemetry_sample","drone":"mini3","packets":1767,"batteryLevel":83,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:24:44.993112+00:00","type":"mediamtx_api_error","error":"<urlopen error [Errno 111] Connection refused>"}
+{"ts":"2026-05-19T10:24:45.049984+00:00","type":"telemetry_sample","drone":"mini4","packets":1836,"batteryLevel":84,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:24:45.083012+00:00","type":"browser_stats","drone":"mini2","connectionState":"connected","iceConnectionState":"connected","fps":0,"framesDecoded":18,"framesDropped":0,"packetsLost":0,"jitter":0.218,"bytesReceived":23759,"frameWidth":1280,"frameHeight":720,"connectionLosses":0,"stalls":0,"decodeErrors":0}
+{"ts":"2026-05-19T10:24:45.084107+00:00","type":"browser_stats","drone":"mini3","connectionState":"connected","iceConnectionState":"connected","fps":0,"framesDecoded":15,"framesDropped":2,"packetsLost":0,"jitter":0.209,"bytesReceived":26277,"frameWidth":1280,"frameHeight":720,"connectionLosses":0,"stalls":0,"decodeErrors":0}
+{"ts":"2026-05-19T10:24:45.543187+00:00","type":"telemetry_error","drone":"mini1","ip":"192.168.50.172","error":"[Errno 113] No route to host"}
+{"ts":"2026-05-19T10:24:45.543483+00:00","type":"telemetry_disconnected","drone":"mini1","ip":"192.168.50.172","reconnects":30}
+{"ts":"2026-05-19T10:24:45.657748+00:00","type":"telemetry_sample","drone":"mini2","packets":1260,"batteryLevel":86,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:24:45.969525+00:00","type":"telemetry_sample","drone":"mini6","packets":811,"batteryLevel":85,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:24:46.081319+00:00","type":"browser_stats","drone":"mini2","connectionState":"connected","iceConnectionState":"connected","fps":0,"framesDecoded":18,"framesDropped":0,"packetsLost":0,"jitter":0.218,"bytesReceived":23759,"frameWidth":1280,"frameHeight":720,"connectionLosses":0,"stalls":0,"decodeErrors":0}
+{"ts":"2026-05-19T10:24:46.082261+00:00","type":"browser_stats","drone":"mini3","connectionState":"connected","iceConnectionState":"connected","fps":0,"framesDecoded":15,"framesDropped":2,"packetsLost":0,"jitter":0.209,"bytesReceived":26277,"frameWidth":1280,"frameHeight":720,"connectionLosses":0,"stalls":0,"decodeErrors":0}
+{"ts":"2026-05-19T10:24:46.134906+00:00","type":"telemetry_sample","drone":"mini3","packets":1872,"batteryLevel":83,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:24:46.268108+00:00","type":"telemetry_sample","drone":"mini4","packets":1857,"batteryLevel":84,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:24:46.503035+00:00","type":"telemetry_error","drone":"mini5","ip":"192.168.50.92","error":"[Errno 113] No route to host"}
+{"ts":"2026-05-19T10:24:46.503172+00:00","type":"telemetry_disconnected","drone":"mini5","ip":"192.168.50.92","reconnects":30}
+{"ts":"2026-05-19T10:24:46.661983+00:00","type":"telemetry_sample","drone":"mini2","packets":1305,"batteryLevel":86,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:24:46.908491+00:00","type":"discovery_started","drones":["mini1","mini2","mini3","mini4","mini5","mini6"]}
+{"ts":"2026-05-19T10:24:46.995264+00:00","type":"mediamtx_api_error","error":"<urlopen error [Errno 111] Connection refused>"}
+{"ts":"2026-05-19T10:24:47.083238+00:00","type":"browser_stats","drone":"mini3","connectionState":"connected","iceConnectionState":"connected","fps":0,"framesDecoded":15,"framesDropped":2,"packetsLost":0,"jitter":0.209,"bytesReceived":26277,"frameWidth":1280,"frameHeight":720,"connectionLosses":0,"stalls":0,"decodeErrors":0}
+{"ts":"2026-05-19T10:24:47.083670+00:00","type":"browser_stats","drone":"mini2","connectionState":"connected","iceConnectionState":"connected","fps":0,"framesDecoded":18,"framesDropped":0,"packetsLost":0,"jitter":0.218,"bytesReceived":23759,"frameWidth":1280,"frameHeight":720,"connectionLosses":0,"stalls":0,"decodeErrors":0}
+{"ts":"2026-05-19T10:24:47.156926+00:00","type":"telemetry_sample","drone":"mini3","packets":1976,"batteryLevel":83,"flightMode":"UNKNOWN"}
+{"ts":"2026-05-19T10:24:47.907305+00:00","type":"telemetry_sample","drone":"mini4","packets":1881,"batteryLevel":84,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:24:48.081783+00:00","type":"browser_stats","drone":"mini2","connectionState":"connected","iceConnectionState":"connected","fps":0,"framesDecoded":18,"framesDropped":0,"packetsLost":0,"jitter":0.218,"bytesReceived":23759,"frameWidth":1280,"frameHeight":720,"connectionLosses":0,"stalls":0,"decodeErrors":0}
+{"ts":"2026-05-19T10:24:48.085111+00:00","type":"browser_stats","drone":"mini3","connectionState":"connected","iceConnectionState":"connected","fps":0,"framesDecoded":15,"framesDropped":2,"packetsLost":0,"jitter":0.209,"bytesReceived":26277,"frameWidth":1280,"frameHeight":720,"connectionLosses":0,"stalls":0,"decodeErrors":0}
+{"ts":"2026-05-19T10:24:48.196938+00:00","type":"telemetry_sample","drone":"mini6","packets":838,"batteryLevel":85,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:24:48.262958+00:00","type":"telemetry_sample","drone":"mini2","packets":1314,"batteryLevel":86,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:24:48.384092+00:00","type":"telemetry_sample","drone":"mini3","packets":2002,"batteryLevel":83,"flightMode":"UNKNOWN"}
+{"ts":"2026-05-19T10:24:48.611575+00:00","type":"browser_stats","drone":"mini4","event":"connect_error","error":"Failed to fetch"}
+{"ts":"2026-05-19T10:24:48.615320+00:00","type":"browser_stats","drone":"mini6","event":"connect_error","error":"Failed to fetch"}
+{"ts":"2026-05-19T10:24:48.759061+00:00","type":"browser_stats","drone":"mini2","event":"peer_connection_loss","state":"disconnected"}
+{"ts":"2026-05-19T10:24:48.759511+00:00","type":"browser_stats","drone":"mini3","event":"peer_connection_loss","state":"disconnected"}
+{"ts":"2026-05-19T10:24:48.997107+00:00","type":"mediamtx_api_error","error":"<urlopen error [Errno 111] Connection refused>"}
+{"ts":"2026-05-19T10:24:49.015002+00:00","type":"browser_stats","drone":"mini1","event":"connect_error","error":"Failed to fetch"}
+{"ts":"2026-05-19T10:24:49.019709+00:00","type":"browser_stats","drone":"mini5","event":"connect_error","error":"Failed to fetch"}
+{"ts":"2026-05-19T10:24:49.081523+00:00","type":"browser_stats","drone":"mini2","connectionState":"disconnected","iceConnectionState":"disconnected","fps":0,"framesDecoded":18,"framesDropped":0,"packetsLost":0,"jitter":0.218,"bytesReceived":23759,"frameWidth":1280,"frameHeight":720,"connectionLosses":1,"stalls":0,"decodeErrors":0}
+{"ts":"2026-05-19T10:24:49.083723+00:00","type":"browser_stats","drone":"mini3","event":"video_progress_stalled","stalls":1}
+{"ts":"2026-05-19T10:24:49.084349+00:00","type":"browser_stats","drone":"mini3","connectionState":"disconnected","iceConnectionState":"disconnected","fps":0,"framesDecoded":15,"framesDropped":2,"packetsLost":0,"jitter":0.209,"bytesReceived":26277,"frameWidth":1280,"frameHeight":720,"connectionLosses":1,"stalls":1,"decodeErrors":0}
+{"ts":"2026-05-19T10:24:49.166276+00:00","type":"telemetry_sample","drone":"mini4","packets":1939,"batteryLevel":84,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:24:49.427006+00:00","type":"telemetry_sample","drone":"mini2","packets":1343,"batteryLevel":86,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:24:49.453387+00:00","type":"telemetry_sample","drone":"mini3","packets":2090,"batteryLevel":83,"flightMode":"UNKNOWN"}
+{"ts":"2026-05-19T10:24:49.607541+00:00","type":"telemetry_sample","drone":"mini6","packets":862,"batteryLevel":85,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:24:50.081720+00:00","type":"browser_stats","drone":"mini2","event":"video_progress_stalled","stalls":1}
+{"ts":"2026-05-19T10:24:50.082259+00:00","type":"browser_stats","drone":"mini2","connectionState":"disconnected","iceConnectionState":"disconnected","fps":0,"framesDecoded":18,"framesDropped":0,"packetsLost":0,"jitter":0.218,"bytesReceived":23759,"frameWidth":1280,"frameHeight":720,"connectionLosses":1,"stalls":1,"decodeErrors":0}
+{"ts":"2026-05-19T10:24:50.083285+00:00","type":"browser_stats","drone":"mini3","connectionState":"disconnected","iceConnectionState":"disconnected","fps":0,"framesDecoded":15,"framesDropped":2,"packetsLost":0,"jitter":0.209,"bytesReceived":26277,"frameWidth":1280,"frameHeight":720,"connectionLosses":1,"stalls":1,"decodeErrors":0}
+{"ts":"2026-05-19T10:24:50.250626+00:00","type":"telemetry_sample","drone":"mini4","packets":1953,"batteryLevel":84,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:24:50.501311+00:00","type":"telemetry_sample","drone":"mini3","packets":2098,"batteryLevel":83,"flightMode":"UNKNOWN"}
+{"ts":"2026-05-19T10:24:50.600233+00:00","type":"telemetry_error","drone":"mini1","ip":"192.168.50.172","error":"[Errno 113] No route to host"}
+{"ts":"2026-05-19T10:24:50.600492+00:00","type":"telemetry_disconnected","drone":"mini1","ip":"192.168.50.172","reconnects":31}
+{"ts":"2026-05-19T10:24:50.774353+00:00","type":"telemetry_sample","drone":"mini2","packets":1354,"batteryLevel":86,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:24:50.999332+00:00","type":"mediamtx_api_error","error":"<urlopen error [Errno 111] Connection refused>"}
+{"ts":"2026-05-19T10:24:51.082660+00:00","type":"browser_stats","drone":"mini2","connectionState":"disconnected","iceConnectionState":"disconnected","fps":0,"framesDecoded":18,"framesDropped":0,"packetsLost":0,"jitter":0.218,"bytesReceived":23759,"frameWidth":1280,"frameHeight":720,"connectionLosses":1,"stalls":1,"decodeErrors":0}
+{"ts":"2026-05-19T10:24:51.083609+00:00","type":"browser_stats","drone":"mini3","connectionState":"disconnected","iceConnectionState":"disconnected","fps":0,"framesDecoded":15,"framesDropped":2,"packetsLost":0,"jitter":0.209,"bytesReceived":26277,"frameWidth":1280,"frameHeight":720,"connectionLosses":1,"stalls":1,"decodeErrors":0}
+{"ts":"2026-05-19T10:24:51.425534+00:00","type":"telemetry_sample","drone":"mini4","packets":1994,"batteryLevel":84,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:24:51.503023+00:00","type":"telemetry_sample","drone":"mini3","packets":2132,"batteryLevel":83,"flightMode":"UNKNOWN"}
+{"ts":"2026-05-19T10:24:51.533668+00:00","type":"telemetry_sample","drone":"mini6","packets":874,"batteryLevel":85,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:24:51.559025+00:00","type":"telemetry_error","drone":"mini5","ip":"192.168.50.92","error":"[Errno 113] No route to host"}
+{"ts":"2026-05-19T10:24:51.559195+00:00","type":"telemetry_disconnected","drone":"mini5","ip":"192.168.50.92","reconnects":31}
+{"ts":"2026-05-19T10:24:51.829621+00:00","type":"telemetry_sample","drone":"mini2","packets":1366,"batteryLevel":86,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:24:51.914891+00:00","type":"discovery_started","drones":["mini1","mini2","mini3","mini4","mini5","mini6"]}
+{"ts":"2026-05-19T10:24:52.468173+00:00","type":"telemetry_sample","drone":"mini4","packets":2023,"batteryLevel":84,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:24:52.575508+00:00","type":"telemetry_sample","drone":"mini3","packets":2156,"batteryLevel":83,"flightMode":"UNKNOWN"}
+{"ts":"2026-05-19T10:24:52.917022+00:00","type":"telemetry_sample","drone":"mini2","packets":1375,"batteryLevel":86,"flightMode":"GPS_NORMAL"}
+{"ts":"2026-05-19T10:24:53.001193+00:00","type":"mediamtx_api_error","error":"<urlopen error [Errno 111] Connection refused>"}

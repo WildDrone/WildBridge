@@ -46,6 +46,16 @@ class SharedVideoCapturerHandle(
         source.changeFrameRate(fps)
     }
 
+    fun totalOutputFrames(): Long = source.totalOutputFrames()
+
+    fun waitForOutputFrameAfter(frameCount: Long, timeoutMs: Long): Boolean {
+        return source.waitForOutputFrameAfter(frameCount, timeoutMs)
+    }
+
+    fun recoverCapture(reason: String) {
+        source.recoverCapture(reason)
+    }
+
     override fun changeCaptureFormat(width: Int, height: Int, framerate: Int) {
         source.changeResolution(width, height)
         source.changeFrameRate(framerate)

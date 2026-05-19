@@ -37,6 +37,8 @@ class WhipPublisher(
         private const val ICE_GATHER_TIMEOUT_S = 10L
         private const val RECONNECT_BASE_DELAY_MS = 2000L
         private const val RECONNECT_MAX_DELAY_MS = 30000L
+        private const val FIRST_FRAME_TIMEOUT_MS = 8_000L
+        private const val FIRST_FRAME_RECOVERY_TIMEOUT_MS = 4_000L
     }
 
     private val appContext = context.applicationContext
@@ -51,6 +53,7 @@ class WhipPublisher(
 
     private val isRunning = AtomicBoolean(false)
     private val isPublishing = AtomicBoolean(false)
+    private val isTearingDown = AtomicBoolean(false)
     @Volatile private var currentFps: Int = options.fps
 
     var listener: WhipListener? = null
@@ -65,6 +68,10 @@ class WhipPublisher(
         if (isRunning.getAndSet(true)) return
         executor.execute { publishLoop() }
     }
+
+    fun isRunning(): Boolean = isRunning.get()
+
+    fun isPublishing(): Boolean = isPublishing.get()
 
     fun stop() {
         val wasRunning = isRunning.getAndSet(false)
@@ -82,6 +89,7 @@ class WhipPublisher(
         when (videoCapturer) {
             is DJIV5VideoCapturer -> videoCapturer.changeResolution(width, height)
             is SharedVideoCapturerHandle -> videoCapturer.changeResolution(width, height)
+            is MockMp4VideoCapturer -> videoCapturer.changeResolution(width, height)
         }
     }
 
@@ -91,6 +99,7 @@ class WhipPublisher(
         when (videoCapturer) {
             is DJIV5VideoCapturer -> videoCapturer.changeCaptureFormat(options.videoResolutionWidth, options.videoResolutionHeight, boundedFps)
             is SharedVideoCapturerHandle -> videoCapturer.changeFrameRate(boundedFps)
+            is MockMp4VideoCapturer -> videoCapturer.changeFrameRate(boundedFps)
         }
         peerConnection?.senders?.firstOrNull()?.let { configureVideoSenderForStability(it) }
         Log.d(TAG, "WHIP frame rate changed to $boundedFps fps")
@@ -142,12 +151,35 @@ class WhipPublisher(
 
         // 1. Create video source & track
         videoSource = factory.createVideoSource(false)
+        val startingFrameCount = when (videoCapturer) {
+            is SharedVideoCapturerHandle -> videoCapturer.totalOutputFrames()
+            is MockMp4VideoCapturer -> videoCapturer.totalOutputFrames()
+            else -> 0L
+        }
         videoCapturer.initialize(null, appContext, videoSource!!.capturerObserver)
         videoCapturer.startCapture(
             options.videoResolutionWidth,
             options.videoResolutionHeight,
             currentFps
         )
+
+        when (videoCapturer) {
+            is SharedVideoCapturerHandle -> {
+                if (!videoCapturer.waitForOutputFrameAfter(startingFrameCount, FIRST_FRAME_TIMEOUT_MS)) {
+                    Log.w(TAG, "No DJI video frames before WHIP offer; recovering capture")
+                    videoCapturer.recoverCapture("no frames before WHIP offer")
+                    if (!videoCapturer.waitForOutputFrameAfter(startingFrameCount, FIRST_FRAME_RECOVERY_TIMEOUT_MS)) {
+                        throw IllegalStateException("No DJI video frames available for WHIP publishing")
+                    }
+                }
+            }
+            is MockMp4VideoCapturer -> {
+                if (!videoCapturer.waitForOutputFrameAfter(startingFrameCount, FIRST_FRAME_TIMEOUT_MS)) {
+                    throw IllegalStateException("No mock MP4 video frames available for WHIP publishing")
+                }
+            }
+        }
+
         videoTrack = factory.createVideoTrack(options.videoTrackId, videoSource).apply {
             setEnabled(true)
         }
@@ -338,14 +370,20 @@ class WhipPublisher(
     }
 
     private fun teardown() {
-        deleteWhipResource()
-        try { videoCapturer.stopCapture() } catch (_: Exception) {}
-        videoTrack?.dispose()
-        videoTrack = null
-        videoSource?.dispose()
-        videoSource = null
-        peerConnection?.dispose()
-        peerConnection = null
+        if (!isTearingDown.compareAndSet(false, true)) return
+        try {
+            deleteWhipResource()
+            runCatching { videoCapturer.stopCapture() }
+            runCatching { videoTrack?.dispose() }
+            videoTrack = null
+            runCatching { videoSource?.dispose() }
+            videoSource = null
+            runCatching { peerConnection?.dispose() }
+                .onFailure { Log.d(TAG, "PeerConnection dispose ignored: ${it.message}") }
+            peerConnection = null
+        } finally {
+            isTearingDown.set(false)
+        }
     }
 
     /**
@@ -364,17 +402,18 @@ class WhipPublisher(
     }
 
     /**
-     * Configure the RTP sender to maintain resolution under load:
+    * Configure the RTP sender to maintain framerate under load:
      * - Set max bitrate and framerate
-     * - Set DegradationPreference to MAINTAIN_RESOLUTION (drop FPS before resolution)
+    * - Set DegradationPreference to MAINTAIN_FRAMERATE (scale before dropping FPS)
      */
     private fun configureVideoSenderForStability(sender: RtpSender) {
         runCatching {
             val params = sender.parameters ?: return
             val encodings = params.encodings ?: emptyList()
+            val bitrateCap = options.senderBitrateBps()
 
             encodings.forEach { encoding ->
-                runCatching { encoding.maxBitrateBps = options.videoBitrate }
+                runCatching { encoding.maxBitrateBps = bitrateCap }
                 runCatching { encoding.maxFramerate = currentFps }
             }
 
@@ -383,14 +422,14 @@ class WhipPublisher(
                 val preferenceClass = Class.forName("org.webrtc.RtpParameters\$DegradationPreference")
                 @Suppress("UNCHECKED_CAST")
                 val enumClass = preferenceClass as Class<out Enum<*>>
-                val maintainResolution = java.lang.Enum.valueOf(enumClass, "MAINTAIN_RESOLUTION")
+                val maintainFramerate = java.lang.Enum.valueOf(enumClass, "MAINTAIN_FRAMERATE")
                 val field = params.javaClass.getField("degradationPreference")
                 field.isAccessible = true
-                field.set(params, maintainResolution)
+                field.set(params, maintainFramerate)
             }
 
             sender.parameters = params
-            Log.d(TAG, "Sender params tuned: maxBitrate=${options.videoBitrate}bps, maxFps=$currentFps, prefer=MAINTAIN_RESOLUTION")
+            Log.d(TAG, "Sender params tuned: maxBitrate=${bitrateCap}bps, maxFps=$currentFps, prefer=MAINTAIN_FRAMERATE")
         }.onFailure { e ->
             Log.w(TAG, "Unable to fully apply sender tuning: ${e.message}")
         }

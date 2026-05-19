@@ -1,0 +1,31 @@
+services:
+  mediamtx:
+    image: bluenviron/mediamtx:latest
+    container_name: wildbridge_mediamtx
+    network_mode: host
+    environment:
+      - MTX_WEBRTCIPSFROMINTERFACESLIST=${MEDIAMTX_WEBRTC_INTERFACE:-wlp130s0f0}
+      - MTX_WEBRTCLOCALUDPADDRESS=${MEDIAMTX_WEBRTC_UDP_ADDRESS:-:8189}
+    volumes:
+      - ./GroundStation/video_test/mediamtx.yml:/mediamtx.yml:ro
+
+  video-grid:
+    image: wildbridge-video-connection-test:latest
+    build:
+      context: ./GroundStation/video_test/webapp
+    container_name: wildbridge_video_connection_test
+    network_mode: host
+    depends_on:
+      - mediamtx
+    environment:
+      - PORT=${VIDEO_GRID_PORT:-8090}
+      - MEDIAMTX_API_URL=${MEDIAMTX_API_URL:-http://127.0.0.1:9997}
+      - MEDIAMTX_WEBRTC_URL=${MEDIAMTX_WEBRTC_URL:-http://127.0.0.1:8889}
+      - DRONE_NAMES=${DRONE_NAMES:-}
+      - DRONE_FALLBACKS=${DRONE_FALLBACKS:-}
+      - DISCOVERY_INTERVAL_MS=${DISCOVERY_INTERVAL_MS:-5000}
+      - TELEMETRY_PORT=${TELEMETRY_PORT:-8081}
+      - LOG_DIR=/logs
+      - PYTHONUNBUFFERED=1
+    volumes:
+      - ./GroundStation/video_test/logs:/logs
