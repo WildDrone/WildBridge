@@ -51,6 +51,7 @@ class WhipPublisher(
 
     private val isRunning = AtomicBoolean(false)
     private val isPublishing = AtomicBoolean(false)
+    @Volatile private var currentFps: Int = options.fps
 
     var listener: WhipListener? = null
 
@@ -82,6 +83,17 @@ class WhipPublisher(
             is DJIV5VideoCapturer -> videoCapturer.changeResolution(width, height)
             is SharedVideoCapturerHandle -> videoCapturer.changeResolution(width, height)
         }
+    }
+
+    fun changeFrameRate(fps: Int) {
+        val boundedFps = fps.coerceIn(1, 60)
+        currentFps = boundedFps
+        when (videoCapturer) {
+            is DJIV5VideoCapturer -> videoCapturer.changeCaptureFormat(options.videoResolutionWidth, options.videoResolutionHeight, boundedFps)
+            is SharedVideoCapturerHandle -> videoCapturer.changeFrameRate(boundedFps)
+        }
+        peerConnection?.senders?.firstOrNull()?.let { configureVideoSenderForStability(it) }
+        Log.d(TAG, "WHIP frame rate changed to $boundedFps fps")
     }
 
     // ── internal ────────────────────────────────────────────────────
@@ -134,7 +146,7 @@ class WhipPublisher(
         videoCapturer.startCapture(
             options.videoResolutionWidth,
             options.videoResolutionHeight,
-            options.fps
+            currentFps
         )
         videoTrack = factory.createVideoTrack(options.videoTrackId, videoSource).apply {
             setEnabled(true)
@@ -363,7 +375,7 @@ class WhipPublisher(
 
             encodings.forEach { encoding ->
                 runCatching { encoding.maxBitrateBps = options.videoBitrate }
-                runCatching { encoding.maxFramerate = options.fps }
+                runCatching { encoding.maxFramerate = currentFps }
             }
 
             // Force adaptation strategy toward FPS reduction before resolution reduction
@@ -378,7 +390,7 @@ class WhipPublisher(
             }
 
             sender.parameters = params
-            Log.d(TAG, "Sender params tuned: maxBitrate=${options.videoBitrate}bps, maxFps=${options.fps}, prefer=MAINTAIN_RESOLUTION")
+            Log.d(TAG, "Sender params tuned: maxBitrate=${options.videoBitrate}bps, maxFps=$currentFps, prefer=MAINTAIN_RESOLUTION")
         }.onFailure { e ->
             Log.w(TAG, "Unable to fully apply sender tuning: ${e.message}")
         }

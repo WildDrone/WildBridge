@@ -1,6 +1,7 @@
 package dji.sampleV5.aircraft.pages
 
 import android.annotation.SuppressLint
+import android.app.AlertDialog
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
@@ -11,8 +12,11 @@ import android.view.SurfaceHolder
 import android.view.SurfaceView
 import android.view.View
 import android.view.ViewGroup
+import android.widget.ArrayAdapter
 import android.widget.Button
+import android.widget.LinearLayout
 import android.widget.RadioGroup
+import android.widget.Spinner
 import android.widget.TextView
 import dji.sampleV5.aircraft.R
 import dji.sampleV5.aircraft.util.ToastUtils
@@ -33,6 +37,15 @@ class WebRTCStreamFragment : DJIFragment() {
         private const val DEFAULT_PORT = 8081
     }
 
+    private enum class StreamResolution(
+        val width: Int,
+        val height: Int,
+        val bitrate: Int
+    ) {
+        FULL_HD(1920, 1080, 8_000_000),
+        HD(1280, 720, 4_000_000)
+    }
+
     private val cameraStreamManager: ICameraStreamManager by lazy {
         MediaDataCenter.getInstance().cameraStreamManager
     }
@@ -40,7 +53,9 @@ class WebRTCStreamFragment : DJIFragment() {
     // UI elements
     private lateinit var btnStartServer: Button
     private lateinit var btnStopServer: Button
+    private lateinit var btnStreamSettings: Button
     private lateinit var rgCamera: RadioGroup
+    private lateinit var tvStreamSettingsSummary: TextView
     private lateinit var tvServerStatus: TextView
     private lateinit var tvServerIp: TextView
     private lateinit var tvServerPort: TextView
@@ -56,7 +71,10 @@ class WebRTCStreamFragment : DJIFragment() {
     // WebRTC
     private var webRTCStreamer: WebRTCStreamer? = null
     private var selectedCameraIndex: ComponentIndexType = ComponentIndexType.LEFT_OR_MAIN
-    private var selectedOptions: WebRTCMediaOptions = WebRTCMediaOptions.fullHD()
+    private val frameRateOptions = listOf(5, 10, 15, 20, 25, 30)
+    private var selectedResolution: StreamResolution = StreamResolution.HD
+    private var selectedFrameRate: Int = 10
+    private var selectedOptions: WebRTCMediaOptions = createMediaOptions(selectedResolution, selectedFrameRate)
 
     // Camera preview
     private var previewSurface: Surface? = null
@@ -103,7 +121,9 @@ class WebRTCStreamFragment : DJIFragment() {
     private fun initViews(view: View) {
         btnStartServer = view.findViewById(R.id.btn_start_server)
         btnStopServer = view.findViewById(R.id.btn_stop_server)
+        btnStreamSettings = view.findViewById(R.id.btn_stream_settings)
         rgCamera = view.findViewById(R.id.rg_camera)
+        tvStreamSettingsSummary = view.findViewById(R.id.tv_stream_settings_summary)
         tvServerStatus = view.findViewById(R.id.tv_server_status)
         tvServerIp = view.findViewById(R.id.tv_server_ip)
         tvServerPort = view.findViewById(R.id.tv_server_port)
@@ -117,7 +137,8 @@ class WebRTCStreamFragment : DJIFragment() {
         tvErrorMessage = view.findViewById(R.id.tv_error_message)
 
         tvServerPort.text = DEFAULT_PORT.toString()
-    updateMetrics(WebRTCStreamMetrics())
+        updateStreamSettingsSummary()
+        updateMetrics(WebRTCStreamMetrics())
     }
 
     private fun setupListeners() {
@@ -127,6 +148,10 @@ class WebRTCStreamFragment : DJIFragment() {
 
         btnStopServer.setOnClickListener {
             stopServer()
+        }
+
+        btnStreamSettings.setOnClickListener {
+            showStreamSettingsDialog()
         }
 
         rgCamera.setOnCheckedChangeListener { group, checkedId ->
@@ -155,6 +180,95 @@ class WebRTCStreamFragment : DJIFragment() {
 
         btnHidePreview.setOnClickListener {
             hidePreview()
+        }
+    }
+
+    private fun showStreamSettingsDialog() {
+        val context = requireContext()
+        val padding = (24 * resources.displayMetrics.density).toInt()
+        val container = LinearLayout(context).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(padding, padding / 2, padding, 0)
+        }
+
+        val resolutionSpinner = Spinner(context).apply {
+            adapter = spinnerAdapter(StreamResolution.values().map { resolutionLabel(it) })
+            setSelection(StreamResolution.values().indexOf(selectedResolution))
+        }
+
+        val fpsSpinner = Spinner(context).apply {
+            adapter = spinnerAdapter(frameRateOptions.map { getString(R.string.webrtc_fps_value, it) })
+            setSelection(frameRateOptions.indexOf(selectedFrameRate).coerceAtLeast(0))
+        }
+
+        container.addView(dialogLabel(getString(R.string.webrtc_resolution_label)))
+        container.addView(resolutionSpinner)
+        container.addView(dialogLabel(getString(R.string.webrtc_fps_label)))
+        container.addView(fpsSpinner)
+
+        AlertDialog.Builder(context)
+            .setTitle(R.string.webrtc_settings_title)
+            .setView(container)
+            .setPositiveButton(R.string.confirm) { _, _ ->
+                val newResolution = StreamResolution.values()[resolutionSpinner.selectedItemPosition]
+                val newFrameRate = frameRateOptions[fpsSpinner.selectedItemPosition]
+                applyStreamSettings(newResolution, newFrameRate)
+            }
+            .setNegativeButton(R.string.cancel, null)
+            .show()
+    }
+
+    private fun spinnerAdapter(items: List<String>): ArrayAdapter<String> {
+        return ArrayAdapter(requireContext(), android.R.layout.simple_spinner_item, items).apply {
+            setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+        }
+    }
+
+    private fun dialogLabel(text: String): TextView {
+        val topMarginPx = (12 * resources.displayMetrics.density).toInt()
+        return TextView(requireContext()).apply {
+            this.text = text
+            textSize = 14f
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply {
+                topMargin = topMarginPx
+            }
+        }
+    }
+
+    private fun applyStreamSettings(resolution: StreamResolution, frameRate: Int) {
+        selectedResolution = resolution
+        selectedFrameRate = frameRate
+        selectedOptions = createMediaOptions(resolution, frameRate)
+        webRTCStreamer?.changeMediaOptions(selectedOptions)
+        updateStreamSettingsSummary()
+        ToastUtils.showToast(getString(R.string.webrtc_settings_updated))
+    }
+
+    private fun createMediaOptions(resolution: StreamResolution, frameRate: Int): WebRTCMediaOptions {
+        return WebRTCMediaOptions(
+            videoResolutionWidth = resolution.width,
+            videoResolutionHeight = resolution.height,
+            fps = frameRate,
+            videoBitrate = resolution.bitrate,
+            videoCodec = "H264"
+        )
+    }
+
+    private fun updateStreamSettingsSummary() {
+        tvStreamSettingsSummary.text = getString(
+            R.string.webrtc_settings_summary,
+            resolutionLabel(selectedResolution),
+            selectedFrameRate
+        )
+    }
+
+    private fun resolutionLabel(resolution: StreamResolution): String {
+        return when (resolution) {
+            StreamResolution.FULL_HD -> getString(R.string.webrtc_resolution_1080p)
+            StreamResolution.HD -> getString(R.string.webrtc_resolution_720p)
         }
     }
 

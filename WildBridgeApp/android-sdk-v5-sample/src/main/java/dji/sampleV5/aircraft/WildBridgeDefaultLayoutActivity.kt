@@ -126,6 +126,8 @@ class WildBridgeDefaultLayoutActivity : DefaultLayoutActivity() {
         private const val MEDIAMTX_WHIP_PORT = 8889  // mediamtx WebRTC port for WHIP publish
         private const val PREF_DRONE_NAME = "drone_name"
         private const val PREF_MEDIAMTX_SERVER = "mediamtx_server"
+        private const val PREF_WEBRTC_FPS = "webrtc_fps"
+        private const val DEFAULT_WEBRTC_FPS = 10
         private const val DEFAULT_DRONE_NAME = "drone_1"
         private const val DISCOVERY_PORT = 30000
         private const val DISCOVERY_MSG = "DISCOVER_WILDBRIDGE"
@@ -135,6 +137,7 @@ class WildBridgeDefaultLayoutActivity : DefaultLayoutActivity() {
         
         // mDNS/Zeroconf service type
         private const val MDNS_SERVICE_TYPE = "_wildbridge._tcp."
+        private val WEBRTC_FPS_OPTIONS = intArrayOf(5, 10, 15, 20, 25, 30)
     }
 
     private val mainHandler = Handler(Looper.getMainLooper())
@@ -284,6 +287,14 @@ class WildBridgeDefaultLayoutActivity : DefaultLayoutActivity() {
     private val batteryKey: DJIKey<Int> = BatteryKey.KeyChargeRemainingInPercent.create()
     private val flightModeKey: DJIKey<FlightMode> = FlightControllerKey.KeyFlightMode.create()
     private val isFlyingKey: DJIKey<Boolean> = FlightControllerKey.KeyIsFlying.create()
+
+    /**
+     * Pre-built telemetry JSON string, refreshed via KeyManager listeners whenever
+     * any telemetry value changes.  getTelemetryJson() just returns this cached string
+     * so the TelemetryServer send loop (Thread.sleep 10 ms) does zero SDK work.
+     */
+    @Volatile private var cachedTelemetryJson: String = "{}"
+
     private val productTypeKey: DJIKey<ProductType> = ProductKey.KeyProductType.create()
     private val cameraModeKey: DJIKey<CameraMode> = KeyTools.createKey(CameraKey.KeyCameraMode, ComponentIndexType.LEFT_OR_MAIN)
     private val cameraStorageLocationKey: DJIKey<CameraStorageLocation> = KeyTools.createKey(CameraKey.KeyCameraStorageLocation, ComponentIndexType.LEFT_OR_MAIN)
@@ -413,7 +424,12 @@ class WildBridgeDefaultLayoutActivity : DefaultLayoutActivity() {
     // ==================== End Mode Toggle ====================
 
     private fun buildWebRTCOptions(): WebRTCMediaOptions {
-        return WebRTCMediaOptions.fullHD()
+        return WebRTCMediaOptions.hd().copy(fps = getWebRTCFps())
+    }
+
+    private fun getWebRTCFps(): Int {
+        val storedFps = sharedPreferences.getInt(PREF_WEBRTC_FPS, DEFAULT_WEBRTC_FPS)
+        return if (WEBRTC_FPS_OPTIONS.contains(storedFps)) storedFps else DEFAULT_WEBRTC_FPS
     }
 
     private fun setupDetectedDroneProfileListener() {
@@ -430,6 +446,7 @@ class WildBridgeDefaultLayoutActivity : DefaultLayoutActivity() {
         val controlLabel = when (controlProfile) {
             DroneControlProfile.MATRICE_350_RTK -> "CTRL M350"
             DroneControlProfile.MINI_4_PRO -> "CTRL MINI4"
+            DroneControlProfile.MAVIC_3_ENTERPRISE -> "CTRL MAVIC3"
         }
         findViewById<TextView>(R.id.text_control_profile)?.text = controlLabel
         Log.i(TAG, "Detected product $productType -> using ${controlProfile.displayName} profile")
@@ -617,8 +634,9 @@ class WildBridgeDefaultLayoutActivity : DefaultLayoutActivity() {
         PopupMenu(this, anchor).apply {
             menu.add(0, 1, 0, "Change Drone Name")
             menu.add(0, 2, 1, "Set WHIP Server")
-            menu.add(0, 3, 2, "Format ${sdCardStatus.menuLabel}")
-            menu.add(0, 4, 3, "Format ${internalStatus.menuLabel}")
+            menu.add(0, 5, 2, "WebRTC FPS: ${getWebRTCFps()}")
+            menu.add(0, 3, 3, "Format ${sdCardStatus.menuLabel}")
+            menu.add(0, 4, 4, "Format ${internalStatus.menuLabel}")
             setOnMenuItemClickListener { item -> handleWildBridgeMenuItem(item.itemId) }
             show()
         }
@@ -694,7 +712,13 @@ class WildBridgeDefaultLayoutActivity : DefaultLayoutActivity() {
         // Keep altitude display in sync with every position update
         KeyManager.getInstance().listen(location3DKey, this) { _, newValue ->
             mainHandler.post { updateAltitudeView(newValue?.altitude ?: 0.0) }
+            rebuildTelemetryCache()
         }
+        // High-frequency keys: rebuild cache on every SDK push
+        KeyManager.getInstance().listen(attitudeKey, this) { _, _ -> rebuildTelemetryCache() }
+        KeyManager.getInstance().listen(compassHeadKey, this) { _, _ -> rebuildTelemetryCache() }
+        KeyManager.getInstance().listen(flightSpeedKey, this) { _, _ -> rebuildTelemetryCache() }
+        KeyManager.getInstance().listen(batteryKey, this) { _, _ -> rebuildTelemetryCache() }
     }
     
     private fun loadDroneName() {
@@ -771,6 +795,25 @@ class WildBridgeDefaultLayoutActivity : DefaultLayoutActivity() {
                 val shown = if (value.isEmpty()) "auto (client IP)" else value
                 Log.i(TAG, "Mediamtx server set to: $shown")
                 Toast.makeText(this, "WHIP server: $shown", Toast.LENGTH_SHORT).show()
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    private fun showWebRTCFpsDialog() {
+        val currentFps = getWebRTCFps()
+        val labels = WEBRTC_FPS_OPTIONS.map { "$it fps" }.toTypedArray()
+        val checkedIndex = WEBRTC_FPS_OPTIONS.indexOf(currentFps).coerceAtLeast(0)
+
+        AlertDialog.Builder(this)
+            .setTitle("WebRTC frame rate")
+            .setSingleChoiceItems(labels, checkedIndex) { dialog, which ->
+                val selectedFps = WEBRTC_FPS_OPTIONS[which]
+                sharedPreferences.edit().putInt(PREF_WEBRTC_FPS, selectedFps).apply()
+                webRTCStreamer?.changeMediaOptions(buildWebRTCOptions())
+                Toast.makeText(this, "WebRTC FPS: $selectedFps", Toast.LENGTH_SHORT).show()
+                Log.i(TAG, "WebRTC frame rate set to $selectedFps fps")
+                dialog.dismiss()
             }
             .setNegativeButton("Cancel", null)
             .show()
@@ -1103,8 +1146,9 @@ class WildBridgeDefaultLayoutActivity : DefaultLayoutActivity() {
     override fun onCreateOptionsMenu(menu: Menu): Boolean {
         menu.add(0, 1, 0, "Change Drone Name")
         menu.add(0, 2, 1, "Set WHIP Server")
-        menu.add(0, 3, 2, "Format Drone SD Card")
-        menu.add(0, 4, 3, "Format Drone Internal Storage")
+        menu.add(0, 5, 2, "WebRTC FPS: ${getWebRTCFps()}")
+        menu.add(0, 3, 3, "Format Drone SD Card")
+        menu.add(0, 4, 4, "Format Drone Internal Storage")
         return super.onCreateOptionsMenu(menu)
     }
     
@@ -1120,6 +1164,10 @@ class WildBridgeDefaultLayoutActivity : DefaultLayoutActivity() {
             }
             2 -> {
                 showMediamtxServerDialog()
+                true
+            }
+            5 -> {
+                showWebRTCFpsDialog()
                 true
             }
             3 -> {
@@ -1463,7 +1511,13 @@ class WildBridgeDefaultLayoutActivity : DefaultLayoutActivity() {
         return isHomePointSetLatch
     }
 
-    private fun getTelemetryJson(): String {
+    private fun getTelemetryJson(): String = cachedTelemetryJson
+
+    private fun rebuildTelemetryCache() {
+        cachedTelemetryJson = buildTelemetryJson()
+    }
+
+    private fun buildTelemetryJson(): String {
         val goHomeInfo = goHomeAssessmentProcessor.value
         val speed = getSpeed()
         val heading = getHeading()

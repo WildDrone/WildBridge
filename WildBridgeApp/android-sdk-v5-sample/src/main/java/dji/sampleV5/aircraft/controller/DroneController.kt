@@ -73,11 +73,10 @@ object DroneController {
     // so jumping from 0 to the saturated target speed feels like an initial
     // lunge, especially on lighter aircraft such as Mini 4 Pro.
     private const val MAX_HORIZONTAL_ACCEL_MPS2 = 0.5
-    private const val M350_MAX_HORIZONTAL_SPEED_MPS = 3.0
 
-    private fun distancePidKp(): Double = if (DroneControlProfiles.isM350()) 0.34 else 0.65
-    private fun yawPidKp(): Double = 3.0
-    private fun waypointPidOutputLimit(): Double = if (DroneControlProfiles.isM350()) M350_MAX_HORIZONTAL_SPEED_MPS else 15.0
+    private fun distancePidKp(): Double = DroneControlProfiles.activeProfile().distanceKp
+    private fun yawPidKp(): Double = DroneControlProfiles.activeProfile().yawKp
+    private fun waypointPidOutputLimit(): Double = DroneControlProfiles.activeProfile().maxHorizontalSpeedMps
 
     // Listener interface so the UI can react to automatic activation
     interface ManualOverrideListener {
@@ -758,11 +757,7 @@ object DroneController {
                 val yawControl = adjustedDesiredYaw
 
                 // Compute forward speed proportional to the distance to the waypoint
-                val maxSpeed = if (DroneControlProfiles.isM350()) {
-                    M350_MAX_HORIZONTAL_SPEED_MPS.toFloat()
-                } else {
-                    2f
-                }
+                val maxSpeed = DroneControlProfiles.activeProfile().maxHorizontalSpeedMps.toFloat()
                 val kp = 0.4f // Proportional gain
 
                 var speed = (kp * distanceToWaypoint).toFloat()
@@ -938,7 +933,7 @@ object DroneController {
     fun navigateTrajectory(
         waypoints: List<Triple<Double, Double, Double>>,
         lookaheadDistance: Double = 2.5,
-        cruiseSpeed: Double = if (DroneControlProfiles.isM350()) M350_MAX_HORIZONTAL_SPEED_MPS else 2.0,
+        cruiseSpeed: Double = DroneControlProfiles.activeProfile().defaultCruiseSpeedMps,
         minSpeedFinal: Double = 0.6,
         slowdownRadius: Double = 5.0
     ) {

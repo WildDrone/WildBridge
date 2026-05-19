@@ -82,6 +82,7 @@ class WebRTCClient(
     private val executor = Executors.newSingleThreadExecutor()
     private val isDisposing = AtomicBoolean(false)
     private val appContext = context.applicationContext
+    @Volatile private var currentFps: Int = options.fps
     
     var connectionListener: PeerConnectionListener? = null
 
@@ -96,6 +97,17 @@ class WebRTCClient(
             else -> return
         }
         Log.d(TAG, "[$clientId] Resolution changed to ${width}x${height}")
+    }
+
+    fun changeFrameRate(fps: Int) {
+        val boundedFps = fps.coerceIn(1, 60)
+        currentFps = boundedFps
+        when (videoCapturer) {
+            is DJIV5VideoCapturer -> videoCapturer.changeCaptureFormat(options.videoResolutionWidth, options.videoResolutionHeight, boundedFps)
+            is SharedVideoCapturerHandle -> videoCapturer.changeFrameRate(boundedFps)
+        }
+        peerConnection?.senders?.firstOrNull()?.let { configureVideoSenderForStability(it) }
+        Log.d(TAG, "[$clientId] Frame rate changed to $boundedFps fps")
     }
 
     interface PeerConnectionListener {
@@ -278,7 +290,7 @@ class WebRTCClient(
                     encoding.maxBitrateBps = options.videoBitrate
                 }
                 runCatching {
-                    encoding.maxFramerate = options.fps
+                    encoding.maxFramerate = currentFps
                 }
             }
 
@@ -296,7 +308,7 @@ class WebRTCClient(
             sender.parameters = params
             Log.d(
                 TAG,
-                "[$clientId] Sender params tuned: maxBitrate=${options.videoBitrate}bps, maxFps=${options.fps}, prefer=MAINTAIN_RESOLUTION"
+                "[$clientId] Sender params tuned: maxBitrate=${options.videoBitrate}bps, maxFps=$currentFps, prefer=MAINTAIN_RESOLUTION"
             )
         }.onFailure { e ->
             Log.w(TAG, "[$clientId] Unable to fully apply sender tuning: ${e.message}")

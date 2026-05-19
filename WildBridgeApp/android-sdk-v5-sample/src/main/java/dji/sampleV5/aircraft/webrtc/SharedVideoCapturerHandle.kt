@@ -42,8 +42,13 @@ class SharedVideoCapturerHandle(
         source.changeResolution(width, height)
     }
 
+    fun changeFrameRate(fps: Int) {
+        source.changeFrameRate(fps)
+    }
+
     override fun changeCaptureFormat(width: Int, height: Int, framerate: Int) {
         source.changeResolution(width, height)
+        source.changeFrameRate(framerate)
     }
 
     override fun dispose() {

@@ -224,6 +224,16 @@ class WebRTCStreamer(
     fun changeMediaOptions(options: WebRTCMediaOptions) {
         currentOptions = options
         changeResolution(options.videoResolutionWidth, options.videoResolutionHeight)
+        changeFrameRate(options.fps)
+    }
+
+    fun changeFrameRate(fps: Int) {
+        Log.d(TAG, "Changing FPS to $fps for ${activeConnections.size} client(s)")
+        sharedFrameSource?.changeFrameRate(fps)
+        whipPublisher?.changeFrameRate(fps)
+        activeConnections.values.forEach { client ->
+            client.changeFrameRate(fps)
+        }
     }
 
     /**

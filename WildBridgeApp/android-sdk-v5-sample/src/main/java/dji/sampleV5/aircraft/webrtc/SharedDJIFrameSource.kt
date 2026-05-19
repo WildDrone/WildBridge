@@ -323,6 +323,14 @@ class SharedDJIFrameSource(
         targetHeight = height
     }
 
+    fun changeFrameRate(fps: Int) {
+        val boundedFps = fps.coerceIn(1, 60)
+        Log.d(TAG, "Changing target FPS: $targetFps -> $boundedFps")
+        targetFps = boundedFps
+        frameIntervalNs = 1_000_000_000L / boundedFps.toLong()
+        lastSentTimestampNs.set(0L)
+    }
+
     @Synchronized
     fun recoverCapture(reason: String) {
         if (!isCapturing.get()) return
