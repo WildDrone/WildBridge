@@ -21,7 +21,7 @@ android {
         }
     }
 
-    //配置签名信息
+    // Configure signing config
     signingConfigs {
         release {
             storeFile file(project.STORE_FILE)
@@ -48,8 +48,8 @@ android {
     }
 
     packagingOptions {
-        // 因为mrtc库内部使用了NDK的c++_shared的编译参数
-        // 与其他库重复引用了，因此选其中一个即可
+        // The mrtc library uses the NDK c++_shared flag internally,
+        // which conflicts with other libraries — keep only one copy
         pickFirst 'lib/arm64-v8a/libc++_shared.so'
         pickFirst 'lib/armeabi-v7a/libc++_shared.so'
     }
@@ -64,7 +64,7 @@ android {
         freeCompilerArgs += ["-Xjvm-default=all"]
     }
 
-    //关闭lint
+    // Disable lint
     lintOptions {
         checkReleaseBuilds false
         abortOnError false

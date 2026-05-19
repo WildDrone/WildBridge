@@ -15,8 +15,8 @@ class DJIAircraftApplication : DJIApplication() {
 
     override fun attachBaseContext(base: Context?) {
         super.attachBaseContext(base)
-        //脚本替换，勿动
-        //secneo helper install
+        // Script substitution placeholder — do not modify
+        // Install the SecNeo SDK helper (required for DJI SDK initialization)
         com.secneo.sdk.Helper.install(this)
     }
 }

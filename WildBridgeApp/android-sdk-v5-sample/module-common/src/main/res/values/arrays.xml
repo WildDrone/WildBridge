@@ -93,10 +93,10 @@
     </string-array>
 
     <string-array name="wayline_finish_action">
-        <item>自动返航</item>
-        <item>原地降落</item>
-        <item>返回航线起始点悬停</item>
-        <item>退出航线模式</item>
+        <item>Auto return to home</item>
+        <item>Land in place</item>
+        <item>Return to mission start point and hover</item>
+        <item>Exit mission mode</item>
     </string-array>
 
     <string-array name="wayline_action">

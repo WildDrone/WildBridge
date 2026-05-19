@@ -1,5 +1,5 @@
 include ':sample'
 project(':sample').projectDir = new File(rootProject.projectDir, '../android-sdk-v5-sample')
 
-include ':uxsdk'// uxsdk模块
+include ':uxsdk' // uxsdk module
 project(':uxsdk').projectDir = new File(rootProject.projectDir, '../android-sdk-v5-uxsdk')
