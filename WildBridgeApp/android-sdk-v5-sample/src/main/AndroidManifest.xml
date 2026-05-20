@@ -41,9 +41,10 @@
         android:icon="@mipmap/ic_main"
         android:label="@string/app_name_aircraft"
         android:supportsRtl="true"
+        android:usesCleartextTraffic="true"
         android:requestLegacyExternalStorage="true"
         android:extractNativeLibs="true"
-        tools:replace="android:extractNativeLibs"
+        tools:replace="android:extractNativeLibs,android:usesCleartextTraffic"
         android:theme="@android:style/Theme.NoTitleBar.Fullscreen">
 
         <meta-data

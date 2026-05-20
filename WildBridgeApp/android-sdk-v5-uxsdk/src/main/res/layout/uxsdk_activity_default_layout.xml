@@ -66,6 +66,44 @@
                     tools:layout_editor_absoluteY="0dp" />
             </dji.v5.ux.core.widget.fpv.FPVWidget>
 
+            <TextureView
+                android:id="@+id/mock_video_preview"
+                android:layout_width="0dp"
+                android:layout_height="0dp"
+                android:visibility="gone"
+                app:layout_constraintBottom_toBottomOf="parent"
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintTop_toTopOf="parent" />
+
+            <TextView
+                android:id="@+id/mock_video_preview_label"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="16dp"
+                android:layout_marginTop="16dp"
+                android:background="@drawable/uxsdk_background_black_rectangle"
+                android:paddingHorizontal="8dp"
+                android:paddingVertical="4dp"
+                android:text="MOCK VIDEO PREVIEW"
+                android:textColor="#FFFFD166"
+                android:textSize="11sp"
+                android:textStyle="bold"
+                android:visibility="gone"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintTop_toTopOf="parent"
+                tools:ignore="HardcodedText" />
+
+            <!-- Detection bounding-box overlay (on top of FPV, below interaction) -->
+            <dji.v5.ux.detection.DetectionOverlayView
+                android:id="@+id/detection_overlay"
+                android:layout_width="0dp"
+                android:layout_height="0dp"
+                app:layout_constraintBottom_toBottomOf="parent"
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintTop_toTopOf="parent" />
+
             <dji.v5.ux.core.widget.fpv.FPVWidget
                 android:id="@+id/widget_secondary_fpv"
                 android:layout_width="@dimen/uxsdk_mini_map_width"
@@ -95,6 +133,43 @@
             app:layout_constraintTop_toTopOf="parent"
             app:uxsdk_itemsMarginRight="@dimen/uxsdk_spacing_normal"
             app:uxsdk_itemsSpacing="14dp" />
+
+        <Switch
+            android:id="@+id/sw_mock_video"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="16dp"
+            android:layout_marginBottom="4dp"
+            android:background="@drawable/uxsdk_background_black_rectangle"
+            android:checked="false"
+            android:padding="4dp"
+            android:switchMinWidth="40dp"
+            android:text="MOCK VIDEO"
+            android:textColor="#FFFFD166"
+            android:textSize="11sp"
+            android:textStyle="bold"
+            app:layout_constraintBottom_toTopOf="@+id/sw_auto_sensing"
+            app:layout_constraintStart_toStartOf="parent"
+            tools:ignore="HardcodedText,UseSwitchCompatOrMaterialXml" />
+
+        <!-- AutoSensing (AI detection) toggle — ON by default -->
+        <Switch
+            android:id="@+id/sw_auto_sensing"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="AI DETECT"
+            android:textColor="#FF00E676"
+            android:textSize="11sp"
+            android:textStyle="bold"
+            android:padding="4dp"
+            android:checked="true"
+            android:switchMinWidth="40dp"
+            android:background="@drawable/uxsdk_background_black_rectangle"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintBottom_toTopOf="@+id/cb_manual_override"
+            android:layout_marginStart="16dp"
+            android:layout_marginBottom="4dp"
+            tools:ignore="HardcodedText,UseSwitchCompatOrMaterialXml" />
 
         <!-- Autonomous / Manual mode toggle -->
         <Switch
@@ -127,10 +202,25 @@
             android:background="@drawable/uxsdk_background_black_rectangle"
             android:clickable="true"
             android:focusable="true"
-            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintStart_toEndOf="@+id/button_wildbridge_settings"
             app:layout_constraintBottom_toBottomOf="parent"
-            android:layout_marginStart="16dp"
+            android:layout_marginStart="4dp"
             android:layout_marginBottom="12dp" />
+
+        <ImageButton
+            android:id="@+id/button_wildbridge_settings"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:layout_marginStart="16dp"
+            android:layout_marginBottom="12dp"
+            android:background="@drawable/uxsdk_background_black_rectangle"
+            android:contentDescription="WildBridge settings"
+            android:padding="8dp"
+            android:scaleType="centerInside"
+            android:src="@android:drawable/ic_menu_manage"
+            android:tint="#FFFFFFFF"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintStart_toStartOf="parent" />
 
         <!-- Drone operational status indicator (icon + label, updates in real-time) -->
         <TextView
@@ -166,21 +256,40 @@
             android:layout_marginStart="4dp"
             tools:ignore="HardcodedText" />
 
-        <!-- GPS satellite count -->
         <TextView
-            android:id="@+id/text_satellite_count"
+            android:id="@+id/text_control_profile"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="🛰 0"
-            android:textColor="#FFCCCCCC"
-            android:textSize="11sp"
-            android:textStyle="bold"
-            android:padding="4dp"
+            android:layout_marginStart="16dp"
+            android:layout_marginBottom="0dp"
             android:background="@drawable/uxsdk_background_black_rectangle"
-            app:layout_constraintStart_toEndOf="@+id/text_altitude"
-            app:layout_constraintBottom_toBottomOf="@+id/text_drone_name"
-            app:layout_constraintTop_toTopOf="@+id/text_drone_name"
+            android:ellipsize="end"
+            android:fontFamily="monospace"
+            android:maxLines="1"
+            android:padding="1dp"
+            android:text="CTRL MINI4"
+            android:textColor="#FFFFD166"
+            android:textSize="7sp"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            tools:ignore="HardcodedText" />
+
+        <TextView
+            android:id="@+id/text_webrtc_metrics"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
             android:layout_marginStart="4dp"
+            android:layout_marginBottom="0dp"
+            android:background="@drawable/uxsdk_background_black_rectangle"
+            android:ellipsize="end"
+            android:fontFamily="monospace"
+            android:maxLines="1"
+            android:padding="1dp"
+            android:text="WEBRTC idle out waiting src waiting fps 0.0/0 drop 0.0 proc 0.0ms clients 0"
+            android:textColor="#FFDDDDDD"
+            android:textSize="7sp"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintStart_toEndOf="@+id/text_control_profile"
             tools:ignore="HardcodedText" />
 
         <dji.v5.ux.core.widget.remainingflighttime.RemainingFlightTimeWidget

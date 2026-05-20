@@ -16,12 +16,16 @@ class TelemetryServer(
     private val executor = Executors.newCachedThreadPool()
     @Volatile
     private var isRunning = false
+    private var serverThread: Thread? = null
     private val clients = ConcurrentHashMap<Socket, PrintWriter>()
+
+    /** Callback invoked when a bridge client connects. Receives the client's IP address. */
+    var onFirstClientConnected: ((clientIp: String) -> Unit)? = null
 
     fun start() {
         if (isRunning) return
 
-        thread {
+        serverThread = thread(name = "TelemetryServer-$port", start = true) {
             try {
                 serverSocket = ServerSocket(port)
                 isRunning = true
@@ -33,9 +37,11 @@ class TelemetryServer(
                 while (isRunning && !serverSocket!!.isClosed) {
                     try {
                         val clientSocket = serverSocket!!.accept()
-                        Log.i("TelemetryServer", "Client connected: ${clientSocket.inetAddress.hostAddress}")
+                        val clientIp = clientSocket.inetAddress.hostAddress ?: "unknown"
+                        Log.i("TelemetryServer", "Client connected: $clientIp")
                         val writer = PrintWriter(clientSocket.getOutputStream(), true)
                         clients[clientSocket] = writer
+                        onFirstClientConnected?.invoke(clientIp)
                     } catch (e: Exception) {
                         if (isRunning) {
                             Log.e("TelemetryServer", "Error accepting connection: ${e.message}")
@@ -82,7 +88,7 @@ class TelemetryServer(
                     Log.i("TelemetryServer", "Client disconnected and removed.")
                 }
 
-                Thread.sleep(10) // Adjust the interval as needed
+                Thread.sleep(10) // Send data at ~100Hz (cache rebuilt by SDK listeners)
             } catch (e: Exception) {
                 Log.e("TelemetryServer", "Error in telemetry sending loop: ${e.message}")
             }
@@ -91,11 +97,18 @@ class TelemetryServer(
 
     fun stop() {
         isRunning = false
+        onFirstClientConnected = null
         try {
+            clients.values.forEach { it.close() }
             clients.keys.forEach { it.close() }
             clients.clear()
             serverSocket?.close()
-            executor.shutdown()
+            serverSocket = null
+            executor.shutdownNow()
+            if (Thread.currentThread() != serverThread) {
+                serverThread?.join(1000)
+            }
+            serverThread = null
         } catch (e: Exception) {
             Log.e("TelemetryServer", "Error stopping server: ${e.message}")
         }

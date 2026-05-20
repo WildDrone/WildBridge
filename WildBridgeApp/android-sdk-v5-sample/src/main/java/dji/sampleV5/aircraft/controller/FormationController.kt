@@ -481,8 +481,13 @@ object FormationController {
 
     fun cleanup() {
         stopFormation()
+        mainHandler.removeCallbacksAndMessages(null)
         webSocketServer?.stop()
         webSocketClient?.close()
+        webSocketServer = null
+        webSocketClient = null
+        leaderState = null
+        followerState = null
         role = DroneRole.NONE
     }
 }

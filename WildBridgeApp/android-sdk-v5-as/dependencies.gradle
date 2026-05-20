@@ -1,11 +1,11 @@
 ext {
     deps = [:]
-    //DJI MSDK V5包
+    // DJI MSDK V5 packages
     deps.aircraft = "com.dji:dji-sdk-v5-aircraft:5.17.0"
     deps.aircraftProvided = "com.dji:dji-sdk-v5-aircraft-provided:5.17.0"
     deps.networkImp = "com.dji:dji-sdk-v5-networkImp:5.17.0"
 
-    //三方依赖库
+    // Third-party dependency libraries
     deps.gson = 'com.google.code.gson:gson:2.9.1'
     deps.okio = 'com.squareup.okio:okio:1.17.2'
     deps.rx3Android = 'io.reactivex.rxjava3:rxandroid:3.0.0'
@@ -16,21 +16,21 @@ ext {
     deps.okhttp3 = 'com.squareup.okhttp3:okhttp:3.14.9'
     deps.leakcanary = 'com.squareup.leakcanary:leakcanary-android:2.14'
     deps.xcrash = 'com.iqiyi.xcrash:xcrash-android-lib:3.1.0'
-    deps.rx2Java = 'io.reactivex.rxjava2:rxjava:2.2.4' // 目前在CSDK升级模块中使用rxjava2
+    deps.rx2Java = 'io.reactivex.rxjava2:rxjava:2.2.4' // Currently used by the CSDK upgrade module
     deps.maplibreTurf = 'org.maplibre.gl:android-sdk-turf:5.9.1'
     deps.maplibreSdk = 'org.maplibre.gl:android-sdk:10.3.1'
-    deps.lottie = 'com.airbnb.android:lottie:3.3.1'//RTK扫描页中使用，用于实现动画效果
-    deps.cardview = 'androidx.cardview:cardview:1.0.0'//PopoverView中使用
-    deps.material = 'com.google.android.material:material:1.0.0'//AvoidanceShortcutWidget使用
-    deps.lynx = 'com.github.pedrovgs:lynx:1.1.0'// app显示logcat
+    deps.lottie = 'com.airbnb.android:lottie:3.3.1' // Used in the RTK scan page for animations
+    deps.cardview = 'androidx.cardview:cardview:1.0.0' // Used in PopoverView
+    deps.material = 'com.google.android.material:material:1.0.0' // Used by AvoidanceShortcutWidget
+    deps.lynx = 'com.github.pedrovgs:lynx:1.1.0' // Displays logcat in-app
 
-    /*RTK设置页面使用-start*/
+    /* RTK settings page dependencies — start */
     deps.mikepenzCommunityMaterial = "com.mikepenz:community-material-typeface:3.5.95.1-kotlin@aar"
     deps.mikepenzGoogleMaterial = 'com.mikepenz:google-material-typeface:3.0.1.4.original-kotlin@aar'
     deps.mikepenzIconicsViews = 'com.mikepenz:iconics-views:4.0.2@aar'
     deps.mikepenzIconicsCore = 'com.mikepenz:iconics-core:4.0.2@aar'
     deps.mikepenzIonicons = 'com.mikepenz:ionicons-typeface:2.0.1.5-kotlin@aar'
-    /*RTK设置页面使用-end*/
+    /* RTK settings page dependencies — end */
 
     //google map
     deps.playservicesplaces = 'com.google.android.gms:play-services-places:16.0.0'
@@ -63,7 +63,7 @@ ext {
     deps.ktxNavigation = "androidx.navigation:navigation-fragment-ktx:2.5.3"
     deps.ktxNavigationUi = "androidx.navigation:navigation-ui-ktx:2.5.3"
     deps.documentfile = 'androidx.documentfile:documentfile:1.0.1'
-    //解析xml
+    // XML parsing
     deps.dom = 'org.dom4j:dom4j:2.1.1'
 
     //kotlin
@@ -74,13 +74,14 @@ ext {
     deps.glidecompiler = 'com.github.bumptech.glide:compiler:4.9.0'
 
 
-    //wpmz 航线文件解析
-    //本地依赖验证时将该aar放到主工程目录sdklib 并将sdk中aircraft 的gradle添加为本地依赖方式 api (name:"djisdkwpmz", ext:'aar')
+    // wpmz mission file parsing
+    // For local dependency testing: copy this aar to the main project's sdklib directory
+    // and add as a local dependency in the aircraft module's gradle: api(name:"djisdkwpmz", ext:'aar')
     deps.wpmzSdk = 'com.dji:wpmzsdk:1.0.4.0'
-    //sample 扩展EditText
+    // Extended EditText for sample
     deps.expandedit = "com.github.thomhurst:ExpandableHintText:1.0.7"
 
-    //测试
+    // Testing
     deps.junit4 = "junit:junit:4.12"
     deps.jnitCore = 'androidx.test:core:1.5.0'
     deps.testRunner = 'androidx.test:runner:1.5.0'

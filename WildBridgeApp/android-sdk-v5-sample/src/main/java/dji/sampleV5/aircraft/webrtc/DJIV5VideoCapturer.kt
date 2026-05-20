@@ -26,7 +26,7 @@ class DJIV5VideoCapturer(
     private val cameraIndex: ComponentIndexType = ComponentIndexType.LEFT_OR_MAIN,
     @Volatile var targetWidth: Int = FULL_HD_WIDTH,
     @Volatile var targetHeight: Int = FULL_HD_HEIGHT,
-    private val scaleToTarget: Boolean = true,
+    @Volatile private var scaleToTarget: Boolean = true,
     private val droneName: String = "drone_1"
 ) : VideoCapturer {
 
@@ -93,9 +93,7 @@ class DJIV5VideoCapturer(
 
                 val frameNumber = frameCounter.incrementAndGet()
                 
-                // Determine output dimensions
-                val outputWidth = if (scaleToTarget) targetWidth else width
-                val outputHeight = if (scaleToTarget) targetHeight else height
+                val (outputWidth, outputHeight) = chooseOutputSize(width, height)
                 
                 // Capture synchronized telemetry metadata at this exact moment
                 metadataListener?.let { listener ->
@@ -119,11 +117,14 @@ class DJIV5VideoCapturer(
                 )
                 
                 // Scale to target resolution if enabled and dimensions differ
-                val outputBuffer = if (scaleToTarget && (width != targetWidth || height != targetHeight)) {
-                    buffer.cropAndScale(
+                val needsScale = scaleToTarget && (width != outputWidth || height != outputHeight)
+                val outputBuffer = if (needsScale) {
+                    val scaled = buffer.cropAndScale(
                         0, 0, width, height,  // Use full source frame
-                        targetWidth, targetHeight  // Scale to target
+                        outputWidth, outputHeight
                     )
+                    buffer.release()  // Release the original; cropAndScale made a copy
+                    scaled
                 } else {
                     buffer
                 }
@@ -138,6 +139,15 @@ class DJIV5VideoCapturer(
         }
     }
 
+    private fun chooseOutputSize(sourceWidth: Int, sourceHeight: Int): Pair<Int, Int> {
+        if (!scaleToTarget) return sourceWidth to sourceHeight
+        val boundedWidth = targetWidth.coerceAtMost(sourceWidth).coerceAtLeast(2)
+        val boundedHeight = targetHeight.coerceAtMost(sourceHeight).coerceAtLeast(2)
+        val evenWidth = boundedWidth - (boundedWidth % 2)
+        val evenHeight = boundedHeight - (boundedHeight % 2)
+        return evenWidth.coerceAtLeast(2) to evenHeight.coerceAtLeast(2)
+    }
+
     override fun initialize(
         surfaceTextureHelper: SurfaceTextureHelper?,
         applicationContext: Context,
@@ -149,6 +159,7 @@ class DJIV5VideoCapturer(
     }
 
     override fun startCapture(width: Int, height: Int, framerate: Int) {
+        changeResolution(width, height)
         targetFps = framerate.coerceAtLeast(1)
         frameIntervalNs = 1_000_000_000L / targetFps.toLong()
         lastSentTimestampNs.set(0L)
@@ -181,9 +192,22 @@ class DJIV5VideoCapturer(
      * Change the target resolution on-the-fly. Takes effect on the next frame.
      */
     fun changeResolution(width: Int, height: Int) {
-        Log.d(TAG, "Changing target resolution: ${targetWidth}x${targetHeight} -> ${width}x${height}")
-        targetWidth = width
-        targetHeight = height
+        val previousWidth = targetWidth
+        val previousHeight = targetHeight
+        val previousScale = scaleToTarget
+        if (width <= 0 || height <= 0) {
+            targetWidth = 0
+            targetHeight = 0
+            scaleToTarget = false
+        } else {
+            targetWidth = width
+            targetHeight = height
+            scaleToTarget = true
+        }
+        Log.d(
+            TAG,
+            "Changing target resolution: ${previousWidth}x${previousHeight} (scale=$previousScale) -> ${targetWidth}x${targetHeight} (scale=$scaleToTarget)"
+        )
     }
 
     override fun changeCaptureFormat(width: Int, height: Int, framerate: Int) {

@@ -1,5 +1,7 @@
 package dji.sampleV5.aircraft.webrtc
 
+import dji.v5.ux.detection.DetectedTarget
+import org.json.JSONArray
 import org.json.JSONObject
 
 /**
@@ -45,7 +47,8 @@ data class FrameMetadata(
     val batteryPercent: Int,
     val isFlying: Boolean,
     val flightMode: String,          // DJI flight mode string (e.g. "GPS", "ATTI", "SPORT", "TRIPOD")
-    val isManualOverrideActive: Boolean = false  // True when pilot has taken manual RC control
+    val isManualOverrideActive: Boolean = false,  // True when pilot has taken manual RC control
+    val detectedTargets: List<DetectedTarget> = emptyList()  // AI-detected targets from AutoSensing
 ) {
     /**
      * Convert to JSON for transmission via WebRTC data channel
@@ -87,6 +90,7 @@ data class FrameMetadata(
             put("isFlying", isFlying)
             put("flightMode", flightMode)
             put("isManualOverrideActive", isManualOverrideActive)
+            put("detectedTargets", JSONArray(detectedTargets.map { it.toJson() }))
         }
     }
     
@@ -125,7 +129,8 @@ data class FrameMetadata(
                 batteryPercent = obj.optInt("batteryPercent", 0),
                 isFlying = obj.optBoolean("isFlying", false),
                 flightMode = obj.optString("flightMode", "UNKNOWN"),
-                isManualOverrideActive = obj.optBoolean("isManualOverrideActive", false)
+                isManualOverrideActive = obj.optBoolean("isManualOverrideActive", false),
+                detectedTargets = DetectedTarget.fromJsonArray(obj.optJSONArray("detectedTargets") ?: JSONArray())
             )
         }
     }

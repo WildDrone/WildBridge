@@ -194,6 +194,22 @@
         app:layout_constraintTop_toTopOf="@+id/view_info_panel" />
 
     <TextView
+        android:id="@+id/text_view_wildbridge_build_info"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="8dp"
+        android:layout_marginTop="8dp"
+        android:layout_marginEnd="8dp"
+        android:gravity="start"
+        android:lineSpacingExtra="2dp"
+        android:textColor="@color/green"
+        android:textSize="12sp"
+        app:layout_constraintEnd_toEndOf="@+id/msg_panel"
+        app:layout_constraintStart_toStartOf="@+id/msg_panel"
+        app:layout_constraintTop_toTopOf="@+id/msg_panel"
+        tools:text="WildBridge app\nDrone: mini1\nBuilt: 2026-05-20 10:33 UTC\nGit: c90e63ce4cb5 dirty\nVersion: 1.0 (1)\nFeatures: WHIP video, sender metrics telemetry" />
+
+    <TextView
         android:id="@+id/text_view_news_title"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
@@ -203,7 +219,7 @@
         android:textColor="@color/white"
         android:textSize="18sp"
         app:layout_constraintStart_toStartOf="@+id/msg_panel"
-        app:layout_constraintTop_toTopOf="@+id/msg_panel" />
+        app:layout_constraintTop_toBottomOf="@+id/text_view_wildbridge_build_info" />
 
     <dji.sampleV5.aircraft.views.VersionInfoView
         android:layout_width="0dp"
