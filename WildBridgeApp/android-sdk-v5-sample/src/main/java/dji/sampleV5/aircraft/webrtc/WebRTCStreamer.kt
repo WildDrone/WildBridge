@@ -5,21 +5,16 @@ import android.os.Handler
 import android.os.Looper
 import android.util.Log
 import dji.sdk.keyvalue.value.common.ComponentIndexType
-import org.json.JSONObject
 import org.webrtc.VideoCapturer
 import java.net.Inet4Address
 import java.net.NetworkInterface
-import java.util.concurrent.ConcurrentHashMap
 
 /**
  * WebRTCStreamer manages DJI video capture and WHIP publishing for the drone feed.
- * The legacy direct WebSocket signaling path is still available through start()
- * for older DJI sample pages, but WildBridgeDefaultLayoutActivity uses startWhip().
  */
 class WebRTCStreamer(
     context: Context,
     private val cameraIndex: ComponentIndexType = ComponentIndexType.LEFT_OR_MAIN,
-    private val signalingPort: Int = 8081,
     private val droneName: String = "drone_1",
     private val options: WebRTCMediaOptions = WebRTCMediaOptions(),
     mockVideoEnabled: Boolean = false
@@ -36,8 +31,6 @@ class WebRTCStreamer(
 
     private val appContext = context.applicationContext
 
-    private var signalingServer: WebRTCSignalingServer? = null
-    private val activeConnections = ConcurrentHashMap<String, WebRTCClient>()
     private val mainHandler = Handler(Looper.getMainLooper())
     private var sharedFrameSource: SharedDJIFrameSource? = null
     private var whipPublisher: WhipPublisher? = null
@@ -60,66 +53,11 @@ class WebRTCStreamer(
         fun onServerStarted(ip: String, port: Int)
         fun onServerStopped()
         fun onServerError(error: String)
-        fun onClientConnected(clientId: String, totalClients: Int)
-        fun onClientDisconnected(clientId: String, totalClients: Int)
         fun onMetrics(metrics: WebRTCStreamMetrics) {}
     }
 
     /**
-     * Start the WebRTC streaming server
-     */
-    fun start() {
-        Log.d(TAG, "Starting WebRTC streamer...")
-        
-        if (signalingServer != null) {
-            Log.w(TAG, "Server already running")
-            return
-        }
-
-        TelemetryProvider.startListening()
-        
-        signalingServer = WebRTCSignalingServer(signalingPort, droneName, object : WebRTCSignalingServer.SignalingServerListener {
-            override fun onServerStarted(port: Int) {
-                val ip = getLocalIpAddress() ?: "Unknown"
-                Log.d(TAG, "Signaling server started at $ip:$port")
-                mainHandler.post {
-                    listener?.onServerStarted(ip, port)
-                }
-            }
-
-            override fun onServerError(error: String) {
-                Log.e(TAG, "Signaling server error: $error")
-                mainHandler.post {
-                    listener?.onServerError(error)
-                }
-            }
-
-            override fun onClientConnected(clientId: String) {
-                Log.d(TAG, "Client connected: $clientId")
-                createPeerConnection(clientId)
-            }
-
-            override fun onClientDisconnected(clientId: String) {
-                Log.d(TAG, "Client disconnected: $clientId")
-                removePeerConnection(clientId)
-            }
-
-            override fun onWebRTCMessage(clientId: String, message: JSONObject) {
-                Log.d(TAG, "WebRTC message from $clientId: ${message.optString("type")}")
-                handleWebRTCMessage(clientId, message)
-            }
-        })
-        
-        try {
-            signalingServer?.start()
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to start signaling server: ${e.message}", e)
-            listener?.onServerError("Failed to start server: ${e.message}")
-        }
-    }
-
-    /**
-     * Stop the WebRTC streaming server and all connections.
+     * Stop WHIP publishing and release capture resources.
      */
     fun stop() {
         Log.d(TAG, "Stopping WebRTC streamer...")
@@ -138,21 +76,11 @@ class WebRTCStreamer(
         whipPublisher?.stop()
         whipPublisher = null
         
-        // Close all peer connections
-        activeConnections.values.forEach { client ->
-            client.dispose()
-        }
-        activeConnections.clear()
-        
         // Dispose shared frame source
         sharedFrameSource?.dispose()
         sharedFrameSource = null
 
         TelemetryProvider.stopListening()
-        
-        // Stop signaling server
-        signalingServer?.stopServer()
-        signalingServer = null
         
         if (Looper.myLooper() == Looper.getMainLooper()) {
             stoppedListener?.onServerStopped()
@@ -186,9 +114,6 @@ class WebRTCStreamer(
             sharedFrameSource = null
         }
 
-        activeConnections.values.forEach { it.dispose() }
-        activeConnections.clear()
-
         val whipUrl = currentWhipUrl
         whipPublisher?.stop()
         whipPublisher = null
@@ -203,9 +128,8 @@ class WebRTCStreamer(
     fun isMockVideoEnabled(): Boolean = useMockVideo
 
     /**
-     * Start publishing video via WHIP to a mediamtx relay server.
-     * This replaces the signaling server approach — the phone pushes
-     * its stream once and mediamtx fans it out to all consumers.
+    * Start publishing video via WHIP to a MediaMTX relay server. The phone
+    * pushes its stream once and MediaMTX fans it out to WHEP consumers.
      *
      * @param whipUrl Full WHIP endpoint URL, e.g. "http://192.168.x.y:8889/drone_1/whip"
      */
@@ -301,26 +225,15 @@ class WebRTCStreamer(
         }, 15_000L)
     }
 
-    /**
-     * Check if the server is running
-     */
-    fun isRunning(): Boolean = signalingServer != null
-
-    /**
-     * Get the number of connected clients
-     */
-    fun getClientCount(): Int = activeConnections.size
+    fun isRunning(): Boolean = whipPublisher?.isRunning() == true
 
     /**
      * Change the streaming resolution for all active connections on-the-fly.
      */
     fun changeResolution(width: Int, height: Int) {
-        Log.d(TAG, "Changing resolution to ${if (width > 0 && height > 0) "${width}x${height}" else "native"} for ${activeConnections.size} client(s)")
+        Log.d(TAG, "Changing resolution to ${if (width > 0 && height > 0) "${width}x${height}" else "native"}")
         sharedFrameSource?.changeResolution(width, height)
         whipPublisher?.changeResolution(width, height)
-        activeConnections.values.forEach { client ->
-            client.changeResolution(width, height)
-        }
     }
 
     /**
@@ -350,20 +263,9 @@ class WebRTCStreamer(
     }
 
     private fun applyFrameRate(fps: Int, reason: String) {
-        Log.d(TAG, "Changing FPS to $fps for ${activeConnections.size} client(s): $reason")
+        Log.d(TAG, "Changing FPS to $fps: $reason")
         sharedFrameSource?.changeFrameRate(fps)
         whipPublisher?.changeFrameRate(fps)
-        activeConnections.values.forEach { client ->
-            client.changeFrameRate(fps)
-        }
-    }
-
-    /**
-     * Get the connection URL for clients
-     */
-    fun getConnectionUrl(): String {
-        val ip = getLocalIpAddress() ?: "Unknown"
-        return "ws://$ip:$signalingPort"
     }
 
     private fun getOrCreateSharedSource(): SharedDJIFrameSource {
@@ -387,7 +289,7 @@ class WebRTCStreamer(
         maybeAdaptFrameRate(metrics)
         val enriched = metrics.copy(
             recoveryCount = recoveryCount,
-            status = if (whipPublisher != null || signalingServer != null) metrics.status else "idle",
+            status = if (whipPublisher != null) metrics.status else "idle",
             configuredFps = desiredFps,
             saturationState = saturationState,
             scaleMode = if (currentOptions.usesSourceResolution) "native" else "fixed"
@@ -504,68 +406,6 @@ class WebRTCStreamer(
                 startWhip(whipUrl)
             }
         }, 1000L)
-    }
-
-    private fun createPeerConnection(clientId: String) {
-        Log.d(TAG, "Creating peer connection for: $clientId")
-        
-        // Create a lightweight handle backed by the shared frame source
-        val videoCapturer = createVideoCapturer(clientId)
-        
-        val client = WebRTCClient(
-            clientId = clientId,
-            context = appContext,
-            videoCapturer = videoCapturer,
-            options = currentOptions,
-            messageCallback = { id, message ->
-                signalingServer?.sendToClient(id, message)
-            }
-        )
-        
-        // Note: WebRTCClient internally sets up metadata listener on the capturer
-        
-        client.connectionListener = object : WebRTCClient.PeerConnectionListener {
-            override fun onConnected(clientId: String) {
-                Log.d(TAG, "Peer connected: $clientId")
-                mainHandler.post {
-                    listener?.onClientConnected(clientId, activeConnections.size)
-                }
-            }
-
-            override fun onDisconnected(clientId: String) {
-                Log.d(TAG, "Peer disconnected: $clientId")
-                mainHandler.post {
-                    removePeerConnection(clientId)
-                }
-            }
-
-            override fun onError(clientId: String, error: String) {
-                Log.e(TAG, "Peer error for $clientId: $error")
-            }
-        }
-        
-        activeConnections[clientId] = client
-        
-        // Send offer to the client to initiate the connection
-        client.createOffer()
-        
-        mainHandler.post {
-            listener?.onClientConnected(clientId, activeConnections.size)
-        }
-    }
-
-    private fun removePeerConnection(clientId: String) {
-        activeConnections.remove(clientId)?.let { client ->
-            client.dispose()
-            mainHandler.post {
-                listener?.onClientDisconnected(clientId, activeConnections.size)
-            }
-        }
-    }
-
-    private fun handleWebRTCMessage(clientId: String, message: JSONObject) {
-        activeConnections[clientId]?.handleSignalingMessage(message)
-            ?: Log.w(TAG, "No connection found for client: $clientId")
     }
 
     /**

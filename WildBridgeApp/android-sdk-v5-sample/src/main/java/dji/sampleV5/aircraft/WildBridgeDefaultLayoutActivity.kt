@@ -127,7 +127,6 @@ class WildBridgeDefaultLayoutActivity : DefaultLayoutActivity() {
         private const val TAG = "WildBridgeDefaultLayout"
         private const val HTTP_PORT = 8080
         private const val TELEMETRY_PORT = 8081
-        private const val WEBRTC_PORT = 8082
         private const val MEDIAMTX_WHIP_PORT = 8889  // mediamtx WebRTC port for WHIP publish
         private const val PREF_DRONE_NAME = "drone_name"
         private const val PREF_MEDIAMTX_SERVER = "mediamtx_server"
@@ -1279,14 +1278,12 @@ class WildBridgeDefaultLayoutActivity : DefaultLayoutActivity() {
             Log.w(TAG, "Telemetry port $TELEMETRY_PORT already in use")
         }
 
-        // WebRTC video via WHIP — create the streamer (shared frame source)
-        // but don't start the legacy signaling server on port 8082.
+        // WebRTC video via WHIP — create the shared frame source/publisher.
         // WHIP publishing starts automatically when bridge connects to telemetry.
         try {
             webRTCStreamer = WebRTCStreamer(
                 context = applicationContext,
                 cameraIndex = ComponentIndexType.LEFT_OR_MAIN,
-                signalingPort = WEBRTC_PORT,
                 droneName = droneName,
                 options = buildWebRTCOptions(),
                 mockVideoEnabled = isMockVideoEnabled()
@@ -1301,8 +1298,6 @@ class WildBridgeDefaultLayoutActivity : DefaultLayoutActivity() {
                 override fun onServerError(error: String) {
                     Log.e(TAG, "WebRTC error: $error")
                 }
-                override fun onClientConnected(clientId: String, totalClients: Int) {}
-                override fun onClientDisconnected(clientId: String, totalClients: Int) {}
                 override fun onMetrics(metrics: WebRTCStreamMetrics) {
                     lastWebRTCMetrics = metrics
                     rebuildTelemetryCache()
@@ -1618,7 +1613,7 @@ class WildBridgeDefaultLayoutActivity : DefaultLayoutActivity() {
                 setAttribute("serial", droneSerialNumber)
                 setAttribute("http", HTTP_PORT.toString())
                 setAttribute("telemetry", TELEMETRY_PORT.toString())
-                setAttribute("webrtc", WEBRTC_PORT.toString())
+                setAttribute("video", "whip")
             }
             
             isMdnsRegistrationRequested = true
@@ -1953,7 +1948,7 @@ class WildBridgeDefaultLayoutActivity : DefaultLayoutActivity() {
             return when (uri) {
                 "/config" -> {
                     val deviceIp = getDeviceIpAddress() ?: "unknown"
-                    """{"droneName":"$droneName","ipAddress":"$deviceIp","httpPort":$HTTP_PORT,"telemetryPort":$TELEMETRY_PORT,"webrtcPort":$WEBRTC_PORT}"""
+                    """{"droneName":"$droneName","ipAddress":"$deviceIp","httpPort":$HTTP_PORT,"telemetryPort":$TELEMETRY_PORT,"videoMode":"whip"}"""
                 }
                 else -> "Use POST for commands. Telemetry available on port $TELEMETRY_PORT. Config available at GET /config"
             }

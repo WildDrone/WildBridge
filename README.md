@@ -186,7 +186,7 @@ The welcome screen shows:
 
 The video-test stack runs MediaMTX plus a browser dashboard for multi-drone video testing and stream diagnostics.
 This is the supported public example for setting up video and connection monitoring: phones publish to MediaMTX by WHIP, browsers consume through WHEP, and the webapp discovers drones, connects to telemetry on port 8081, and displays stream health.
-The older direct WebSocket-signaling viewer is not part of the supported public video path.
+The older direct WebSocket-signaling viewer/server path has been removed from the public app and ground-station tooling.
 
 ```bash
 docker compose -f compose.video-test.yaml up -d --build

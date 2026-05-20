@@ -147,7 +147,7 @@ class WhipPublisher(
     private fun publish() {
         Log.i(TAG, "Publishing to $whipUrl")
 
-        val factory = WebRTCClient.getFactory(appContext)
+        val factory = WebRTCPeerFactory.getFactory(appContext)
 
         // 1. Create video source & track
         videoSource = factory.createVideoSource(false)
@@ -236,7 +236,7 @@ class WhipPublisher(
         // Add video track (sendonly — mediamtx doesn't send back video)
         peerConnection!!.addTrack(videoTrack, listOf(options.mediaStreamId))
 
-        // Configure sender for stable resolution — match WebRTCClient tuning
+        // Configure sender for stable resolution.
         peerConnection!!.senders.firstOrNull()?.let { sender ->
             configureVideoSenderForStability(sender)
         }

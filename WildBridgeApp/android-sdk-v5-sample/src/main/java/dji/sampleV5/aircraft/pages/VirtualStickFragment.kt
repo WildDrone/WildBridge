@@ -63,8 +63,6 @@ import kotlin.concurrent.thread
 import dji.v5.manager.KeyManager
 
 import dji.sdk.keyvalue.value.flightcontroller.FlightMode
-import dji.sampleV5.aircraft.webrtc.WebRTCStreamer
-import dji.sampleV5.aircraft.webrtc.WebRTCMediaOptions
 
 /**
  * Class Description
@@ -105,10 +103,7 @@ class VirtualStickFragment : DJIFragment() {
     private var telemetryLogRunnable: Runnable? = null
     private var distanceUpdateRunnable: Runnable? = null
 
-    // WebRTC streaming
-    private var webRTCStreamer: WebRTCStreamer? = null
-    private var isWebRTCMode = true  // Start with WebRTC by default
-    private val wEBRTCPORT = 8082  // Use different port than telemetry server
+    private var isRtspStreaming = false
 
     // --- Remaining flight time style data (similar to RemainingFlightTimeWidgetModel) ---
     private val chargeRemainingProcessor: DataProcessor<Int> = DataProcessor.create(0)
@@ -611,8 +606,7 @@ class VirtualStickFragment : DJIFragment() {
 
         initBtnClickListener()
         
-        // Start WebRTC stream by default (instead of RTSP)
-        setupAndStartWebRTCStream()
+        updateStreamingModeUI()
         
         virtualStickVM.listenRCStick()
         virtualStickVM.currentSpeedLevel.observe(viewLifecycleOwner) {
@@ -634,8 +628,7 @@ class VirtualStickFragment : DJIFragment() {
             binding?.simulatorStateInfoTv?.text = it
         }
         liveStreamVM.streamQuality.observe(viewLifecycleOwner) { it ->
-            // Only update if in RTSP mode
-            if (!isWebRTCMode) {
+            if (isRtspStreaming) {
                 "RTSP: $it".also { binding?.streamQualityInfoTv?.text = it }
             }
         }
@@ -792,7 +785,7 @@ class VirtualStickFragment : DJIFragment() {
             virtualStickVM.disableVirtualStickAdvancedMode()
         }
         
-        // Toggle between WebRTC and RTSP streaming
+        // Toggle RTSP streaming for the legacy virtual-stick sample page.
         binding?.btnToggleStreamMode?.setOnClickListener {
             toggleStreamingMode()
         }
@@ -821,72 +814,10 @@ class VirtualStickFragment : DJIFragment() {
         }
     }
 
-    // ==================== WebRTC Streaming ====================
-    
-    private fun setupAndStartWebRTCStream() {
-        isWebRTCMode = true
-        updateStreamingModeUI()
-        
-        webRTCStreamer = WebRTCStreamer(
-            context = requireContext(),
-            cameraIndex = cameraIndex,
-            signalingPort = wEBRTCPORT,
-            options = WebRTCMediaOptions()
-        )
-        
-        webRTCStreamer?.listener = object : WebRTCStreamer.WebRTCStreamerListener {
-            @SuppressLint("SetTextI18n")
-            override fun onServerStarted(ip: String, port: Int) {
-                mainHandler.post {
-                    ToastUtils.showToast("WebRTC server started at ws://$ip:$port")
-                    binding?.streamQualityInfoTv?.text = "WebRTC: ws://$ip:$port"
-                }
-            }
-
-            @SuppressLint("SetTextI18n")
-            override fun onServerStopped() {
-                mainHandler.post {
-                    binding?.streamQualityInfoTv?.text = "WebRTC: Stopped"
-                }
-            }
-
-            @SuppressLint("SetTextI18n")
-            override fun onServerError(error: String) {
-                mainHandler.post {
-                    ToastUtils.showToast("WebRTC error: $error")
-                    binding?.streamQualityInfoTv?.text = "WebRTC: Error"
-                }
-            }
-
-            @SuppressLint("SetTextI18n")
-            override fun onClientConnected(clientId: String, totalClients: Int) {
-                mainHandler.post {
-                    binding?.streamQualityInfoTv?.text = "WebRTC: $totalClients client(s)"
-                }
-            }
-
-            @SuppressLint("SetTextI18n")
-            override fun onClientDisconnected(clientId: String, totalClients: Int) {
-                mainHandler.post {
-                    binding?.streamQualityInfoTv?.text = "WebRTC: $totalClients client(s)"
-                }
-            }
-        }
-        
-        webRTCStreamer?.start()
-        Log.i("VirtualStickFragment", "WebRTC streamer started on port $wEBRTCPORT")
-    }
-    
-    private fun stopWebRTCStream() {
-        webRTCStreamer?.stop()
-        webRTCStreamer = null
-        Log.i("VirtualStickFragment", "WebRTC streamer stopped")
-    }
-    
     // ==================== RTSP Streaming ====================
 
     private fun setupAndStartRtspStream() {
-        isWebRTCMode = false
+        isRtspStreaming = true
         updateStreamingModeUI()
         
         // Set RTSP configuration with the specified parameters
@@ -927,28 +858,26 @@ class VirtualStickFragment : DJIFragment() {
                 }
             })
         }
+        isRtspStreaming = false
+        updateStreamingModeUI()
     }
     
     // ==================== Stream Toggle ====================
     
     private fun toggleStreamingMode() {
-        if (isWebRTCMode) {
-            // Switch to RTSP
-            stopWebRTCStream()
-            setupAndStartRtspStream()
-        } else {
-            // Switch to WebRTC
+        if (isRtspStreaming) {
             stopRtspStream()
-            setupAndStartWebRTCStream()
+        } else {
+            setupAndStartRtspStream()
         }
     }
     
     private fun updateStreamingModeUI() {
         mainHandler.post {
-            binding?.btnToggleStreamMode?.text = if (isWebRTCMode) {
-                "Switch to RTSP"
+            binding?.btnToggleStreamMode?.text = if (isRtspStreaming) {
+                "Stop RTSP"
             } else {
-                "Switch to WebRTC"
+                "Start RTSP"
             }
         }
     }
@@ -1219,7 +1148,6 @@ class VirtualStickFragment : DJIFragment() {
 
     override fun onDestroyView() {
         super.onDestroyView()
-        stopWebRTCStream()
         stopRtspStream()
         httpServer?.stop()
         telemetryServer?.stop()

@@ -49,49 +49,6 @@ More refer to the release notes." </string>
     <string name="item_live_stream_title">Live Stream</string>
     <string name="item_live_stream_description">Demonstrate how to use the live stream function</string>
 
-    <!-- WebRTC Stream strings -->
-    <string name="item_webrtc_stream_title">WebRTC Stream</string>
-    <string name="item_webrtc_stream_description">Stream drone video feed via WebRTC to local network clients</string>
-
-    <string name="webrtc_server_title">WebRTC Video Server</string>
-    <string name="webrtc_start_server">Start Server</string>
-    <string name="webrtc_stop_server">Stop Server</string>
-    <string name="webrtc_settings">Settings</string>
-    <string name="webrtc_settings_title">WebRTC Settings</string>
-    <string name="webrtc_settings_updated">WebRTC settings updated</string>
-    <string name="webrtc_settings_summary">Stream: %1$s @ %2$d fps</string>
-    <string name="webrtc_resolution_label">Resolution</string>
-    <string name="webrtc_resolution_1080p">1080p</string>
-    <string name="webrtc_resolution_720p">720p</string>
-    <string name="webrtc_fps_label">Frames per second</string>
-    <string name="webrtc_fps_value">%1$d fps</string>
-    <string name="webrtc_camera">Camera:</string>
-    <string name="webrtc_camera_left">LEFT/MAIN</string>
-    <string name="webrtc_camera_right">RIGHT</string>
-    <string name="webrtc_camera_top">TOP</string>
-    <string name="webrtc_camera_fpv">FPV</string>
-    <string name="webrtc_server_status">Server Status</string>
-    <string name="webrtc_status_label">Status:</string>
-    <string name="webrtc_status_stopped">Stopped</string>
-    <string name="webrtc_status_running">Running</string>
-    <string name="webrtc_ip_label">IP Address:</string>
-    <string name="webrtc_ip_not_available">Not Available</string>
-    <string name="webrtc_port_label">Port:</string>
-    <string name="webrtc_clients_label">Connected Clients:</string>
-    <string name="webrtc_connection_info">Connection Information</string>
-    <string name="webrtc_connection_hint">Connect to this WebSocket URL from your client app:</string>
-    <string name="webrtc_url_not_available">Server not running</string>
-    <string name="webrtc_copy_url">Copy URL</string>
-    <string name="webrtc_url_copied">URL copied to clipboard</string>
-    <string name="webrtc_preview">Local Preview</string>
-    <string name="webrtc_show_preview">Show Preview</string>
-    <string name="webrtc_hide_preview">Hide Preview</string>
-    <string name="webrtc_server_started">WebRTC server started</string>
-    <string name="webrtc_server_stopped">WebRTC server stopped</string>
-    <string name="webrtc_client_connected">Client connected</string>
-    <string name="webrtc_client_disconnected">Client disconnected</string>
-    <string name="webrtc_restart_required">Restart server to apply change</string>
-
     <!-- Trajectory Recording strings -->
     <string name="item_trajectory_recording_title">Circular Trajectory</string>
     <string name="item_trajectory_recording_description">Generate and replay circular flight trajectories</string>
