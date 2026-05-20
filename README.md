@@ -7,9 +7,9 @@
 
 ## Overview
 
-WildBridge is an open-source Android application and ground-station toolkit for DJI Mobile SDK V5 platforms. It runs on a DJI remote controller or compatible Android device, exposes telemetry and command interfaces over a local network, and can publish live drone video to browser, Python, ROS 2, and MAVLink-based workflows.
+WildBridge is an open-source Android application and ground-station toolkit for DJI Mobile SDK V5 platforms. It runs on a DJI remote controller or compatible Android device, exposes telemetry and command interfaces over a local network, and can publish live drone video to browser and ground-station workflows through MediaMTX.
 
-The current public repository contains the active WildBridge Android app, the UXSDK dependency module, Python and ROS 2 ground-station integrations, a MAVLink proxy for QGroundControl, a Python WebRTC viewer, and a Docker-based multi-drone video diagnostics dashboard.
+The current public repository contains the active WildBridge Android app, the UXSDK dependency module, Python and ROS 2 ground-station integrations, a MAVLink proxy for QGroundControl, and a Docker-based multi-drone video diagnostics dashboard.
 
 ![WildBridge Diagram](WildBridgeDiagram.png "WildBridge System Architecture")
 
@@ -185,10 +185,26 @@ The welcome screen shows:
 ## GroundStation Video Dashboard
 
 The video-test stack runs MediaMTX plus a browser dashboard for multi-drone video testing and stream diagnostics.
+This is the supported public example for setting up video and connection monitoring: phones publish to MediaMTX by WHIP, browsers consume through WHEP, and the webapp discovers drones, connects to telemetry on port 8081, and displays stream health.
+The older direct WebSocket-signaling viewer is not part of the supported public video path.
 
 ```bash
 docker compose -f compose.video-test.yaml up -d --build
 ```
+
+Open the dashboard at <http://localhost:8090>. When a phone connects to the dashboard telemetry stream, the app automatically builds a WHIP URL such as:
+
+```text
+http://<ground-station-ip>:8889/<drone_name>/whip
+```
+
+MediaMTX then exposes the matching browser playback endpoint:
+
+```text
+http://<ground-station-ip>:8889/<drone_name>/whep
+```
+
+The relevant files are [compose.video-test.yaml](compose.video-test.yaml), [GroundStation/video_test/mediamtx.yml](GroundStation/video_test/mediamtx.yml), and the dashboard webapp in [GroundStation/video_test/webapp](GroundStation/video_test/webapp).
 
 Default services:
 
@@ -328,8 +344,7 @@ WildBridge/
 ├── GroundStation/
 │   ├── Python/                          # Python API wrappers and MAVLink proxy
 │   ├── ROS/                             # ROS 2 packages and launch files
-│   ├── video_test/                      # Dockerized multi-drone video dashboard
-│   └── webrtc_client/                   # Python WebRTC viewer
+│   └── video_test/                      # Dockerized multi-drone video dashboard
 └── WildBridgeApp/
     ├── android-sdk-v5-as/               # Active Gradle root project
     ├── android-sdk-v5-sample/           # Active WildBridge Android app source

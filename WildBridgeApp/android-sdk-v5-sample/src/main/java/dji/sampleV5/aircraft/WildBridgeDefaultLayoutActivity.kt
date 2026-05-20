@@ -118,7 +118,7 @@ import android.net.nsd.NsdServiceInfo
  * Extends the DJI DefaultLayoutActivity to add:
  * - HTTP Command Server (port 8080) for drone control
  * - Telemetry Server (port 8081) for real-time telemetry data
- * - WebRTC Server (port 8082) for video streaming
+ * - WHIP publishing for WebRTC video streaming through MediaMTX
  * - mDNS/Bonjour service advertising for automatic discovery
  */
 class WildBridgeDefaultLayoutActivity : DefaultLayoutActivity() {

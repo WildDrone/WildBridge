@@ -12,8 +12,9 @@ import java.net.NetworkInterface
 import java.util.concurrent.ConcurrentHashMap
 
 /**
- * WebRTCStreamer manages the WebRTC streaming server for the DJI drone video feed.
- * It handles the signaling server and manages all peer connections with viewers.
+ * WebRTCStreamer manages DJI video capture and WHIP publishing for the drone feed.
+ * The legacy direct WebSocket signaling path is still available through start()
+ * for older DJI sample pages, but WildBridgeDefaultLayoutActivity uses startWhip().
  */
 class WebRTCStreamer(
     context: Context,
