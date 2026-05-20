@@ -1,10 +1,8 @@
 <div align="center">
-  <img src="WildBridge_icon.png" alt="WildBridge App Icon" width="200" height="200">
+  <img src="WildBridge_icon.png" alt="WildBridge App Icon" width="300" height="300">
 </div>
 
 <div align="center">
-
-# WildBridge
 
 **Ground Station Interface for Lightweight Multi-Drone Control and Telemetry on DJI Platforms**
 
