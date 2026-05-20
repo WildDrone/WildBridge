@@ -7,6 +7,7 @@ local.properties
 
 # Log/OS Files
 *.log
+*.ndjson
 
 # Android Studio generated files and folders
 captures/
@@ -50,6 +51,7 @@ venv/
 *.pt
 
 /GroundStation/log
+/GroundStation/video_test/logs/
 /GroundStation/experiments
 /GroundStation/replay
 # /GroundStation/elevationMaps
