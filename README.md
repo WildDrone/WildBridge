@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="WildBridge_icon.png" alt="WildBridge App Icon" width="300" height="300">
+    <img src="WildBridge_icon.png" alt="WildBridge App Icon" width="300" height="300">
 </div>
 
 <div align="center">
@@ -19,12 +19,12 @@
 
 ## Overview
 
-WildBridge is an **open-source Android application** (Kotlin, DJI Mobile SDK V5) that runs directly on the DJI Remote Controller and exposes drone telemetry, control, and video streaming over a local Wi-Fi network. It removes the need to interact with DJI's proprietary SDK from the ground station — any language or framework with HTTP and TCP socket support can integrate with WildBridge.
+WildBridge is an **open-source Android application** (Kotlin, DJI Mobile SDK V5) that runs directly on the DJI Remote Controller, or on a compatible Android phone connected through a DJI controller, and exposes drone telemetry, control, and video streaming over a local Wi-Fi network. It removes the need to interact with DJI's proprietary SDK from the ground station — any language or framework with HTTP and TCP socket support can integrate with WildBridge.
 
 Each drone connects to its RC via DJI OcuSync (2.4/5 GHz). The RC connects to the ground station over a 2.4/5 GHz LAN. Multiple WildBridge instances can coexist on the same LAN, enabling multi-drone configurations without any app modification.
 
 ![WildBridge System Architecture](WildBridgeDiagram.png)
-*Multi-drone setup: each RC runs WildBridge and exposes unique HTTP, TCP telemetry, and WebRTC endpoints. The ground station communicates with all drones via standard HTTP commands (port 8080), TCP telemetry (port 8081), and WebRTC video (port 8082).*
+*Multi-drone setup: each RC runs WildBridge and exposes standard HTTP commands (port 8080), TCP telemetry (port 8081), discovery, and WebRTC video publishing through the current WHIP/WHEP MediaMTX workflow.*
 
 ---
 
@@ -32,14 +32,15 @@ Each drone connects to its RC via DJI OcuSync (2.4/5 GHz). The RC connects to th
 
 - **Real-time Telemetry**: TCP socket streaming (port 8081) — continuous JSON at up to 20 Hz with 25+ flight state fields
 - **HTTP Command Interface**: RESTful API (port 8080) for full drone control
-- **Live Video Streaming**: WebRTC (port 8082, 720p@5fps)
+- **Live Video Streaming**: WebRTC video publishing by WHIP to MediaMTX, with browser and dashboard playback through WHEP
+- **GroundStation Video Dashboard**: Docker Compose stack with MediaMTX and a browser UI for multi-drone video monitoring, health diagnostics, telemetry, and charts
 - **Three Navigation Modes**: Direct Virtual Stick (AVS), on-device PID position controller, DJI native KMZ waypoint missions
-- **Manual Override**: Pilot takeover detection (~30% stick deflection), with GS-readable override state and deactivation command
+- **Manual Override**: Pilot takeover detection, with GS-readable override state and deactivation command
 - **Camera Control**: Zoom ratio display and control, gimbal pitch/yaw, start/stop recording
-- **Multi-drone Coordination**: Up to 10 concurrent drones over a single LAN
-- **Auto-Discovery**: UDP broadcast discovery (port 30000), mDNS/Bonjour, subnet scanning
+- **Multi-drone Coordination**: Multiple concurrent drones over a single LAN
+- **Auto-Discovery**: UDP broadcast discovery (port 30000), UDP multicast discovery, mDNS/Bonjour, subnet scanning
 - **ROS 2 Integration**: Complete ROS 2 Humble package with 25+ topics and MAVROS-compatible bridge
-- **Docker Deployment**: Pre-built container (ROS 2 Humble + CycloneDDS)
+- **Docker Deployment**: ROS 2 container plus a MediaMTX/video-test stack for video and connection testing
 
 ---
 
@@ -66,11 +67,23 @@ Each drone connects to its RC via DJI OcuSync (2.4/5 GHz). The RC connects to th
 
 ## User Interface
 
-WildBridge runs on the RC's built-in Android display. All servers (HTTP port 8080, TCP telemetry port 8081, WebRTC port 8082) start automatically when the app launches from the main default layout — no additional navigation required.
+WildBridge runs on the RC's built-in Android display or on the Android display connected to the DJI controller. The main default layout starts the HTTP server, TCP telemetry stream, discovery services, flight logging, and video publishing components automatically — no separate video sample page is required.
 
-![WildBridge Virtual Stick UI](UI.jpg)
+![WildBridge default layout on Mini 4](WildBridgeReadmePics/DefaultLayoutMini4.png)
 
-The **Manual Override** checkbox is checked automatically when the pilot moves RC sticks beyond ~30% deflection while airborne. When active, all HTTP navigation commands are rejected. The GS reads `isManualOverrideActive` from the TCP telemetry stream and can call `/send/deactivateManualOverride` to restore autonomous control.
+The left-side WildBridge panel provides the controls most often used during research flights:
+
+- **AI DETECT** toggles DJI AutoSensing detection and shows bounding boxes on the FPV view where supported by the aircraft and SDK.
+- **AUTO / MANUAL** is the manual override switch. In **AUTO** mode, WildBridge accepts autonomous HTTP commands such as waypoints, trajectories, and virtual-stick navigation. Switching it to **MANUAL** activates the override latch, disables virtual stick, stops active control loops, and rejects new autonomous commands until the switch is cleared or `/send/deactivateManualOverride` is called.
+- The manual override latch can also activate automatically while an autonomous control loop is running if RC stick input exceeds the configured deadzone. This lets the pilot take over immediately.
+- **CTRL MINI4**, **CTRL M350**, or **CTRL MAVIC3** shows the detected control profile. WildBridge selects this profile from the DJI product type and uses it to choose conservative speed and PID parameters for the aircraft class.
+- The lower status strip shows the configured drone name, WildBridge state, altitude, selected control profile, and current video sender diagnostics.
+
+The WebRTC line at the bottom is a compact sender-health readout. It reports stream state, output resolution, requested resolution, source resolution, output FPS versus target FPS, dropped FPS, frame resize/processing time, scaling mode, processing errors, and recovery count. The same metrics are included in the telemetry stream under `webRtc`, so the GroundStation dashboard can show sender FPS and processing health without relying only on browser-side receive statistics.
+
+The center and right portions remain DJI UXSDK surfaces: FPV feed, camera state, obstacle/vision indicators, map, camera controls, and aircraft status. WildBridge uses this layout so the pilot keeps the familiar DJI flight context while the ground station receives telemetry, commands, logs, discovery, and video publishing in the background.
+
+The welcome screen displays build time, git commit, git state, version, feature summary, and configured drone name to help compare field devices quickly. `dirty` means the APK was built with local uncommitted changes in the worktree.
 
 ---
 
@@ -105,15 +118,28 @@ git clone https://github.com/WildDrone/WildBridge.git
 
 1. Open `WildBridge/WildBridgeApp/android-sdk-v5-as` in Android Studio.
 2. Add your API key to `local.properties`:
-   ```
+   ```properties
    AIRCRAFT_API_KEY="Your_App_Key"
    ```
-3. Build and deploy to your RC (enable Developer Mode + USB Debugging first).
+3. Build and deploy to your RC or Android phone (enable Developer Mode + USB Debugging first).
+
+Command-line build:
+
+```bash
+cd WildBridge/WildBridgeApp/android-sdk-v5-as
+./gradlew :sample:assembleDebug
+```
+
+The debug APK is written to:
+
+```text
+WildBridgeApp/android-sdk-v5-sample/build/outputs/apk/debug/sample-debug.apk
+```
 
 ### Start the Server
 
-1. Launch the WildBridge app on the RC — servers start automatically on the home screen.
-2. Note the Device IP shown in the app (or use auto-discovery).
+1. Launch the WildBridge app on the RC — servers start automatically on the default layout.
+2. Note the Device IP shown in the app, call `/config`, or use auto-discovery.
 3. Press **Enable Virtual Stick** (via `/send/enableVirtualStick` or the app UI) before sending navigation commands.
 
 ### Ground Station Dependencies
@@ -153,12 +179,60 @@ requests.post(f"http://{rc}:8080/send/navigateTrajectoryDJINative",
 requests.post(f"http://{rc}:8080/send/RTH")
 ```
 
-**Video (WebRTC, port 8082):**
+**Video (WHIP/WHEP through MediaMTX):**
 ```bash
-python GroundStation/webrtc_client/webrtc_drone_viewer.py --server ws://192.168.1.100:8082
-python webrtc_drone_viewer.py --server ws://192.168.1.100:8082 --save-video out.mp4
-python webrtc_drone_viewer.py --server ws://192.168.1.100:8082 --headless --save-frames ./frames/
+docker compose -f compose.video-test.yaml up -d --build
 ```
+
+Open the dashboard at <http://localhost:8090>. When the dashboard connects to a phone telemetry stream, the app builds a WHIP publish URL such as:
+
+```text
+http://<ground-station-ip>:8889/<drone_name>/whip
+```
+
+MediaMTX exposes the matching browser playback endpoint:
+
+```text
+http://<ground-station-ip>:8889/<drone_name>/whep
+```
+
+The supported public video example is defined by [compose.video-test.yaml](compose.video-test.yaml), [GroundStation/video_test/mediamtx.yml](GroundStation/video_test/mediamtx.yml), and the webapp in [GroundStation/video_test/webapp](GroundStation/video_test/webapp). The older direct WebSocket-signaling viewer/server path has been removed from the public app and ground-station tooling.
+
+---
+
+## GroundStation Video Dashboard
+
+The video-test stack runs MediaMTX plus a browser dashboard for multi-drone video testing and stream diagnostics. It discovers phones, connects to telemetry on port 8081, displays stream health, and consumes video through WHEP.
+
+Default services:
+
+| Service | Default URL / Port |
+|---------|--------------------|
+| Browser dashboard | http://localhost:8090 |
+| MediaMTX WebRTC / WHIP / WHEP | http://localhost:8889 |
+| MediaMTX API | http://localhost:9997 |
+| MediaMTX RTSP | rtsp://localhost:8554 |
+| ICE UDP | :8189 |
+
+Useful restart command:
+
+```bash
+docker compose -f compose.video-test.yaml down
+docker compose -f compose.video-test.yaml up -d
+docker compose -f compose.video-test.yaml ps
+```
+
+Runtime diagnostics are written under `GroundStation/video_test/logs/`. Those logs are intentionally ignored by git.
+
+![Video test dashboard](WildBridgeReadmePics/VideoTestTab.png)
+
+![Health tab](WildBridgeReadmePics/HealthTab.png)
+
+![Telemetry tab](WildBridgeReadmePics/TelemetryTab.png)
+
+![Telemetry charts tab](WildBridgeReadmePics/TelemetryChartsTab.png)
+
+![Video charts tab](WildBridgeReadmePics/VideoChartsTab.png)
 
 ---
 
@@ -274,6 +348,7 @@ Continuous newline-delimited JSON stream. Connect and read; the app pushes updat
 | `seriousLowBatteryThreshold` | `float` | Critical low battery % |
 | `lowBatteryThreshold` | `float` | Low battery warning % |
 | `isManualOverrideActive` | `bool` | Pilot has taken manual RC control |
+| `webRtc` | `object` | WHIP/WebRTC sender state, FPS, processing, drop, error, and recovery metrics when video is active |
 
 ---
 
@@ -303,12 +378,17 @@ Continuous newline-delimited JSON stream. Connect and read; the app pushes updat
 | `/send/camera/stopRecording` | — | Stop recording |
 | `/send/setRTHAltitude` | `altitude_m` | Set RTH altitude |
 | `/send/deactivateManualOverride` | — | Re-enable autonomous commands after pilot override |
+| `/send/autoSensing/start` | — | Enable DJI AutoSensing object detection where supported |
+| `/send/autoSensing/stop` | — | Disable DJI AutoSensing object detection |
 
 ### Status Endpoints (HTTP GET — Port 8080)
 
 | Endpoint | Returns | Description |
 |----------|---------|-------------|
-| `/config` | JSON | Drone name, IP, HTTP/telemetry/WebRTC ports |
+| `/config` | JSON | Drone name, IP, HTTP/telemetry ports, and current video mode |
+| `/get/isManualOverrideActive` | JSON/text | Manual override state |
+| `/get/autoSensing/status` | JSON | AI detection status and target count |
+| `/get/autoSensing/targets` | JSON | Current detected targets with bounding boxes |
 
 > All other flight state data is available via the TCP telemetry stream on port 8081. Use `GET /config` for connection metadata and auto-discovery.
 
@@ -316,25 +396,19 @@ Continuous newline-delimited JSON stream. Connect and read; the app pushes updat
 
 ### Video Streaming
 
-#### WebRTC (Port 8082)
+WildBridge's supported public video path is WebRTC publishing through WHIP to MediaMTX, with browser playback through WHEP. The app publishes DJI camera frames to a WHIP URL selected by the ground station, normally:
 
-The app acts as the WebRTC **offerer**. Viewers connect via WebSocket, register as `"viewer"`, and receive an SDP offer. A negotiated data channel (label `"telemetry"`, `id=0`, ordered) delivers per-frame JSON metadata alongside the video track:
-
-```json
-{
-  "frameNumber": 1042,
-  "latitude": 49.306254, "longitude": 4.593728,
-  "altitudeASL": 120.5, "altitudeAGL": 20.3,
-  "gimbalPitch": -30.0, "gimbalYaw": 0.0, "gimbalRoll": 0.0,
-  "aircraftPitch": 2.1, "aircraftYaw": 87.3, "aircraftRoll": -1.5,
-  "velocityX": 3.2, "velocityY": 0.1, "velocityZ": -0.5,
-  "batteryPercent": 78, "satelliteCount": 15
-}
+```text
+http://<ground-station-ip>:8889/<drone_name>/whip
 ```
 
-Resolution options: SD / HD / **Full HD (720p, default)** · Frame rate: **5 fps**
+The GroundStation video dashboard then watches the matching WHEP URL:
 
-Camera source options: Left / Right / Top / **FPV (Vision Assist, default)**
+```text
+http://<ground-station-ip>:8889/<drone_name>/whep
+```
+
+This replaces the older direct RC-hosted WebSocket-signaling viewer. That sample viewer/server path is no longer part of the public app or ground-station tooling.
 
 ---
 
@@ -342,7 +416,9 @@ Camera source options: Left / Right / Top / **FPV (Vision Assist, default)**
 
 - **Custom naming**: Set drone name via the app UI (tap the name display). Examples: `"RedScout"`, `"Bravo"`.
 - **UDP broadcast discovery**: `DJIInterface("")` broadcasts `DISCOVER_WILDBRIDGE` on port 30000; the app replies `WILDBRIDGE_HERE:{ip}`.
-- **Config endpoint**: `/config` returns drone name and connection metadata (used by ROS auto-discovery).
+- **UDP multicast discovery**: The app announces over `239.255.42.99:30001` for LANs where multicast is available.
+- **mDNS/Bonjour**: WildBridge advertises `_wildbridge._tcp.` with service metadata.
+- **Config endpoint**: `/config` returns drone name and connection metadata (used by ROS auto-discovery and the dashboard).
 - **Dynamic ROS namespaces**: Nodes launch under the drone's name (e.g., `/RedScout/location`), eliminating manual IP-to-name mapping.
 
 ---
@@ -353,7 +429,7 @@ Full ROS 2 Humble package. The `dji_controller` node publishes all telemetry fie
 
 ### Package Structure
 
-```
+```text
 GroundStation/ROS/
 ├── dji_controller/          # Main control + telemetry node
 │   ├── controller.py        # DjiNode: 25+ topics, 20 Hz timer
@@ -363,7 +439,6 @@ GroundStation/ROS/
 │   ├── auto_mavros_bridge.py# Auto-discovery + dynamic namespace launch
 │   └── dji_interface.py
 └── wildview_bringup/
-    ├── swarm_connection.launch.py      # Multi-drone: MAC→IP resolution via ARP
     ├── auto_discovery.launch.py
     ├── auto_discovery_native.launch.py
     └── config/parameters.yaml
@@ -466,17 +541,13 @@ The image is based on `ros:humble` with CycloneDDS, `cv-bridge`, `vision-opencv`
 ```bash
 cd GroundStation/ROS
 colcon build --symlink-install && source install/setup.bash
-
-# Edit swarm_connection.launch.py for your drone IPs/MACs, then:
-ros2 launch wildview_bringup swarm_connection.launch.py
+ros2 launch wildview_bringup auto_discovery.launch.py
 
 # Example commands
 ros2 topic pub /drone_1/command/takeoff std_msgs/msg/Empty "{}"
 ros2 topic pub /drone_1/command/goto_waypoint std_msgs/msg/Float64MultiArray \
   "data: [49.306254, 4.593728, 20.0, 90.0, 5.0]"
 ```
-
-The `swarm_connection.launch.py` resolves each drone's IP from its MAC address via `ip neigh show` (ARP table), then launches one `dji_node` per drone.
 
 **MAVROS auto-discovery:**
 ```bash
@@ -488,33 +559,48 @@ ros2 run wildbridge_mavros auto_mavros_bridge
 
 ## Project Structure
 
-```
+```text
 WildBridge/
+├── compose.video-test.yaml              # MediaMTX + browser video diagnostics stack
 ├── WildBridgeApp/
 │   ├── android-sdk-v5-as/               # Main Android project (open this in Android Studio)
-│   │   ├── VirtualStickFragment.kt      # Fragment: battery listener, video init stubs
 │   │   └── local.properties             # Place AIRCRAFT_API_KEY here
 │   ├── android-sdk-v5-sample/           # Full sample app with WildBridge additions
 │   │   └── src/main/
-│   │       ├── java/dji/sampleV5/aircraft/webrtc/  # WebRTC server (Kotlin)
-│   │       ├── res/layout/
-│   │       │   ├── frag_virtual_stick_page.xml      # Virtual Stick UI
-│   │       │   └── frag_webrtc_stream.xml           # WebRTC UI
-│   │       └── assets/webrtc_viewer.html            # Browser WebRTC viewer
-│   └── android-sdk-v5-uxsdk/           # DJI UXSDK UI components
+│   │       └── java/dji/sampleV5/aircraft/
+│   │           ├── WildBridgeDefaultLayoutActivity.kt
+│   │           ├── controller/          # DroneController, PID, autonomy helpers
+│   │           ├── logger/              # Flight and DJI record logging
+│   │           ├── server/              # HTTP, telemetry, and discovery services
+│   │           └── webrtc/              # WHIP/WebRTC video publishing
+│   └── android-sdk-v5-uxsdk/            # DJI UXSDK UI components
 └── GroundStation/
     ├── Python/
-    │   └── djiInterface.py             # DJIInterface class (HTTP + TCP telemetry)
-    ├── webrtc_client/
-    │   └── webrtc_drone_viewer.py      # Python WebRTC viewer (aiortc + OpenCV)
-    ├── Dockerfile                      # ros:humble + CycloneDDS container
-    ├── entrypoint.sh                   # Container entry point
-    ├── run_docker.sh                   # Docker run helper
+    │   ├── djiInterface.py              # DJIInterface class (HTTP + TCP telemetry)
+    │   └── mavlink_proxy.py             # QGroundControl bridge
+    ├── Dockerfile                       # ros:humble + CycloneDDS container
+    ├── entrypoint.sh                    # Container entry point
+    ├── run_docker.sh                    # Docker run helper
+    ├── video_test/                      # MediaMTX + multi-drone video dashboard
     └── ROS/
-        ├── dji_controller/             # ROS 2 control + telemetry node
-        ├── wildbridge_mavros/          # MAVROS-compatible bridge + auto-discovery
-        └── wildview_bringup/           # Launch files and config
+        ├── dji_controller/              # ROS 2 control + telemetry node
+        ├── wildbridge_mavros/           # MAVROS-compatible bridge + auto-discovery
+        └── wildview_bringup/            # Launch files and config
 ```
+
+---
+
+## Flight Logging
+
+WildBridge logs flight data in JSONL format.
+
+Storage locations are checked in order:
+
+1. Removable microSD card: `WildBridge/FlightLogs/YYYY-MM-DD/HH-mm-ss_<drone>.jsonl`
+2. Documents folder: `Documents/WildBridge/FlightLogs/YYYY-MM-DD/`
+3. App-external fallback: `Android/data/<pkg>/files/FlightLogs/YYYY-MM-DD/`
+
+DJI SDK TXT flight records are copied to `WildBridge/DJI_FlightRecords/` on app launch and after landing so they survive app reinstalls.
 
 ---
 
@@ -523,18 +609,28 @@ WildBridge/
 **Connection refused:**
 - Verify the WildBridge app is running on the RC (servers start on launch).
 - Check the RC is on the same LAN as the GS.
+- Test with `curl http://{RC_IP}:8080/config` and `nc {RC_IP} 8081`.
 
 **Drone does not respond to navigation commands:**
 - Press **Enable Virtual Stick** in the app or call `/send/enableVirtualStick`.
 - Check `isManualOverrideActive` in telemetry; call `/send/deactivateManualOverride` if needed.
 
-**WebRTC not connecting:**
-- Check the WebRTC screen shows "RUNNING" status.
-- Try the Python viewer: `python webrtc_drone_viewer.py --server ws://{RC_IP}:8082 --debug`
+**Video not connecting:**
+- Start the video-test stack with `docker compose -f compose.video-test.yaml up -d --build`.
+- Open <http://localhost:8090> and verify the phone telemetry connection is active.
+- Check MediaMTX paths with `curl http://localhost:9997/v3/paths/list`.
+- Prefer clean 5 GHz Wi-Fi channels for multiple simultaneous video publishers.
+
+**Android build:**
+```bash
+cd WildBridgeApp/android-sdk-v5-as
+./gradlew :sample:compileDebugKotlin
+./gradlew :sample:assembleDebug
+```
 
 ---
 
-## Research and Citation
+</div>
 
 This work is part of the **WildDrone** project, funded by the European Union's Horizon Europe Research Programme under the Marie Skłodowska-Curie Grant Agreement No. 101071224, with additional funding from the EPSRC grant *Autonomous Drones for Nature Conservation Missions* (EP/X029077/1) and the Independent Research Fund Denmark (10.46540/4264-00105B).
 
@@ -556,6 +652,15 @@ This work is part of the **WildDrone** project, funded by the European Union's H
 }
 ```
 
+## Contributors
+
+Additional WildBridge development and field testing contributors:
+
+- Alejandro Jarabo-Peñas
+- Juan Bravo-Arrabal
+
+---
+
 ---
 
 ## License
@@ -564,5 +669,5 @@ MIT License — see [LICENSE](LICENSE) for details.
 
 ## Contributing
 
-Bug reports and feature requests: [GitHub Issues](https://github.com/WildDrone/WildBridge/issues).  
+Bug reports and feature requests: [GitHub Issues](https://github.com/WildDrone/WildBridge/issues).
 For collaboration enquiries, contact the WildDrone consortium at [wilddrone.eu](https://wilddrone.eu).
