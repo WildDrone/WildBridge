@@ -67,6 +67,10 @@ open class AttitudeDisplayWidget @JvmOverloads constructor(context: Context?, at
             mAttitudeDashBoard?.setModel(null)
         }
         super.onDetachedFromWindow()
+        // Dispose the model subscriptions added to mCompositeDisposable; without this the
+        // BehaviorProcessors in widgetModel keep referencing this View and leak the Activity.
+        // clear() (rather than dispose()) keeps the container reusable if the View is re-attached.
+        mCompositeDisposable.clear()
     }
 
     private fun updateAltitude() {

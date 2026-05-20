@@ -604,5 +604,10 @@ class IntelligentFlightFragment : DJIFragment() {
         binding?.mapWidget?.onDestroy()
         intelligentVM.cleanListener()
         binding?.svCamera?.holder?.removeCallback(cameraSurfaceCallback)
+        // The Fragment instance outlives its View (back stack / retained ViewModel scope).
+        // Keeping the binding would retain the whole destroyed View tree and its Activity
+        // context — release it so the View hierarchy can be collected.
+        binding = null
+        surface = null
     }
 }
