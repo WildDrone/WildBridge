@@ -163,6 +163,15 @@ class IntelligentFlightVM : DJIViewModel() {
         KeyManager.getInstance().cancelListen(this)
     }
 
+    override fun onCleared() {
+        super.onCleared()
+        // The listeners above are held by the IntelligentFlightManager process singleton.
+        // Removing them here guarantees the singleton drops its reference to this VM when
+        // the VM is destroyed, even if the View-lifecycle cleanListener() call was missed.
+        // The remove*/cancelListen calls are idempotent, so a double cleanup is harmless.
+        cleanListener()
+    }
+
     fun startAutoSensing() {
         IntelligentFlightManager.getInstance().startAutoSensing(object :
             CommonCallbacks.CompletionCallback {
