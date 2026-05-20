@@ -1,21 +1,23 @@
 <div align="center">
-  <img src="WildBridge_icon.png" alt="WildBridge App Icon" width="300" height="300">
+  <img src="WildBridge_icon.png" alt="WildBridge App Icon" width="200" height="200">
 </div>
 
-> **WildBridge: Ground Station Interface for Lightweight Multi-Drone Control and Telemetry on DJI Platforms**  
-> Part of the [WildDrone Project](https://wilddrone.eu) - European Union's Horizon Europe Research Program
+<div align="center">
 
-## Overview
+# WildBridge
 
-WildBridge is an open-source Android application and ground-station toolkit for DJI Mobile SDK V5 platforms. It runs on a DJI remote controller or compatible Android device, exposes telemetry and command interfaces over a local network, and can publish live drone video to browser and ground-station workflows through MediaMTX.
+**Ground Station Interface for Lightweight Multi-Drone Control and Telemetry on DJI Platforms**
 
-The current public repository contains the active WildBridge Android app, the UXSDK dependency module, Python and ROS 2 ground-station integrations, a MAVLink proxy for QGroundControl, and a Docker-based multi-drone video diagnostics dashboard.
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![DJI MSDK V5](https://img.shields.io/badge/DJI%20MSDK-V5.17.0-blue.svg)](https://developer.dji.com/doc/mobile-sdk-tutorial/en/)
+[![ROS 2 Humble](https://img.shields.io/badge/ROS%202-Humble-brightgreen.svg)](https://docs.ros.org/en/humble/)
+[![Part of WildDrone](https://img.shields.io/badge/Part%20of-WildDrone-orange.svg)](https://wilddrone.eu)
 
-![WildBridge Diagram](WildBridgeDiagram.png "WildBridge System Architecture")
+*Part of the [WildDrone Project](https://wilddrone.eu) — European Union Horizon Europe Research Programme*
 
-## Research and Citation
+</div>
 
-This work is part of the WildDrone project, funded by the European Union's Horizon Europe Research Program (Grant Agreement No. 101071224). The WildDrone project has also received funding in part from the EPSRC-funded Autonomous Drones for Nature Conservation Missions grant (EP/X029077/1).
+---
 
 **Academic Papers**:
 ```bibtex
@@ -53,7 +55,7 @@ Additional WildBridge development and field testing contributors:
 - **AI object detection**: DJI AutoSensing overlay and JSON access to detected targets where supported by the aircraft/platform.
 - **QGroundControl and ROS 2 integration**: MAVLink proxy plus ROS 2 packages for research workflows and multi-drone experiments.
 
-## Supported Hardware
+## Key Features
 
 ### DJI Drones (Mobile SDK V5 Compatible)
 
@@ -391,6 +393,7 @@ nc {RC_IP} 8081
 
 ### Android build
 
+**Manual multi-drone launch:**
 ```bash
 cd WildBridgeApp/android-sdk-v5-as
 ./gradlew :sample:compileDebugKotlin
@@ -417,6 +420,8 @@ curl -X POST http://{RC_IP}:8080/send/deactivateManualOverride
 - Multi-drone video depends on local Wi-Fi quality; prefer clean 5 GHz channels and avoid saturated access points.
 - Autonomous commands should always be tested with manual override and RTH procedures available to the pilot.
 - Some advanced pages from the DJI sample app remain available for inspection and development, but the WildBridge main screen is the normal field entry point.
+
+---
 
 ## License
 
