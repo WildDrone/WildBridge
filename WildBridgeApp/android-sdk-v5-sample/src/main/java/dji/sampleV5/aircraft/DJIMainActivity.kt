@@ -69,6 +69,7 @@ abstract class DJIMainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
+        updateWildBridgeBuildInfo()
 
         // 有一些手机从系统桌面进入的时候可能会重启main类型的activity
         // 需要校验这种情况，业界标准做法，基本所有app都需要这个
@@ -98,6 +99,7 @@ abstract class DJIMainActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
+        updateWildBridgeBuildInfo()
         if (checkPermission()) {
             handleAfterPermissionPermitted()
         }
@@ -131,6 +133,21 @@ abstract class DJIMainActivity : AppCompatActivity() {
             baseMainActivityVm.doPairing {
                 showToast(it)
             }
+        }
+    }
+
+    private fun updateWildBridgeBuildInfo() {
+        val preferences = getSharedPreferences(WILDBRIDGE_PREFS_NAME, MODE_PRIVATE)
+        val droneName = preferences.getString(WILDBRIDGE_PREF_DRONE_NAME, WILDBRIDGE_DEFAULT_DRONE_NAME)
+            ?.takeIf { it.isNotBlank() }
+            ?: WILDBRIDGE_DEFAULT_DRONE_NAME
+        binding.textViewWildbridgeBuildInfo.text = buildString {
+            append("WildBridge app")
+            append('\n').append("Drone: ").append(droneName)
+            append('\n').append("Built: ").append(BuildConfig.WILDBRIDGE_BUILD_TIME)
+            append('\n').append("Git: ").append(BuildConfig.WILDBRIDGE_GIT_SHA).append(' ').append(BuildConfig.WILDBRIDGE_GIT_STATE)
+            append('\n').append("Version: ").append(BuildConfig.VERSION_NAME).append(" (").append(BuildConfig.VERSION_CODE).append(')')
+            append('\n').append("Features: ").append(BuildConfig.WILDBRIDGE_FEATURES)
         }
     }
 
@@ -231,3 +248,7 @@ abstract class DJIMainActivity : AppCompatActivity() {
         disposable.dispose()
     }
 }
+
+private const val WILDBRIDGE_PREFS_NAME = "WildBridgePrefs"
+private const val WILDBRIDGE_PREF_DRONE_NAME = "drone_name"
+private const val WILDBRIDGE_DEFAULT_DRONE_NAME = "drone_1"

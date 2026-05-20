@@ -122,6 +122,23 @@ Validated connected phones:
 - `mini4` -> `192.168.50.200:5555`
 - `mini5` -> `192.168.50.92:5555`
 - `mini6` -> `192.168.50.219:5555`
+- `mini7` -> `192.168.50.42:5555`
+- `mini8` -> `192.168.50.83:5555`
+
+USB mapping used to enable wireless debugging:
+
+- `mini7` -> USB serial `335c7c32`
+- `mini8` -> USB serial `54af3c3a`
+
+### Enable wireless ADB for the USB-only phones
+
+```bash
+adb -s 335c7c32 tcpip 5555
+adb connect 192.168.50.42:5555
+
+adb -s 54af3c3a tcpip 5555
+adb connect 192.168.50.83:5555
+```
 
 ### List current wireless-debugging devices
 

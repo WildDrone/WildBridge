@@ -3,6 +3,25 @@ apply plugin: 'kotlin-android'
 apply plugin: 'kotlin-kapt'
 
 android {
+    def wildBridgeRepoRoot = rootProject.projectDir.parentFile.parentFile
+    def commandOutput = { List<String> args ->
+        try {
+            def stdout = new ByteArrayOutputStream()
+            exec {
+                commandLine args
+                standardOutput = stdout
+                ignoreExitValue = true
+            }
+            return stdout.toString().trim()
+        } catch (ignored) {
+            return ""
+        }
+    }
+    def wildBridgeGitSha = commandOutput(['git', '-C', wildBridgeRepoRoot.absolutePath, 'rev-parse', '--short=12', 'HEAD']) ?: 'unknown'
+    def wildBridgeGitDirty = commandOutput(['git', '-C', wildBridgeRepoRoot.absolutePath, 'status', '--short']) ? 'dirty' : 'clean'
+    def wildBridgeBuildTime = new Date().format("yyyy-MM-dd HH:mm:ss 'UTC'", TimeZone.getTimeZone('UTC'))
+    def wildBridgeFeatures = 'WHIP video, sender metrics telemetry, hidden mock video when aircraft connected, discovery, flight logs'
+
     // Load secrets from local.properties or environment variables.
     def localProps = new Properties()
     def lpFile = rootProject.file("local.properties")
@@ -33,6 +52,10 @@ android {
         targetSdkVersion Integer.parseInt(project.ANDROID_TARGET_SDK_VERSION)
         versionCode 1
         versionName "1.0"
+        buildConfigField 'String', 'WILDBRIDGE_BUILD_TIME', "\"${wildBridgeBuildTime}\""
+        buildConfigField 'String', 'WILDBRIDGE_GIT_SHA', "\"${wildBridgeGitSha}\""
+        buildConfigField 'String', 'WILDBRIDGE_GIT_STATE', "\"${wildBridgeGitDirty}\""
+        buildConfigField 'String', 'WILDBRIDGE_FEATURES', "\"${wildBridgeFeatures}\""
         manifestPlaceholders["API_KEY"] = aircraftApiKey
         manifestPlaceholders["GMAP_API_KEY"] = gmapApiKey
         manifestPlaceholders["MAPLIBRE_TOKEN"] = maplibreToken

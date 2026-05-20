@@ -34,6 +34,7 @@ class MockMp4VideoCapturer(
     private var executor: ScheduledExecutorService? = null
     private val isCapturing = AtomicBoolean(false)
     private val frameCounter = AtomicLong(0)
+    private val observerLock = Object()
     private val frameWaitLock = Object()
     private val cacheLock = Any()
     private val frameCache = mutableListOf<Bitmap>()
@@ -56,7 +57,9 @@ class MockMp4VideoCapturer(
         capturerObserver: CapturerObserver
     ) {
         appContext = applicationContext.applicationContext
-        this.capturerObserver = capturerObserver
+        synchronized(observerLock) {
+            this.capturerObserver = capturerObserver
+        }
     }
 
     override fun startCapture(width: Int, height: Int, framerate: Int) {
@@ -70,13 +73,18 @@ class MockMp4VideoCapturer(
             retriever = openRetriever(context)
             loadFrameCache()
 
+            if (!isCapturing.get()) return
+            synchronized(observerLock) {
+                capturerObserver?.onCapturerStarted(true)
+            }
             scheduleFrameLoop()
-            capturerObserver?.onCapturerStarted(true)
             Log.i(TAG, "Started MP4 mock capture: ${effectiveTargetWidth()}x${effectiveTargetHeight()}@${targetFps}fps from $assetPath")
         } catch (e: Exception) {
             lastError = e.message
             isCapturing.set(false)
-            capturerObserver?.onCapturerStarted(false)
+            synchronized(observerLock) {
+                capturerObserver?.onCapturerStarted(false)
+            }
             Log.e(TAG, "Failed to start mock capture: ${e.message}", e)
         }
     }
@@ -107,8 +115,15 @@ class MockMp4VideoCapturer(
             )
 
             val videoFrame = VideoFrame(buffer, 0, frameStartNs)
-            capturerObserver?.onFrameCaptured(videoFrame)
-            videoFrame.release()
+            try {
+                synchronized(observerLock) {
+                    if (isCapturing.get()) {
+                        capturerObserver?.onFrameCaptured(videoFrame)
+                    }
+                }
+            } finally {
+                videoFrame.release()
+            }
 
             sentFramesInWindow++
             processingTimeNsInWindow += System.nanoTime() - frameStartNs
@@ -167,12 +182,12 @@ class MockMp4VideoCapturer(
 
     @Synchronized
     private fun scheduleFrameLoop() {
-        executor?.shutdownNow()
+        stopExecutor(waitForTermination = true)
         val intervalMs = (1000L / targetFps).coerceAtLeast(1L)
         executor = Executors.newSingleThreadScheduledExecutor { runnable ->
             Thread(runnable, "WildBridgeMockMp4Capturer").apply { isDaemon = true }
         }.also { scheduledExecutor ->
-            scheduledExecutor.scheduleAtFixedRate(::emitFrame, 0L, intervalMs, TimeUnit.MILLISECONDS)
+            scheduledExecutor.scheduleAtFixedRate(::emitFrame, intervalMs, intervalMs, TimeUnit.MILLISECONDS)
         }
     }
 
@@ -299,14 +314,15 @@ class MockMp4VideoCapturer(
 
     override fun stopCapture() {
         if (!isCapturing.compareAndSet(true, false)) return
-        executor?.shutdownNow()
-        executor = null
+        stopExecutor(waitForTermination = true)
         retriever?.release()
         retriever = null
         synchronized(cacheLock) {
             clearFrameCacheLocked()
         }
-        capturerObserver?.onCapturerStopped()
+        synchronized(observerLock) {
+            capturerObserver?.onCapturerStopped()
+        }
         Log.i(TAG, "Stopped MP4 mock capture")
     }
 
@@ -331,7 +347,9 @@ class MockMp4VideoCapturer(
 
     override fun dispose() {
         stopCapture()
-        capturerObserver = null
+        synchronized(observerLock) {
+            capturerObserver = null
+        }
         appContext = null
         metadataListener = null
         metricsListener = null
@@ -340,6 +358,22 @@ class MockMp4VideoCapturer(
     override fun isScreencast(): Boolean = false
 
     private fun even(value: Int): Int = (value - value % 2).coerceAtLeast(2)
+
+    @Synchronized
+    private fun stopExecutor(waitForTermination: Boolean) {
+        val activeExecutor = executor ?: return
+        executor = null
+        activeExecutor.shutdownNow()
+        if (!waitForTermination || Thread.currentThread().name == "WildBridgeMockMp4Capturer") return
+        runCatching {
+            if (!activeExecutor.awaitTermination(2, TimeUnit.SECONDS)) {
+                Log.w(TAG, "Timed out waiting for mock frame executor to stop")
+            }
+        }.onFailure { error ->
+            Log.d(TAG, "Interrupted while stopping mock frame executor: ${error.message}")
+            Thread.currentThread().interrupt()
+        }
+    }
 
     private fun clearFrameCacheLocked() {
         frameCache.forEach { it.recycle() }

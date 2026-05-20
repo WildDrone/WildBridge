@@ -4,6 +4,8 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>WildBridge Video and Connection Testing Tool</title>
+  <link rel="icon" type="image/png" href="/assets/wildbridge-icon.png">
+  <link rel="apple-touch-icon" href="/assets/wildbridge-icon.png">
   <link rel="stylesheet" href="/styles.css">
 </head>
 <body>
@@ -38,18 +40,63 @@
     </details>
     <nav class="tabs" aria-label="Testing views">
       <button class="tabButton active" type="button" data-tab="video">Video</button>
-      <button class="tabButton" type="button" data-tab="charts">Charts</button>
+      <button class="tabButton" type="button" data-tab="health">Health</button>
+      <button class="tabButton" type="button" data-tab="videoCharts">Video Charts</button>
+      <button class="tabButton" type="button" data-tab="telemetry">Telemetry</button>
+      <button class="tabButton" type="button" data-tab="telemetryCharts">Telemetry Charts</button>
+      <button class="tabButton" type="button" data-tab="publish">Publish</button>
     </nav>
     <section id="videoPanel" class="tabPanel active" data-panel="video">
       <section id="grid" class="grid"></section>
       <section id="emptyState" class="emptyState">No WildBridge phones detected yet. Start the app on a phone, keep it on the same network, then press Discover.</section>
     </section>
-    <section id="chartsPanel" class="tabPanel" data-panel="charts">
+    <section id="healthPanel" class="tabPanel" data-panel="health">
+      <section class="healthShell">
+        <div class="healthIntro panelBand">
+          <div>
+            <h2>Fleet Health</h2>
+            <p>Correlated phone, sender, MediaMTX, browser, and recovery indicators for each active stream.</p>
+          </div>
+        </div>
+        <div id="healthGrid" class="healthGrid"></div>
+      </section>
+    </section>
+    <section id="telemetryPanel" class="tabPanel" data-panel="telemetry">
+      <section class="telemetryShell">
+        <div class="telemetryIntro panelBand">
+          <div>
+            <h2>Fleet Telemetry</h2>
+            <p>Live nested state for each drone, including phone telemetry, sender metrics, MediaMTX state, and browser diagnostics.</p>
+          </div>
+        </div>
+        <div id="telemetryGrid" class="telemetryGrid"></div>
+      </section>
+    </section>
+    <section id="videoChartsPanel" class="tabPanel" data-panel="videoCharts">
       <details class="chartControls" open>
-        <summary>Chart Settings</summary>
-        <div class="chartHint">Each line color represents a discovered drone. Ignored drones stay visible in discovery but are hidden from active charts and video playback.</div>
+        <summary>Video Chart Settings</summary>
+        <div class="chartHint">Receiver-side WebRTC charts for decoded FPS, packet loss, jitter, freezes, and jitter-buffer behavior. Ignored drones stay visible in discovery but are hidden from active charts and video playback.</div>
       </details>
-      <div id="chartsGrid" class="chartsGrid"></div>
+      <div id="videoChartsGrid" class="chartsGrid"></div>
+    </section>
+    <section id="telemetryChartsPanel" class="tabPanel" data-panel="telemetryCharts">
+      <details class="chartControls" open>
+        <summary>Telemetry Chart Settings</summary>
+        <div class="chartHint">Telemetry-derived charts for flight state, phone health, Wi-Fi signal, and navigation values. Ignored drones stay visible in discovery but are hidden from active charts.</div>
+      </details>
+      <div id="telemetryChartsGrid" class="chartsGrid"></div>
+    </section>
+    <section id="publishPanel" class="tabPanel" data-panel="publish">
+      <section class="publishShell">
+        <div class="publishIntro panelBand">
+          <div>
+            <h2>Drone Publish Surface</h2>
+            <p>Direct phone HTTP endpoints and ROS 2 MAVROS-compatible routes exposed through the WildBridge bridge.</p>
+          </div>
+        </div>
+        <div id="publishTargets" class="publishTargets"></div>
+        <div id="publishGrid" class="publishGrid"></div>
+      </section>
     </section>
   </main>
   </div>
@@ -71,6 +118,7 @@
           <div><dt>Size</dt><dd data-stat="size">-</dd></div>
           <div><dt>Lost</dt><dd data-stat="packetsLost">-</dd></div>
           <div><dt>Drop</dt><dd data-stat="framesDropped">-</dd></div>
+          <div><dt>JBuf</dt><dd data-stat="jitterBufferTarget">-</dd></div>
           <div><dt>Tel</dt><dd data-stat="telemetry">-</dd></div>
           <div><dt>MTX</dt><dd data-stat="mediaMtx">-</dd></div>
         </dl>
@@ -88,19 +136,27 @@
       <button id="modalCloseBtn" type="button" aria-label="Close detail view">Close</button>
     </div>
     <div class="modalContent">
-      <div id="modalVideoHost" class="modalVideoHost"></div>
-      <details class="modalDetails" open>
-        <summary>Telemetry</summary>
-        <dl id="modalTelemetry" class="detailList"></dl>
-      </details>
-      <details class="modalDetails" open>
-        <summary>Video And Connection Stats</summary>
-        <dl id="modalStats" class="detailList"></dl>
-      </details>
-      <details class="modalDetails">
-        <summary>Recent Event</summary>
-        <pre id="modalEvent">-</pre>
-      </details>
+      <section class="modalMainColumn">
+        <div id="modalVideoHost" class="modalVideoHost"></div>
+        <details class="modalDetails modalStatsDetails" open>
+          <summary>Video And Connection Stats</summary>
+          <dl id="modalStats" class="detailList"></dl>
+        </details>
+      </section>
+      <section class="modalSideColumn">
+        <details class="modalDetails" open>
+          <summary>Telemetry</summary>
+          <dl id="modalTelemetry" class="detailList"></dl>
+        </details>
+        <details class="modalDetails" open>
+          <summary>Recovery</summary>
+          <dl id="modalRecovery" class="detailList"></dl>
+        </details>
+        <details class="modalDetails modalEventDetails" open>
+          <summary>Recent Event</summary>
+          <pre id="modalEvent">-</pre>
+        </details>
+      </section>
     </div>
   </dialog>
 

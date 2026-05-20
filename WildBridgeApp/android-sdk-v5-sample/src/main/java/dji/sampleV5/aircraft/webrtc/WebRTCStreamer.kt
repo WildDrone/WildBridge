@@ -40,7 +40,8 @@ class WebRTCStreamer(
     private val mainHandler = Handler(Looper.getMainLooper())
     private var sharedFrameSource: SharedDJIFrameSource? = null
     private var whipPublisher: WhipPublisher? = null
-    @Volatile private var currentOptions: WebRTCMediaOptions = options
+    @Volatile private var selectedOptions: WebRTCMediaOptions = options
+    @Volatile private var currentOptions: WebRTCMediaOptions = optionsForSource(options, mockVideoEnabled)
     @Volatile private var currentWhipUrl: String? = null
     @Volatile private var useMockVideo: Boolean = mockVideoEnabled
     private var badMetricsWindows = 0
@@ -167,6 +168,7 @@ class WebRTCStreamer(
         if (useMockVideo == enabled) return
         val previousSource = if (useMockVideo) "mock" else "dji"
         useMockVideo = enabled
+        currentOptions = optionsForSource(selectedOptions, enabled)
         badMetricsWindows = 0
         saturationWindows = 0
         stableWindows = 0
@@ -325,13 +327,14 @@ class WebRTCStreamer(
      * already-active WebRTC/WHIP capturers without reconnecting.
      */
     fun changeMediaOptions(options: WebRTCMediaOptions) {
-        currentOptions = options
-        desiredFps = options.fps.coerceIn(1, 60)
+        selectedOptions = options
+        currentOptions = optionsForSource(options)
+        desiredFps = currentOptions.fps.coerceIn(1, 60)
         effectiveFps = desiredFps
         saturationWindows = 0
         stableWindows = 0
         saturationState = "ok"
-        changeResolution(options.videoResolutionWidth, options.videoResolutionHeight)
+        changeResolution(currentOptions.videoResolutionWidth, currentOptions.videoResolutionHeight)
         applyFrameRate(effectiveFps, "media options updated")
     }
 
@@ -628,6 +631,21 @@ class WebRTCStreamer(
             return ADAPTIVE_FPS_STEPS[currentIndex - 1].coerceAtMost(desired)
         }
         return desired
+    }
+
+    private fun optionsForSource(
+        baseOptions: WebRTCMediaOptions,
+        mockEnabled: Boolean = useMockVideo
+    ): WebRTCMediaOptions {
+        if (!mockEnabled) return baseOptions
+
+        // Mock MP4 playback cannot follow the "native" capture path because the
+        // bundled asset needs an explicit output size. Keep the user's selected
+        // DJI preset intact, but force the mock source onto a stable 1080p target.
+        return WebRTCMediaOptions.fullHD().copy(
+            fps = baseOptions.fps.coerceIn(1, 60),
+            videoCodec = baseOptions.videoCodec
+        )
     }
 
     private fun resolutionLabelForOptions(options: WebRTCMediaOptions): String {
