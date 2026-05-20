@@ -32,6 +32,13 @@ This work is part of the WildDrone project, funded by the European Union's Horiz
 }
 ```
 
+## Contributors
+
+Additional WildBridge development and field testing contributors:
+
+- Alejandro Jarabo-Peñas
+- Juan Bravo-Arrabal
+
 ## Key Features
 
 - **Real-time telemetry**: TCP JSON stream on port 8081 with aircraft state, battery, GPS, gimbal, flight mode, and WebRTC sender metrics.
