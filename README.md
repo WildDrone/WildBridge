@@ -69,7 +69,7 @@ Each drone connects to its RC via DJI OcuSync (2.4/5 GHz). The RC connects to th
 
 WildBridge runs on the RC's built-in Android display or on the Android display connected to the DJI controller. The main default layout starts the HTTP server, TCP telemetry stream, discovery services, flight logging, and video publishing components automatically — no separate video sample page is required.
 
-![WildBridge default layout on Mini 4](WildBridgeReadmePics/DefaultLayoutMini4.png)
+![WildBridge default layout on Mini 4](https://github.com/WildDrone/WildBridge/blob/main/DefaultLayoutMini4.jpg) 
 
 The left-side WildBridge panel provides the controls most often used during research flights:
 
