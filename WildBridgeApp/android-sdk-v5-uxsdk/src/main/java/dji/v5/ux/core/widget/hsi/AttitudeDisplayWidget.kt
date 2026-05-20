@@ -61,10 +61,12 @@ open class AttitudeDisplayWidget @JvmOverloads constructor(context: Context?, at
     }
 
     override fun onDetachedFromWindow() {
-        super.onDetachedFromWindow()
         if (!isInEditMode) {
+            mCompositeDisposable.clear()
             widgetModel.cleanup()
+            mAttitudeDashBoard?.setModel(null)
         }
+        super.onDetachedFromWindow()
     }
 
     private fun updateAltitude() {

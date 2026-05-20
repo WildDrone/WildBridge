@@ -303,7 +303,7 @@ public class AttitudeDashBoard extends ScrollableAttributeDashBoard {
     @Override
     protected void onDetachedFromWindow() {
         super.onDetachedFromWindow();
-        mCompositeDisposable.dispose();
+        mCompositeDisposable.clear();
     }
 
     @Override

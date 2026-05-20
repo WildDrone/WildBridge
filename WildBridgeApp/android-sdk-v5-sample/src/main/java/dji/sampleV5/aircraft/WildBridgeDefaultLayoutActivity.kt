@@ -247,6 +247,7 @@ class WildBridgeDefaultLayoutActivity : DefaultLayoutActivity() {
 
     // ==================== AutoSensing (AI Detection) ====================
     private var isAutoSensingActive = false
+    private var isAutoSensingListenerRegistered = false
     @Volatile private var currentDetectedTargets: List<DetectedTarget> = emptyList()
     private var detectionOverlay: DetectionOverlayView? = null
 
@@ -702,13 +703,19 @@ class WildBridgeDefaultLayoutActivity : DefaultLayoutActivity() {
     private fun startAutoSensing() {
         if (isAutoSensingActive) return
         try {
-            IntelligentFlightManager.getInstance().addAutoSensingInfoListener(autoSensingInfoListener)
-            IntelligentFlightManager.getInstance().startAutoSensing(object : CommonCallbacks.CompletionCallback {
+            val manager = IntelligentFlightManager.getInstance()
+            if (!isAutoSensingListenerRegistered) {
+                manager.addAutoSensingInfoListener(autoSensingInfoListener)
+                isAutoSensingListenerRegistered = true
+            }
+            manager.startAutoSensing(object : CommonCallbacks.CompletionCallback {
                 override fun onSuccess() {
                     isAutoSensingActive = true
                     Log.i(TAG, "AutoSensing started")
                 }
                 override fun onFailure(error: IDJIError) {
+                    isAutoSensingActive = false
+                    removeAutoSensingListener()
                     Log.e(TAG, "AutoSensing start failed: ${error.description()}")
                 }
             })
@@ -718,24 +725,43 @@ class WildBridgeDefaultLayoutActivity : DefaultLayoutActivity() {
     }
 
     private fun stopAutoSensing() {
-        if (!isAutoSensingActive) return
+        clearAutoSensingState()
+        if (!isAutoSensingActive) {
+            removeAutoSensingListener()
+            return
+        }
         try {
             IntelligentFlightManager.getInstance().stopAutoSensing(object : CommonCallbacks.CompletionCallback {
                 override fun onSuccess() {
-                    isAutoSensingActive = false
-                    currentDetectedTargets = emptyList()
-                    TelemetryProvider.currentDetectedTargets = emptyList()
-                    mainHandler.post { detectionOverlay?.clearTargets() }
                     Log.i(TAG, "AutoSensing stopped")
                 }
                 override fun onFailure(error: IDJIError) {
                     Log.e(TAG, "AutoSensing stop failed: ${error.description()}")
                 }
             })
-            IntelligentFlightManager.getInstance().removeAutoSensingInfoListener(autoSensingInfoListener)
         } catch (e: Exception) {
             Log.e(TAG, "AutoSensing stop exception: ${e.message}")
+        } finally {
+            isAutoSensingActive = false
+            removeAutoSensingListener()
         }
+    }
+
+    private fun removeAutoSensingListener() {
+        if (!isAutoSensingListenerRegistered) return
+        try {
+            IntelligentFlightManager.getInstance().removeAutoSensingInfoListener(autoSensingInfoListener)
+        } catch (e: Exception) {
+            Log.e(TAG, "AutoSensing listener removal exception: ${e.message}")
+        } finally {
+            isAutoSensingListenerRegistered = false
+        }
+    }
+
+    private fun clearAutoSensingState() {
+        currentDetectedTargets = emptyList()
+        TelemetryProvider.currentDetectedTargets = emptyList()
+        mainHandler.post { detectionOverlay?.clearTargets() }
     }
 
     // ==================== End AutoSensing Toggle ====================
