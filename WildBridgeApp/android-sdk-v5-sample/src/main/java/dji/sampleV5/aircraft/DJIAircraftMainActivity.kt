@@ -27,6 +27,7 @@ class DJIAircraftMainActivity : DJIMainActivity() {
     private val recoveryHandler = Handler(Looper.getMainLooper())
     private var noDronePrompt: AlertDialog? = null
     private var noDronePromptShown = false
+    private var defaultLayoutAutoLaunched = false
 
     override fun prepareUxActivity() {
         UxSharedPreferencesUtil.initialize(this)
@@ -35,6 +36,32 @@ class DJIAircraftMainActivity : DJIMainActivity() {
 
         enableDefaultLayout(WildBridgeDefaultLayoutActivity::class.java)
         enableWidgetList(WidgetsActivity::class.java)
+
+        openDefaultLayoutOnLaunchIfConnected()
+    }
+
+    /**
+     * On app launch, jump straight into the default layout when a drone is connected
+     * and the default layout button is accessible. Runs at most once per process so
+     * the user is not bounced back into the layout after navigating away.
+     */
+    private fun openDefaultLayoutOnLaunchIfConnected() {
+        if (defaultLayoutAutoLaunched) return
+        if (!isDroneConnected()) return
+        if (openDefaultLayoutIfAccessible()) {
+            defaultLayoutAutoLaunched = true
+        }
+    }
+
+    private fun isDroneConnected(): Boolean {
+        return try {
+            when (ProductKey.KeyProductType.create().get(ProductType.UNKNOWN)) {
+                ProductType.UNKNOWN, ProductType.UNRECOGNIZED -> false
+                else -> true
+            }
+        } catch (_: Throwable) {
+            false
+        }
     }
 
     override fun prepareTestingToolsActivity() {
@@ -68,16 +95,7 @@ class DJIAircraftMainActivity : DJIMainActivity() {
         }, NO_DRONE_PROMPT_DELAY_MS)
     }
 
-    private fun shouldOfferNoDroneRecovery(): Boolean {
-        return try {
-            when (ProductKey.KeyProductType.create().get(ProductType.UNKNOWN)) {
-                ProductType.UNKNOWN, ProductType.UNRECOGNIZED -> true
-                else -> false
-            }
-        } catch (_: Throwable) {
-            true
-        }
-    }
+    private fun shouldOfferNoDroneRecovery(): Boolean = !isDroneConnected()
 
     private fun showNoDroneRecoveryPrompt() {
         noDronePromptShown = true

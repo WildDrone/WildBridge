@@ -195,6 +195,18 @@ abstract class DJIMainActivity : AppCompatActivity() {
         enableShowCaseButton(binding.defaultLayoutButton, cl)
     }
 
+    /**
+     * Opens the default layout if its showcase button is currently accessible (enabled).
+     * Returns true when the default layout was opened.
+     */
+    fun openDefaultLayoutIfAccessible(): Boolean {
+        if (!binding.defaultLayoutButton.isEnabled) {
+            return false
+        }
+        binding.defaultLayoutButton.performClick()
+        return true
+    }
+
     fun <T> enableWidgetList(cl: Class<T>) {
         enableShowCaseButton(binding.widgetListButton, cl)
     }
