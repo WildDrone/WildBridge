@@ -4,7 +4,6 @@ services:
     container_name: wildbridge_mediamtx
     network_mode: host
     environment:
-      - MTX_WEBRTCIPSFROMINTERFACESLIST=${MEDIAMTX_WEBRTC_INTERFACE:-wlp130s0f0}
       - MTX_WEBRTCLOCALUDPADDRESS=${MEDIAMTX_WEBRTC_UDP_ADDRESS:-:8189}
     volumes:
       - ./GroundStation/video_test/mediamtx.yml:/mediamtx.yml:ro
