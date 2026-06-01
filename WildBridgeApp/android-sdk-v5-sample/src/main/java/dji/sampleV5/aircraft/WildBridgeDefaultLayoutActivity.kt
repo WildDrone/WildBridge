@@ -41,6 +41,7 @@ import android.net.wifi.WifiManager
 import android.os.BatteryManager
 import androidx.core.app.ActivityCompat
 import dji.sampleV5.aircraft.controller.DroneController
+import dji.sampleV5.aircraft.controller.Payload
 import dji.v5.ux.detection.DetectedTarget
 import dji.v5.ux.detection.DetectionOverlayView
 import dji.sampleV5.aircraft.logger.WildBridgeFlightLogger
@@ -68,6 +69,7 @@ import dji.sdk.keyvalue.value.camera.CameraMode
 import dji.sdk.keyvalue.value.camera.CameraStorageInfos
 import dji.sdk.keyvalue.value.camera.CameraStorageLocation
 import dji.sdk.keyvalue.value.camera.SDCardLoadState
+import dji.sdk.keyvalue.value.camera.LaserMeasureState
 import dji.sdk.keyvalue.value.flightcontroller.FlightMode
 import dji.sdk.keyvalue.value.flightcontroller.LowBatteryRTHInfo
 import dji.sdk.keyvalue.value.gimbal.GimbalAngleRotation
@@ -1394,6 +1396,9 @@ class WildBridgeDefaultLayoutActivity : DefaultLayoutActivity() {
             // Cancel key listeners
             KeyManager.getInstance().cancelListen(this)
 
+            // Cancel H20T payload (LRF) key listeners
+            Payload.destroy()
+
             // Clean up DroneController listeners and resources
             DroneController.manualOverrideListener = null
             DroneController.droneStatusListener = null
@@ -2180,6 +2185,24 @@ class WildBridgeDefaultLayoutActivity : DefaultLayoutActivity() {
                     }
                     "/get/autoSensing/targets" -> {
                         DetectedTarget.listToJsonArray(currentDetectedTargets).toString()
+                    }
+                    // --- H20T Laser Range Finder (LRF) ---
+                    "/send/lrf/measure" -> {
+                        // Fire the laser and return distance + geo-reference + state as JSON.
+                        // distance and the target point are populated only when the laser locks
+                        // (state == NORMAL, which requires a GPS fix); other states return null
+                        // with the raw state.
+                        val info = Payload.takeFreshLrfReading()
+                        val state = info?.laserMeasureState
+                        val locked = state == LaserMeasureState.NORMAL
+                        val distance = if (locked) info?.distance else null
+                        val target = if (locked) info?.location3D?.takeIf {
+                            it.latitude != 0.0 || it.longitude != 0.0 || it.altitude != 0.0
+                        } else null
+                        val targetJson = if (target == null) "null"
+                            else "[${target.latitude}, ${target.longitude}, ${target.altitude}]"
+                        val stateJson = if (state == null) "null" else "\"$state\""
+                        "{\"distance\": ${distance ?: "null"}, \"target\": $targetJson, \"state\": $stateJson}"
                     }
                     else -> "Not Found: $uri"
                 }

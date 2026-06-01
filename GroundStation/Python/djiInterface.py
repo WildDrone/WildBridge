@@ -75,6 +75,7 @@ EP_GOTO_TRAJECTORY = "/send/navigateTrajectory"
 EP_GOTO_ALTITUDE = "/send/gotoAltitude"
 EP_CAMERA_START_RECORDING = "/send/camera/startRecording"
 EP_CAMERA_STOP_RECORDING = "/send/camera/stopRecording"
+EP_LRF_MEASURE = "/send/lrf/measure"
 EP_GOTO_TRAJECTORY_DJI_NATIVE = "/send/navigateTrajectoryDJINative"
 EP_ABORT_DJI_NATIVE_MISSION = "/send/abort/DJIMission"
 EP_SET_RTH_ALTITUDE = "/send/setRTHAltitude"
@@ -378,6 +379,17 @@ class DJIInterface:
     def requestSendZoomRatio(self, zoomRatio=1):
         """Set camera zoom ratio."""
         return self.requestSend(EP_ZOOM, zoomRatio)
+
+    def requestLRFMeasure(self):
+        """Fire the H20T laser range finder once and return its reading."""
+        response = self.requestSend(EP_LRF_MEASURE, "")
+        if not response:
+            return {"distance": None, "target": None, "state": None}
+        try:
+            return json.loads(response)
+        except ValueError:
+            print(f"LRF: could not parse response: {response!r}")
+            return {"distance": None, "target": None, "state": None}
 
     def requestSendTakeOff(self):
         """Command the drone to take off."""
