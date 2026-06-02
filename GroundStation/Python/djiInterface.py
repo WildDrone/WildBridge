@@ -76,6 +76,7 @@ EP_GOTO_ALTITUDE = "/send/gotoAltitude"
 EP_CAMERA_START_RECORDING = "/send/camera/startRecording"
 EP_CAMERA_STOP_RECORDING = "/send/camera/stopRecording"
 EP_LRF_MEASURE = "/send/lrf/measure"
+EP_CAPTURE_THERMAL_IMAGE = "/send/captureThermalImage"
 EP_GOTO_TRAJECTORY_DJI_NATIVE = "/send/navigateTrajectoryDJINative"
 EP_ABORT_DJI_NATIVE_MISSION = "/send/abort/DJIMission"
 EP_SET_RTH_ALTITUDE = "/send/setRTHAltitude"
@@ -390,6 +391,37 @@ class DJIInterface:
         except ValueError:
             print(f"LRF: could not parse response: {response!r}")
             return {"distance": None, "target": None, "state": None}
+
+    def requestCaptureThermalImage(self, save_path=None):
+        """Shoots a thermal photo, downloads the radiometric R-JPEG off the camera SD card,
+        and streams the JPEG bytes back in the HTTP response body (Content-Type image/jpeg).
+        """
+        if self.IP_RC == "":
+            print("No IP_RC provided, cannot capture thermal image")
+            return False
+
+        if save_path is None:
+            save_path = f"thermal_image_{datetime.now().strftime('%Y%m%d_%H%M%S')}.jpg"
+
+        try:
+            # Shutter + on-camera download takes several seconds; allow a generous timeout.
+            response = requests.post(
+                self.baseCommandUrl + EP_CAPTURE_THERMAL_IMAGE, data="", timeout=90)
+
+            content_type = response.headers.get("Content-Type", "")
+            if response.status_code == 200 and content_type.startswith("image/"):
+                with open(save_path, "wb") as f:
+                    f.write(response.content)
+                print(f"Thermal image saved to: {save_path}")
+                return True
+
+            print(f"Thermal capture failed: HTTP {response.status_code}, "
+                  f"Content-Type={content_type!r}, body={response.text[:200]!r}")
+            return False
+
+        except requests.exceptions.RequestException as e:
+            print(f"Error capturing thermal image: {e}")
+            return False
 
     def requestSendTakeOff(self):
         """Command the drone to take off."""

@@ -46,6 +46,7 @@ import dji.v5.ux.detection.DetectedTarget
 import dji.v5.ux.detection.DetectionOverlayView
 import dji.sampleV5.aircraft.logger.WildBridgeFlightLogger
 import dji.sampleV5.aircraft.models.BasicAircraftControlVM
+import dji.sampleV5.aircraft.models.MediaVM
 import dji.sampleV5.aircraft.models.VirtualStickVM
 import dji.sampleV5.aircraft.server.TelemetryServer
 import dji.sampleV5.aircraft.webrtc.WebRTCMediaOptions
@@ -172,6 +173,7 @@ class WildBridgeDefaultLayoutActivity : DefaultLayoutActivity() {
     // ViewModels for drone control
     private lateinit var basicAircraftControlVM: BasicAircraftControlVM
     private lateinit var virtualStickVM: VirtualStickVM
+    private lateinit var mediaVM: MediaVM
     
     // Servers
     private var httpServer: SimpleHttpServer? = null
@@ -364,6 +366,12 @@ class WildBridgeDefaultLayoutActivity : DefaultLayoutActivity() {
         
         // Initialize DroneController
         DroneController.init(basicAircraftControlVM, virtualStickVM)
+
+        // MediaVM drives H20T thermal photo capture (shoot to + pull from the camera SD card).
+        mediaVM = ViewModelProvider(this)[MediaVM::class.java]
+        mediaVM.init()
+        mediaVM.setStorage(CameraStorageLocation.SDCARD)
+        mediaVM.setComponentIndex(ComponentIndexType.LEFT_OR_MAIN)
 
         // Start listening for RC stick inputs (needed for manual override detection)
         virtualStickVM.listenRCStick()
@@ -1396,8 +1404,13 @@ class WildBridgeDefaultLayoutActivity : DefaultLayoutActivity() {
             // Cancel key listeners
             KeyManager.getInstance().cancelListen(this)
 
-            // Cancel H20T payload (LRF) key listeners
+            // Cancel H20T payload (LRF + thermal) key listeners
             Payload.destroy()
+
+            // Release MediaVM (thermal capture) listeners and media manager
+            if (::mediaVM.isInitialized) {
+                mediaVM.destroy()
+            }
 
             // Clean up DroneController listeners and resources
             DroneController.manualOverrideListener = null
@@ -1946,6 +1959,21 @@ class WildBridgeDefaultLayoutActivity : DefaultLayoutActivity() {
                     val buffer = CharArray(contentLength)
                     reader.read(buffer, 0, contentLength)
                     postData = String(buffer)
+                }
+
+                // Thermal capture returns a binary JPEG, so it writes its own HTTP response
+                // directly to the socket and bypasses the text-response path below.
+                if (method == "POST" && uri == "/send/captureThermalImage") {
+                    WildBridgeFlightLogger.logCommand(uri, postData)
+                    val outputStream = clientSocket.getOutputStream()
+                    val photoFile = Payload.takeThermalImage(mediaVM)
+                    if (photoFile != null) {
+                        Payload.sendMediaFile(photoFile, outputStream)
+                    } else {
+                        Payload.sendErrorResponse(outputStream, "Failed to capture thermal image")
+                    }
+                    clientSocket.close()
+                    return
                 }
 
                 val response = handleHttpRequest(method, uri, postData)

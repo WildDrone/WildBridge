@@ -42,7 +42,13 @@ class MediaVM : DJIViewModel() {
     var isPlayBack = MutableLiveData<Boolean>()
     var componentIndex = MutableLiveData<ComponentIndexType>()
 
+    // Guards init() so its listeners register only once per ViewModel lifetime; reset in
+    // destroy() so re-entering a media screen re-registers them.
+    private var initialized = false
+
     fun init() {
+        if (initialized) return
+        initialized = true
         addMediaFileListStateListener()
         mediaFileListData.value = MediaDataCenter.getInstance().mediaManager.mediaFileListData
         MediaDataCenter.getInstance().mediaManager.addMediaFileListStateListener { mediaFileListState ->
@@ -55,6 +61,7 @@ class MediaVM : DJIViewModel() {
     }
 
     fun destroy() {
+        initialized = false
         KeyManager.getInstance().cancelListen(this);
         removeAllFileListStateListener()
 
@@ -178,6 +185,24 @@ class MediaVM : DJIViewModel() {
         }
         RxUtil.setValue(createKey<CameraMode>(CameraKey.KeyCameraMode, index), CameraMode.PHOTO_NORMAL)
             .andThen(RxUtil.performActionWithOutResult(createKey(CameraKey.KeyStartShootPhoto, index)))
+            .subscribe({ CallbackUtils.onSuccess(callback) }
+            ) { throwable: Throwable ->
+                CallbackUtils.onFailure(
+                    callback,
+                    (throwable as RxError).djiError
+                )
+            }
+    }
+
+    // Restore the camera to video mode (takePhoto switches it to PHOTO_NORMAL), so the
+    // live feed isn't left in photo mode after a capture.
+    fun setVideoMode(callback: CommonCallbacks.CompletionCallback) {
+        val index = componentIndex.value
+        if (index == null) {
+            CallbackUtils.onFailure(callback, DJICommonError.FACTORY.build(DJICommonError.DISCONNECTED))
+            return
+        }
+        RxUtil.setValue(createKey<CameraMode>(CameraKey.KeyCameraMode, index), CameraMode.VIDEO_NORMAL)
             .subscribe({ CallbackUtils.onSuccess(callback) }
             ) { throwable: Throwable ->
                 CallbackUtils.onFailure(
