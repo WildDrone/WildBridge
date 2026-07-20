@@ -51,6 +51,7 @@ Each drone connects to its RC via DJI OcuSync (2.4/5 GHz). The RC connects to th
 ### DJI Drones
 - DJI Mini 3 / Mini 3 Pro
 - DJI Mini 4 Pro
+- DJI Mini 5 Pro
 - DJI Mavic 3 Enterprise Series (M3E)
 - DJI Matrice 30 Series (M30/M30T)
 - DJI Matrice 300 RTK
@@ -76,7 +77,7 @@ The left-side WildBridge panel provides the controls most often used during rese
 - **AI DETECT** toggles DJI AutoSensing detection and shows bounding boxes on the FPV view where supported by the aircraft and SDK.
 - **AUTO / MANUAL** is the manual override switch. In **AUTO** mode, WildBridge accepts autonomous HTTP commands such as waypoints, trajectories, and virtual-stick navigation. Switching it to **MANUAL** activates the override latch, disables virtual stick, stops active control loops, and rejects new autonomous commands until the switch is cleared or `/send/deactivateManualOverride` is called.
 - The manual override latch can also activate automatically while an autonomous control loop is running if RC stick input exceeds the configured deadzone. This lets the pilot take over immediately.
-- **CTRL MINI4**, **CTRL M350**, or **CTRL MAVIC3** shows the detected control profile. WildBridge selects this profile from the DJI product type and uses it to choose conservative speed and PID parameters for the aircraft class.
+- **CTRL MINI4**, **CTRL MINI5**, **CTRL M350**, or **CTRL MAVIC3** shows the detected control profile. WildBridge selects this profile from the DJI product type and uses it to choose conservative speed and PID parameters for the aircraft class.
 - The lower status strip shows the configured drone name, WildBridge state, altitude, selected control profile, and current video sender diagnostics.
 
 The WebRTC line at the bottom is a compact sender-health readout. It reports stream state, output resolution, requested resolution, source resolution, output FPS versus target FPS, dropped FPS, frame resize/processing time, scaling mode, processing errors, and recovery count. The same metrics are included in the telemetry stream under `webRtc`, so the GroundStation dashboard can show sender FPS and processing health without relying only on browser-side receive statistics.

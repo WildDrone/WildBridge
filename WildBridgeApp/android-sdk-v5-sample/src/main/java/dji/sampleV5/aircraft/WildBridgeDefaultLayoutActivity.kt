@@ -647,6 +647,7 @@ class WildBridgeDefaultLayoutActivity : DefaultLayoutActivity() {
         val controlLabel = when (controlProfile) {
             DroneControlProfile.MATRICE_350_RTK -> "CTRL M350"
             DroneControlProfile.MINI_4_PRO -> "CTRL MINI4"
+            DroneControlProfile.MINI_5_PRO -> "CTRL MINI5"
             DroneControlProfile.MAVIC_3_ENTERPRISE -> "CTRL MAVIC3"
         }
         findViewById<TextView>(R.id.text_control_profile)?.text = controlLabel

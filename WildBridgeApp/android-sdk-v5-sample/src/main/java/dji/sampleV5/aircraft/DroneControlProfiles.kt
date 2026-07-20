@@ -48,6 +48,17 @@ enum class DroneControlProfile(
         yawKp = 3.0,
         maxYawRateDegS = 30.0,
         defaultCruiseSpeedMps = 2.0
+    ),
+    MINI_5_PRO(
+        displayName = "DJI Mini 5 Pro",
+        maxHorizontalSpeedMps = 15.0,
+        maxGotoWpSpeedMps = 5.0,
+        distanceKp = 0.65,
+        distanceKi = 0.0001,
+        distanceKd = 0.001,
+        yawKp = 3.0,
+        maxYawRateDegS = 30.0,
+        defaultCruiseSpeedMps = 2.0
     )
 }
 
@@ -65,6 +76,9 @@ object DroneControlProfiles {
 
             name.contains("MINI_4", ignoreCase = true) ||
             name.contains("MINI4", ignoreCase = true) -> DroneControlProfile.MINI_4_PRO
+
+            name.contains("MINI_5", ignoreCase = true) ||
+            name.contains("MINI5", ignoreCase = true) -> DroneControlProfile.MINI_5_PRO
 
             name.contains("MAVIC_3", ignoreCase = true) ||
             name.contains("MAVIC3", ignoreCase = true) ||
