@@ -299,7 +299,9 @@ class WildBridgeDefaultLayoutActivity : DefaultLayoutActivity() {
     private val lowBatteryKey = KeyTools.createKey(FlightControllerKey.KeyLowBatteryWarningThreshold)
     private val timeNeededToLandKey = KeyTools.createKey(FlightControllerKey.KeyLowBatteryRTHInfo)
 
-    private val gimbalKey: DJIKey.ActionKey<GimbalAngleRotation, EmptyMsg> = GimbalKey.KeyRotateByAngle.create()
+    // var, not val: on the M400 these are rebound to LEFT_OR_MAIN once the main-camera video is up
+    // (see rebindGimbalKeysForM400). Other aircraft keep the default no-index binding.
+    private var gimbalKey: DJIKey.ActionKey<GimbalAngleRotation, EmptyMsg> = GimbalKey.KeyRotateByAngle.create()
     private val zoomKey: DJIKey<Double> = CameraKey.KeyCameraZoomRatios.create()
     private val startRecording: DJIKey.ActionKey<EmptyMsg, EmptyMsg> = CameraKey.KeyStartRecord.create()
     private val stopRecording: DJIKey.ActionKey<EmptyMsg, EmptyMsg> = CameraKey.KeyStopRecord.create()
@@ -307,8 +309,8 @@ class WildBridgeDefaultLayoutActivity : DefaultLayoutActivity() {
 
     private val location3DKey: DJIKey<LocationCoordinate3D> = FlightControllerKey.KeyAircraftLocation3D.create()
     private val satelliteCountKey: DJIKey<Int> = FlightControllerKey.KeyGPSSatelliteCount.create()
-    private val gimbalAttitudeKey: DJIKey<Attitude> = GimbalKey.KeyGimbalAttitude.create()
-    private val gimbalJointAttitudeKey: DJIKey<Attitude> = GimbalKey.KeyGimbalJointAttitude.create()
+    private var gimbalAttitudeKey: DJIKey<Attitude> = GimbalKey.KeyGimbalAttitude.create()
+    private var gimbalJointAttitudeKey: DJIKey<Attitude> = GimbalKey.KeyGimbalJointAttitude.create()
     private val compassHeadKey: DJIKey<Double> = FlightControllerKey.KeyCompassHeading.create()
     private val homeLocationKey: DJIKey<LocationCoordinate2D> = FlightControllerKey.KeyHomeLocation.create()
     private val flightSpeedKey: DJIKey<Velocity3D> = FlightControllerKey.KeyAircraftVelocity.create()
@@ -538,6 +540,141 @@ class WildBridgeDefaultLayoutActivity : DefaultLayoutActivity() {
 
     private fun shouldAllowMockVideo(): Boolean = !aircraftConnected
 
+    // ===== M400: rebind gimbal keys to PORT_3 once the PORT_3 camera video is up =====
+    // The no-index gimbal keys can resolve to the wrong gimbal on the multi-port M400. We wait for
+    // the first frame on the PORT_3 camera (proof that gimbal/camera is live), then recreate the
+    // gimbal keys bound explicitly to PORT_3 and enable RC-stick gimbal control. One-shot per connection.
+    @Volatile
+    private var gimbalKeysReboundForM400 = false
+    @Volatile
+    private var mainCamFrameDetectorRegistered = false
+
+    private val cameraStreamManager: ICameraStreamManager
+        get() = MediaDataCenter.getInstance().cameraStreamManager
+
+    @Volatile private var lastDetectedFrameWidth = 0
+    @Volatile private var lastDetectedFrameHeight = 0
+
+    // One-shot frame listener: the first frame on PORT_3 triggers the rebind, then detaches.
+    private val mainCamFirstFrameListener = object : ICameraStreamManager.CameraFrameListener {
+        override fun onFrame(
+            frameData: ByteArray, offset: Int, length: Int,
+            width: Int, height: Int, format: ICameraStreamManager.FrameFormat
+        ) {
+            lastDetectedFrameWidth = width
+            lastDetectedFrameHeight = height
+            mainHandler.post { onMainCameraFirstFrame() }
+        }
+    }
+
+    private fun isMatrice400(): Boolean =
+        ProductKey.KeyProductType.create().get(ProductType.UNKNOWN) == ProductType.DJI_MATRICE_400
+
+    private fun registerMainCamFrameDetector() {
+        if (mainCamFrameDetectorRegistered || gimbalKeysReboundForM400) return
+        runCatching {
+            // FPVWidget renders PORT_3 via a surface (hardware path) which does NOT trigger the YUV
+            // frame callback. Explicitly enable the stream so addFrameListener actually gets frames.
+            cameraStreamManager.enableStream(ComponentIndexType.PORT_3, true)
+            cameraStreamManager.addFrameListener(
+                ComponentIndexType.PORT_3,
+                ICameraStreamManager.FrameFormat.NV21,
+                mainCamFirstFrameListener
+            )
+            mainCamFrameDetectorRegistered = true
+            Log.i(TAG, "PORT_3 frame detector armed (stream enabled)")
+        }.onFailure {
+            Log.w(TAG, "Could not register PORT_3 frame detector: ${it.message}")
+        }
+    }
+
+    private fun unregisterMainCamFrameDetector() {
+        if (!mainCamFrameDetectorRegistered) return
+        runCatching { cameraStreamManager.removeFrameListener(mainCamFirstFrameListener) }
+        mainCamFrameDetectorRegistered = false
+    }
+
+    // First frame on the main camera arrived. Detach the detector, then rebind on M400 only.
+    private fun onMainCameraFirstFrame() {
+        // Dedupe: several frames may have queued before the first post ran. Only the first proceeds.
+        if (!mainCamFrameDetectorRegistered) return
+        unregisterMainCamFrameDetector()
+
+        val m400 = isMatrice400()
+        Log.i(TAG, "PORT_3 first frame ${lastDetectedFrameWidth}x${lastDetectedFrameHeight} (M400=$m400)")
+
+        if (gimbalKeysReboundForM400 || !m400) return
+        gimbalKeysReboundForM400 = true
+
+        // Wait 10s after the first frame before touching the gimbal — the gimbal/payload may still be
+        // initialising on PORT_3 right after the stream comes up; issuing acquire/enable too early
+        // is unreliable. The one-shot flag above already prevents a second scheduling.
+        mainHandler.postDelayed({ initialiseM400Gimbal() }, 10000)
+    }
+
+    // M400-only: rebind the gimbal keys to PORT_3 and point the RC at the PORT_3 gimbal so the
+    // physical dial/sticks drive it. Called 10s after the first PORT_3 frame.
+    private fun initialiseM400Gimbal() {
+        gimbalKey = GimbalKey.KeyRotateByAngle.create(ComponentIndexType.PORT_3)
+        gimbalAttitudeKey = GimbalKey.KeyGimbalAttitude.create(ComponentIndexType.PORT_3)
+        gimbalJointAttitudeKey = GimbalKey.KeyGimbalJointAttitude.create(ComponentIndexType.PORT_3)
+        Log.i(TAG, "M400: rebound gimbal keys to PORT_3 (10s after first PORT_3 video frame)")
+
+        // M400 is single-operator and this RC already owns gimbal authority, but the RC defaults to
+        // controlling the wrong gimbal so the dial does nothing. KeyControllingGimbal selects which
+        // gimbal the physical dial/sticks drive; point it at PORT_3 (the payload camera in view).
+        val current = RemoteControllerKey.KeyControllingGimbal.create().get()
+        Log.i(TAG, "M400: RC controllingGimbal before=$current -> setting PORT_3")
+        RemoteControllerKey.KeyControllingGimbal.create().set(
+            ComponentIndexType.PORT_3,
+            onSuccess = { Log.i(TAG, "M400: RC now controlling PORT_3 gimbal") },
+            onFailure = { error -> Log.e(TAG, "M400: set controllingGimbal failed: ${error.description()}") }
+        )
+    }
+
+    private fun thermalCameraIndex(): ComponentIndexType =
+        if (isMatrice400()) ComponentIndexType.PORT_3 else ComponentIndexType.LEFT_OR_MAIN
+
+    private fun armThermalMeasurement() {
+        if (thermalArmed) return
+        thermalArmed = true
+        val idx = thermalCameraIndex()
+        val lens = CameraLensType.CAMERA_LENS_THERMAL
+        Log.i(TAG_THERMAL, "Arming thermal measurement on camera index=$idx lens=THERMAL")
+
+        CameraKey.KeyThermalTemperatureDataEnabled.createCamera(idx, lens).set(true,
+            onSuccess = { Log.i(TAG_THERMAL, "ThermalTemperatureDataEnabled=true OK") },
+            onFailure = { e -> Log.e(TAG_THERMAL, "set TemperatureDataEnabled failed: ${e.description()}") })
+
+        CameraKey.KeyThermalTemperatureMeasureMode.createCamera(idx, lens).set(ThermalTemperatureMeasureMode.REGION,
+            onSuccess = {
+                Log.i(TAG_THERMAL, "MeasureMode=REGION OK; setting full-frame area")
+                CameraKey.KeyThermalRegionMetersureArea.createCamera(idx, lens).set(DoubleRect(0.0, 0.0, 1.0, 1.0),
+                    onSuccess = { Log.i(TAG_THERMAL, "Region area=full-frame OK") },
+                    onFailure = { e -> Log.e(TAG_THERMAL, "set Region area failed: ${e.description()}") })
+            },
+            onFailure = { e -> Log.e(TAG_THERMAL, "set MeasureMode failed: ${e.description()}") })
+    }
+
+    private fun disarmThermalMeasurement() {
+        thermalArmed = false
+    }
+
+    private fun readThermalMaxTempNow(): Double? {
+        // Make sure the pipeline is armed even if capture is the very first thermal action.
+        armThermalMeasurement()
+        return runCatching {
+            val idx = thermalCameraIndex()
+            val lens = CameraLensType.CAMERA_LENS_THERMAL
+            val globalMax = CameraKey.KeyThermalGlobalMaxTemperature.createCamera(idx, lens).get()
+            val regionMax = CameraKey.KeyThermalRegionMetersureTemperature.createCamera(idx, lens).get()?.maxAreaTemperature
+            val maxTemp = globalMax ?: regionMax
+            Log.i(TAG_THERMAL, "[capture read] idx=$idx globalMax=$globalMax regionMax=$regionMax -> $maxTemp")
+            maxTemp
+        }.onFailure { Log.e(TAG_THERMAL, "[capture read] error: ${it.message}", it) }.getOrNull()
+    }
+    // ==================== End Thermal max-temperature readout ====================
+
     private fun setupAircraftConnectionListener() {
         aircraftConnected = flightControllerConnectionKey.get(true)
         applyAircraftConnectionState(aircraftConnected)
@@ -692,12 +829,20 @@ class WildBridgeDefaultLayoutActivity : DefaultLayoutActivity() {
     private fun applyDetectedDroneProfile(productType: ProductType) {
         val controlProfile = DroneControlProfiles.fromProductType(productType)
         val controlLabel = when (controlProfile) {
+            DroneControlProfile.MATRICE_300_RTK -> "CTRL M300"
             DroneControlProfile.MATRICE_350_RTK -> "CTRL M350"
+            DroneControlProfile.MATRICE_400 -> "CTRL M400"
             DroneControlProfile.MINI_4_PRO -> "CTRL MINI4"
             DroneControlProfile.MAVIC_3_ENTERPRISE -> "CTRL MAVIC3"
         }
         findViewById<TextView>(R.id.text_control_profile)?.text = controlLabel
         Log.i(TAG, "Detected product $productType -> using ${controlProfile.displayName} profile")
+
+        // M400 resolved (and PORT_3 should be streaming by now): arm the PORT_3 frame detector that
+        // rebinds the gimbal keys + enables RC-stick gimbal control. Guarded one-shot per connection.
+        if (productType == ProductType.DJI_MATRICE_400) {
+            registerMainCamFrameDetector()
+        }
     }
 
     private fun updateWebRTCMetricsView(metrics: WebRTCStreamMetrics) {
@@ -1441,9 +1586,21 @@ class WildBridgeDefaultLayoutActivity : DefaultLayoutActivity() {
             // Cancel key listeners
             KeyManager.getInstance().cancelListen(this)
 
+            // Detach the M400 main-camera first-frame detector if still registered
+            unregisterMainCamFrameDetector()
+
+            // Cancel H20T payload (LRF + thermal) key listeners
+            Payload.destroy()
+
+            // Release MediaVM (thermal capture) listeners and media manager
+            if (::mediaVM.isInitialized) {
+                mediaVM.destroy()
+            }
+
             // Clean up DroneController listeners and resources
             DroneController.manualOverrideListener = null
             DroneController.droneStatusListener = null
+            ControlAuthority.listener = null
             DroneController.destroy()
 
             // Close the active flight log if the app is killed mid-flight
@@ -2086,6 +2243,30 @@ class WildBridgeDefaultLayoutActivity : DefaultLayoutActivity() {
                         val ry = cmd[3].toFloat()
                         DroneController.setStick(lx, ly, rx, ry)
                         "Received: leftX: $lx, leftY: $ly, rightX: $rx, rightY: $ry"
+                    }
+                    "/send/gimbal/rel_pitch" -> {
+                        val cmd = postData.split(",")
+                        val roll = cmd[0].toDouble()
+                        val pitch = cmd[1].toDouble()
+                        val yaw = cmd[2].toDouble()
+                        val rot = GimbalAngleRotation(
+                            GimbalAngleRotationMode.RELATIVE_ANGLE,
+                            pitch, 0.0, 0.0, false, true, false, 0.1, false, 0
+                        )
+                        gimbalKey.action(rot)
+                        "Received: relative pitch: $pitch"
+                    }
+                    "/send/gimbal/rel_yaw" -> {
+                        val cmd = postData.split(",")
+                        val roll = cmd[0].toDouble()
+                        val pitch = cmd[1].toDouble()
+                        val yaw = cmd[2].toDouble()
+                        val rot = GimbalAngleRotation(
+                            GimbalAngleRotationMode.RELATIVE_ANGLE,
+                            0.0, 0.0, yaw, true, true, false, 0.1, false, 0
+                        )
+                        gimbalKey.action(rot)
+                        "Received: relative yaw: $yaw"
                     }
                     "/send/gimbal/pitch" -> {
                         val cmd = postData.split(",")
