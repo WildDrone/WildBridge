@@ -1,5 +1,5 @@
 <div align="center">
-    <img src="WildBridge_icon.png" alt="WildBridge App Icon" width="300" height="300">
+    <img src="WildBridgeReadmePics/WildBridge_icon.png" alt="WildBridge App Icon" width="300" height="300">
 </div>
 
 <div align="center">
@@ -23,7 +23,7 @@ WildBridge is an **open-source Android application** (Kotlin, DJI Mobile SDK V5)
 
 Each drone connects to its RC via DJI OcuSync (2.4/5 GHz). The RC connects to the ground station over a 2.4/5 GHz LAN. Multiple WildBridge instances can coexist on the same LAN, enabling multi-drone configurations without any app modification.
 
-![WildBridge System Architecture](WildBridgeDiagram.png)
+![WildBridge System Architecture](WildBridgeReadmePics/WildBridgeDiagram.png)
 *Multi-drone setup: each RC runs WildBridge and exposes standard HTTP commands (port 8080), TCP telemetry (port 8081), discovery, and WebRTC video publishing through the current WHIP/WHEP MediaMTX workflow.*
 
 ---
@@ -34,12 +34,18 @@ Each drone connects to its RC via DJI OcuSync (2.4/5 GHz). The RC connects to th
 - **HTTP Command Interface**: RESTful API (port 8080) for full drone control
 - **Live Video Streaming**: WebRTC video publishing by WHIP to MediaMTX, with browser and dashboard playback through WHEP
 - **GroundStation Video Dashboard**: Docker Compose stack with MediaMTX and a browser UI for multi-drone video monitoring, health diagnostics, telemetry, and charts
-- **Three Navigation Modes**: Direct Virtual Stick (AVS), on-device PID position controller, DJI native KMZ waypoint missions
+- **Navigation Modes**: two on-device PID waypoint controllers (nose-forward and hold-heading), DJI native KMZ waypoint missions, and direct Virtual Stick (AVS)
+- **Two-Computer Safety Control**: a Safety Computer can seize command authority from the Pilot Computer at any time via an `X-Safety-Token` header; the takeover is persistent and only the Safety Computer can hand control back
+- **Sequence-Tracked Commands**: waypoint, yaw, and altitude commands return a monotonic `seq` echoed in telemetry, so a ground station can tell "this target reached" from a stale latched flag
 - **Manual Override**: Pilot takeover detection, with GS-readable override state and deactivation command
-- **Camera Control**: Zoom ratio display and control, gimbal pitch/yaw, start/stop recording
+- **Thermal & Payload**: thermal image capture, max-temperature readout, laser rangefinder (LRF) measurement with geo-referenced target, and payload drop on supported airframes
+- **Media Management**: list every file on the SD card and download any of them by name over HTTP
+- **Camera Control**: zoom ratio display and control, absolute and relative gimbal pitch/yaw, start/stop recording
+- **Per-Airframe Control Profiles**: speed, acceleration, PID gains, gimbal ports, and payload wiring selected automatically from the detected aircraft (Matrice 400 / 350 RTK / 300 RTK, Mavic 3 Enterprise, Mini 4 Pro)
+- **Auto-Sensing Detection**: on-device target detection with start/stop control and detected targets streamed in telemetry
 - **Multi-drone Coordination**: Multiple concurrent drones over a single LAN
 - **Auto-Discovery**: UDP broadcast discovery (port 30000), UDP multicast discovery, mDNS/Bonjour, subnet scanning
-- **ROS 2 Integration**: Complete ROS 2 Humble package with 25+ topics and MAVROS-compatible bridge
+- **ROS 2 Integration**: Complete ROS 2 Humble package with 45+ published topics
 - **Docker Deployment**: ROS 2 container plus a MediaMTX/video-test stack for video and connection testing
 
 ---
@@ -69,7 +75,7 @@ Each drone connects to its RC via DJI OcuSync (2.4/5 GHz). The RC connects to th
 
 WildBridge runs on the RC's built-in Android display or on the Android display connected to the DJI controller. The main default layout starts the HTTP server, TCP telemetry stream, discovery services, flight logging, and video publishing components automatically — no separate video sample page is required.
 
-![WildBridge default layout on Mini 4](https://github.com/WildDrone/WildBridge/blob/main/DefaultLayoutMini4.jpg) 
+![WildBridge default layout on Mini 4](WildBridgeReadmePics/DefaultLayoutMini4.jpg)
 
 The left-side WildBridge panel provides the controls most often used during research flights:
 
@@ -173,7 +179,7 @@ import requests
 
 rc = "192.168.1.100"
 requests.post(f"http://{rc}:8080/send/takeoff")
-requests.post(f"http://{rc}:8080/send/gotoWPwithPID", data="49.306254,4.593728,20,90,5.0")
+requests.post(f"http://{rc}:8080/send/gotoWaypointNoseForward", data="49.306254,4.593728,20,90,5.0")
 requests.post(f"http://{rc}:8080/send/navigateTrajectoryDJINative",
               data="10.0;49.306,4.593,20;49.307,4.594,25;49.308,4.595,20")
 requests.post(f"http://{rc}:8080/send/RTH")
@@ -241,6 +247,7 @@ Runtime diagnostics are written under `GroundStation/video_test/logs/`. Those lo
 `GroundStation/Python/djiInterface.py` provides a high-level class wrapping all HTTP commands and the TCP telemetry socket in a thread-safe background receiver.
 
 ```python
+import time
 from djiInterface import DJIInterface
 
 # Auto-discovery via UDP broadcast (port 30000) if no IP provided
@@ -271,9 +278,10 @@ dji.requestAbortMission()             # Abort + disable Virtual Stick
 dji.requestAbortDJINativeMission()    # Abort DJI native mission only
 
 # Navigation
-dji.requestSendGoToWPwithPID(49.306254, 4.593728, 20.0, yaw=90, speed=5.0)
-dji.requestSendNavigateTrajectory(
-    [(49.306, 4.593, 20), (49.307, 4.594, 25)], finalYaw=90)
+# Nose-forward: drone turns to face the leg, flies forward, then rotates to yaw on arrival.
+dji.requestSendGoToWaypointNoseForward(49.306254, 4.593728, 20.0, yaw=90, speed=5.0)
+# Hold-heading: nose stays on yaw for the whole flight (drone crabs sideways), tighter tolerance.
+dji.requestSendGoToWaypointHoldHeading(49.306254, 4.593728, 20.0, yaw=90, speed=5.0)
 dji.requestSendNavigateTrajectoryDJINative(
     [(49.306, 4.593, 20), (49.307, 4.594, 25), (49.308, 4.595, 20)], speed=10.0)
 dji.requestSendGotoYaw(45.0)
@@ -282,9 +290,31 @@ dji.requestSendGotoAltitude(30.0)
 # Camera / gimbal
 dji.requestSendGimbalPitch(-30.0)
 dji.requestSendGimbalYaw(45.0)
+dji.requestSendGimbalRelPitch(-5.0)     # relative to the current angle
+dji.requestSendGimbalRelYaw(10.0)
 dji.requestSendZoomRatio(4.0)
 dji.requestCameraStartRecording()
 dji.requestCameraStopRecording()
+
+# Thermal / payload
+dji.requestCapture()                     # capture descriptor for the thermal lens
+dji.requestCaptureTemperature()          # thermal max temperature
+dji.requestLRFMeasure()                  # distance + geo-referenced target + laser state
+dji.getLRFTarget()                       # last locked target from telemetry
+dji.requestDrop()                        # release payload (airframes with a drop port)
+
+# Media
+files = dji.listMedia()                  # [{"name", "index", "size", "type"}, ...]
+dji.downloadByName(files[0]["name"], out_dir="./media")
+
+# Sequence-tracked commands — avoids acting on a stale reach flag
+seq = dji.requestSendGoToWaypointNoseForward(49.306254, 4.593728, 20.0, yaw=90, speed=5.0)
+while not dji.isWaypointReached(seq):
+    time.sleep(0.1)
+
+# Preflight
+dji.isReadyToTakeoff()
+dji.getTakeoffBlockReason()
 
 # Manual override
 dji.requestDeactivateManualOverride()
@@ -292,11 +322,6 @@ dji.requestDeactivateManualOverride()
 # RTH altitude
 dji.requestSetRTHAltitude(50.0)
 
-# PID tuning
-dji.requestSendGoToWPwithPIDtuning(
-    lat, lon, alt, yaw,
-    kp_pos=1.0, ki_pos=0.0, kd_pos=0.2,
-    kp_yaw=1.0, ki_yaw=0.0, kd_yaw=0.1)
 
 # Virtual stick (raw AVS, values saturated to ±0.3 by DJIInterface)
 dji.requestSendStick(leftX=0, leftY=0.2, rightX=0.1, rightY=0)
@@ -332,6 +357,7 @@ Continuous newline-delimited JSON stream. Connect and read; the app pushes updat
 | `homeSet` | `bool` | Home point set |
 | `distanceToHome` | `float` | Distance to home (m) |
 | `waypointReached` | `bool` | Final waypoint reached |
+| `waypointSeq` / `yawSeq` / `altitudeSeq` | `int` | Sequence id of the waypoint / yaw / altitude command currently being executed. Match against the `seq` returned by the command to avoid acting on a stale reach flag |
 | `intermediaryWaypointReached` | `bool` | Intermediate waypoint reached |
 | `yawReached` | `bool` | Target yaw reached |
 | `altitudeReached` | `bool` | Target altitude reached |
@@ -348,7 +374,57 @@ Continuous newline-delimited JSON stream. Connect and read; the app pushes updat
 | `seriousLowBatteryThreshold` | `float` | Critical low battery % |
 | `lowBatteryThreshold` | `float` | Low battery warning % |
 | `isManualOverrideActive` | `bool` | Pilot has taken manual RC control |
+| `readyToTakeoff` | `bool` | All preflight conditions satisfied |
+| `takeoffBlockReason` | `string` | Why takeoff is blocked when `readyToTakeoff` is false |
+| `lrfTarget` | `{latitude, longitude, altitude}` | Last geo-referenced laser rangefinder target, `null` until the laser locks |
+| `autoSensingActive` | `bool` | On-device target detection running |
+| `detectedTargets` | `array` | Detected targets from auto-sensing |
 | `webRtc` | `object` | WHIP/WebRTC sender state, FPS, processing, drop, error, and recovery metrics when video is active |
+
+---
+
+### Pilot / Safety Authority
+
+Two computers can drive the same drone over HTTP. Which one is in command is decided purely by the
+`X-Safety-Token` header on each request:
+
+| Request | Classified as |
+|---------|---------------|
+| carries the valid `X-Safety-Token` | **Safety Computer** |
+| anything else (no header, wrong token) | **Pilot Computer** |
+
+![Two-Computer Safety Control — request flow](WildBridgeReadmePics/two-computer-safety-control-Request%20flow.drawio.png)
+*How a single HTTP command is arbitrated: the `X-Safety-Token` header classifies the request, `ControlAuthority` holds one in-memory latch, and the first Safety command seizes control and cancels whatever the Pilot was flying.*
+
+Rules enforced by the app on every `/send/*` command:
+
+- The Pilot Computer holds control at startup and flies the mission normally.
+- The **first** command from the Safety Computer latches authority to SAFETY, cancels whatever
+  autonomous loop the Pilot left running, and holds the aircraft in place.
+- From then on every Pilot command is rejected with
+  `REJECTED: Safety Computer is in control. Pilot commands are blocked.`
+- The takeover is **persistent** — there is no timeout. If the Safety Computer goes silent, the
+  Pilot does *not* regain control.
+- The only way back is `POST /releaseSafetyControl`, which only the Safety Computer may call.
+- An app restart resets to Pilot control ("restart == fresh mission"). State is in-memory only.
+
+While the Safety Computer holds authority, a red **SAFETY COMPUTER IN CONTROL** banner is shown
+over the video feed. Normal Pilot control shows no banner.
+
+This axis is independent of the RC manual-override latch: that one tracks the physical pilot on
+the sticks, this one tracks which computer commands the server.
+
+```python
+from djiInterfaceSafety import DJIInterfaceSafety
+
+safety = DJIInterfaceSafety("192.168.1.100")   # every command carries the token
+safety.requestSendGotoAltitude(30.0)           # first command seizes control
+safety.requestReleaseSafetyControl()           # hand authority back to the Pilot
+```
+
+| Endpoint | Body | Description |
+|----------|------|-------------|
+| `/releaseSafetyControl` | — | Return authority to the Pilot Computer (Safety Computer only) |
 
 ---
 
@@ -364,12 +440,18 @@ Continuous newline-delimited JSON stream. Connect and read; the app pushes updat
 | `/send/abortAll` | — | Stop all active missions (DJI native + Virtual Stick) |
 | `/send/abort/DJIMission` | — | Stop DJI native mission only |
 | `/send/stick` | `leftX,leftY,rightX,rightY` | Direct AVS velocity input (values ∈ [-1, 1]) |
-| `/send/gotoWP` | `lat,lon,alt` | Navigate to waypoint (basic) |
-| `/send/gotoWPwithPID` | `lat,lon,alt,yaw[,speed]` | PID position controller (default speed: 5.0 m/s) |
-| `/send/gotoWPwithPIDtuning` | `lat,lon,alt,yaw,kp_pos,ki_pos,kd_pos,kp_yaw,ki_yaw,kd_yaw` | PID with custom gains |
-| `/send/navigateTrajectory` | `lat,lon,alt;…;lat,lon,alt,yaw` | Trajectory via Virtual Stick PID; last WP includes yaw |
+| `/send/gotoWaypointNoseForward` | `lat,lon,alt,yaw[,speed]` | Turn to face the leg, fly forward, rotate to `yaw` on arrival (`yaw` = final heading) |
+| `/send/gotoWaypointHoldHeading` | `lat,lon,alt,yaw[,speed]` | Hold `yaw` for the whole flight (drone crabs sideways), tighter arrival tolerance |
 | `/send/navigateTrajectoryDJINative` | `speed;lat,lon,alt;…` | DJI native KMZ mission (≥ 2 waypoints) |
 | `/send/gotoYaw` | `yaw_degrees` | Rotate to heading |
+| `/send/gimbal/rel_pitch` | `roll,pitch,yaw` | Gimbal pitch **relative** to current angle (degrees) |
+| `/send/gimbal/rel_yaw` | `roll,pitch,yaw` | Gimbal yaw **relative** to current angle (degrees) |
+| `/send/captureThermalImage` | — | Capture on the thermal lens. Returns a JSON capture descriptor |
+| `/send/captureTemperature` | — | Read the thermal max temperature. Returns `{"thermalMaxTemp": <float or null>}` |
+| `/send/listMedia` | — | List every file on the SD card as JSON |
+| `/send/downloadMediaByName` | `<fileName>` | Download one media file by name; responds with the raw file bytes |
+| `/send/lrf/measure` | — | Fire the laser rangefinder. Returns distance, geo-referenced target, and laser state as JSON. `distance` and target are non-null only when the laser locks (state `NORMAL`, needs a GPS fix) |
+| `/send/drop` | — | Release the payload on airframes with a drop port configured in the active profile; rejected otherwise |
 | `/send/gotoAltitude` | `altitude_m` | Change altitude |
 | `/send/gimbal/pitch` | `roll,pitch,yaw` | Set gimbal pitch |
 | `/send/gimbal/yaw` | `roll,pitch,yaw` | Set gimbal yaw joint angle |
@@ -432,12 +514,8 @@ Full ROS 2 Humble package. The `dji_controller` node publishes all telemetry fie
 ```text
 GroundStation/ROS/
 ├── dji_controller/          # Main control + telemetry node
-│   ├── controller.py        # DjiNode: 25+ topics, 20 Hz timer
+│   ├── controller.py        # DjiNode: 45+ topics, 20 Hz timer
 │   └── submodules/dji_interface.py
-├── wildbridge_mavros/       # MAVROS-compatible bridge
-│   ├── mavros_bridge.py     # WildBridgeMavrosNode
-│   ├── auto_mavros_bridge.py# Auto-discovery + dynamic namespace launch
-│   └── dji_interface.py
 └── wildview_bringup/
     ├── auto_discovery.launch.py
     ├── auto_discovery_native.launch.py
@@ -476,8 +554,23 @@ GroundStation/ROS/
 | `camera/is_recording` | `Bool` | Recording status |
 | `flight_mode` | `String` | Current DJI flight mode string |
 | `manual_override_active` | `Bool` | Pilot override active |
+| `waypoint_seq` / `yaw_seq` / `altitude_seq` | `Int32` | Sequence id of the command currently executing |
+| `command_ack/waypoint_seq` / `yaw_seq` / `altitude_seq` | `Int32` | Sequence id assigned when the command was accepted |
+| `ready_to_takeoff` | `Bool` | Preflight conditions satisfied |
+| `takeoff_block_reason` | `String` | Why takeoff is blocked |
+| `camera/capture_result` | `String` | Capture descriptor JSON (async) |
+| `camera/media_list` | `String` | SD card listing JSON (async) |
+| `camera/download_result` | `String` | Download result JSON (async) |
+| `camera/thermal_max_temp` | `Float64` | Thermal max temperature (°C) |
+| `lrf/measurement` | `String` | Laser rangefinder reading JSON |
+| `lrf/target` | `NavSatFix` | Geo-referenced laser target |
 
 ### Subscribed Topics (commands)
+
+Camera, media, and LRF commands block for as long as the aircraft takes to answer (up to 120 s for
+a download), so they run on a single-worker thread pool and answer asynchronously on their own
+`camera/*` and `lrf/*` result topics rather than stalling the 20 Hz telemetry loop.
+
 
 | Topic | Type | Body |
 |-------|------|------|
@@ -491,9 +584,8 @@ GroundStation/ROS/
 | `command/deactivate_manual_override` | `Empty` | — |
 | `command/camera/start_recording` | `Empty` | — |
 | `command/camera/stop_recording` | `Empty` | — |
-| `command/goto_waypoint` | `Float64MultiArray` | `[lat, lon, alt, yaw, speed?]` |
-| `command/goto_waypoint_pid_tuning` | `Float64MultiArray` | `[lat,lon,alt,yaw,kp_pos,ki_pos,kd_pos,kp_yaw,ki_yaw,kd_yaw]` |
-| `command/goto_trajectory` | `String` | `"[(lat,lon,alt),...], finalYaw"` |
+| `command/goto_waypoint_nose_forward` | `Float64MultiArray` | `[lat, lon, alt, yaw, speed?]` — `yaw` = final arrival heading |
+| `command/goto_waypoint_hold_heading` | `Float64MultiArray` | `[lat, lon, alt, yaw, speed?]` — `yaw` held for the whole flight |
 | `command/goto_trajectory_dji_native` | `String` | `"(speed, [(lat,lon,alt),...])"` |
 | `command/goto_yaw` | `Float64` | Yaw angle (degrees) |
 | `command/goto_altitude` | `Float64` | Altitude (m) |
@@ -502,29 +594,14 @@ GroundStation/ROS/
 | `command/zoom_ratio` | `Float64` | Zoom ratio |
 | `command/set_rth_altitude` | `Float64` | RTH altitude (m) |
 | `command/stick` | `Float64MultiArray` | `[leftX, leftY, rightX, rightY]` ∈ [-1,1] |
-
-### MAVROS-Compatible Bridge (`wildbridge_mavros`)
-
-For applications built for PX4/ArduPilot. `WildBridgeMavrosNode` publishes standard MAVROS topics:
-
-| Topic | Type |
-|-------|------|
-| `mavros/global_position/global` | `NavSatFix` |
-| `mavros/local_position/pose` | `PoseStamped` (metres from home) |
-| `mavros/local_position/velocity_local` | `TwistStamped` |
-| `mavros/imu/data` | `Imu` |
-| `mavros/battery` | `BatteryState` |
-| `mavros/global_position/compass_hdg` | `Float64` |
-| `mavros/global_position/rel_alt` | `Float64` |
-| `mavros/global_position/satellites` | `UInt32` |
-| `mavros/state/connected` / `armed` / `mode` | `Bool` / `Bool` / `String` |
-| `wildbridge/waypoint_reached` | `Bool` |
-| `wildbridge/distance_to_home` | `Float64` |
-| `wildbridge/flight_time_remaining` | `Float64` |
-
-**Setpoint subscribers**: `mavros/setpoint_position/local` (PoseStamped → GPS WP), `mavros/setpoint_position/global` (NavSatFix → direct), `mavros/setpoint_velocity/cmd_vel` (TwistStamped → AVS, max 10 m/s), `mavros/setpoint_attitude/attitude` (PoseStamped → gimbal pitch).
-
-**Services**: `mavros/cmd/arming`, `mavros/cmd/takeoff`, `mavros/cmd/land`, `mavros/cmd/rtl`, `mavros/set_mode/offboard`, `wildbridge/enable_virtual_stick`, `wildbridge/abort_mission`.
+| `command/gimbal_rel_pitch` | `Float64` | Pitch relative to current angle (degrees) |
+| `command/gimbal_rel_yaw` | `Float64` | Yaw relative to current angle (degrees) |
+| `command/camera/capture` | `Empty` | Capture on the thermal lens |
+| `command/camera/capture_temperature` | `Empty` | Read thermal max temperature |
+| `command/camera/list_media` | `Empty` | List SD card contents |
+| `command/camera/download_media` | `String` | Download one media file by name |
+| `command/lrf/measure` | `Empty` | Fire the laser rangefinder |
+| `command/drop` | `Empty` | Release the payload |
 
 ### Usage
 
@@ -545,14 +622,8 @@ ros2 launch wildview_bringup auto_discovery.launch.py
 
 # Example commands
 ros2 topic pub /drone_1/command/takeoff std_msgs/msg/Empty "{}"
-ros2 topic pub /drone_1/command/goto_waypoint std_msgs/msg/Float64MultiArray \
+ros2 topic pub /drone_1/command/goto_waypoint_nose_forward std_msgs/msg/Float64MultiArray \
   "data: [49.306254, 4.593728, 20.0, 90.0, 5.0]"
-```
-
-**MAVROS auto-discovery:**
-```bash
-ros2 run wildbridge_mavros auto_mavros_bridge
-# Discovers all drones, queries /config for drone name, launches with /{name} namespace
 ```
 
 ---
@@ -577,14 +648,15 @@ WildBridge/
 └── GroundStation/
     ├── Python/
     │   ├── djiInterface.py              # DJIInterface class (HTTP + TCP telemetry)
-    │   └── mavlink_proxy.py             # QGroundControl bridge
+    │   ├── djiInterfaceSafety.py        # Safety Computer client (token on every command)
+    │   └── test_scripts/                # Authority and capture/download test scripts
     ├── Dockerfile                       # ros:humble + CycloneDDS container
     ├── entrypoint.sh                    # Container entry point
     ├── run_docker.sh                    # Docker run helper
     ├── video_test/                      # MediaMTX + multi-drone video dashboard
     └── ROS/
         ├── dji_controller/              # ROS 2 control + telemetry node
-        ├── wildbridge_mavros/           # MAVROS-compatible bridge + auto-discovery
+        ├── drone_videofeed/             # Video feed node
         └── wildview_bringup/            # Launch files and config
 ```
 
