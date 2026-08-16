@@ -68,16 +68,27 @@ import dji.sdk.keyvalue.value.camera.CameraMode
 import dji.sdk.keyvalue.value.camera.CameraStorageInfos
 import dji.sdk.keyvalue.value.camera.CameraStorageLocation
 import dji.sdk.keyvalue.value.camera.SDCardLoadState
+import dji.sdk.keyvalue.value.camera.LaserMeasureState
+import dji.sdk.keyvalue.value.camera.ThermalTemperatureMeasureMode
+import dji.sdk.keyvalue.value.common.CameraLensType
 import dji.sdk.keyvalue.value.flightcontroller.FlightMode
+import dji.sdk.keyvalue.value.flightcontroller.FCMotorStartFailureError
+import dji.sdk.keyvalue.value.flightcontroller.GPSSignalLevel
 import dji.sdk.keyvalue.value.flightcontroller.LowBatteryRTHInfo
 import dji.sdk.keyvalue.value.gimbal.GimbalAngleRotation
 import dji.sdk.keyvalue.value.gimbal.GimbalAngleRotationMode
+import dji.sdk.keyvalue.key.RemoteControllerKey
 import dji.sdk.keyvalue.value.product.ProductType
+import dji.v5.manager.datacenter.MediaDataCenter
+import dji.v5.manager.interfaces.ICameraStreamManager
 import dji.v5.et.action
 import dji.v5.et.create
+import dji.v5.et.createCamera
 import dji.v5.et.get
 import dji.v5.et.set
 import dji.v5.manager.KeyManager
+import dji.v5.manager.diagnostic.DJIDeviceStatus
+import dji.v5.manager.diagnostic.DeviceStatusManager
 import dji.v5.ux.core.util.DataProcessor
 import dji.v5.ux.sample.showcase.defaultlayout.DefaultLayoutActivity
 import dji.v5.manager.intelligent.AutoSensingInfo
@@ -329,11 +340,14 @@ class WildBridgeDefaultLayoutActivity : DefaultLayoutActivity() {
      */
     @Volatile private var cachedTelemetryJson: String = "{}"
 
+    @Volatile private var lrfTargetLocation: LocationCoordinate3D? = null
+
     private val productTypeKey: DJIKey<ProductType> = ProductKey.KeyProductType.create()
     private val flightControllerConnectionKey: DJIKey<Boolean> = FlightControllerKey.KeyConnection.create()
     private val cameraModeKey: DJIKey<CameraMode> = KeyTools.createKey(CameraKey.KeyCameraMode, ComponentIndexType.LEFT_OR_MAIN)
     private val cameraStorageLocationKey: DJIKey<CameraStorageLocation> = KeyTools.createKey(CameraKey.KeyCameraStorageLocation, ComponentIndexType.LEFT_OR_MAIN)
     private val cameraStorageInfosKey: DJIKey<CameraStorageInfos> = KeyTools.createKey(CameraKey.KeyCameraStorageInfos, ComponentIndexType.LEFT_OR_MAIN)
+    private var thermalArmed = false
 
     private data class DroneStorageStatus(
         val label: String,
@@ -687,6 +701,24 @@ class WildBridgeDefaultLayoutActivity : DefaultLayoutActivity() {
 
     private fun applyAircraftConnectionState(isConnected: Boolean) {
         aircraftConnected = isConnected
+        // Warm the media list on connect so the first photo capture isn't cold (the first
+        // whole-card fetch is slow and otherwise blows past the capture client's timeout).
+        if (isConnected) {
+            if (::mediaVM.isInitialized) Payload.warmUpMedia(mediaVM)
+            // NOTE: the PORT_3 frame detector is armed from applyDetectedDroneProfile (once the
+            // product resolves to M400 and PORT_3 is actually streaming), NOT here — at the connect
+            // edge the product is still UNRECOGNIZED and PORT_3 has no stream yet.
+            // Arm the thermal radiometric pipeline once the product type + PORT_3 payload have
+            // had time to come up, so the on-demand read at capture time is warm. This is a
+            // one-shot setup (enable temp data + region metering), not a continuous stream.
+            mainHandler.postDelayed({ armThermalMeasurement() }, 8000)
+        } else {
+            Payload.resetMediaWarmup()
+            // Reset for the next connection so a reconnect (or a different drone) rebinds again.
+            unregisterMainCamFrameDetector()
+            gimbalKeysReboundForM400 = false
+            disarmThermalMeasurement()
+        }
         if (isConnected && sharedPreferences.getBoolean(PREF_MOCK_VIDEO_ENABLED, false)) {
             sharedPreferences.edit().putBoolean(PREF_MOCK_VIDEO_ENABLED, false).apply()
             webRTCStreamer?.setMockVideoEnabled(false)
@@ -1552,6 +1584,23 @@ class WildBridgeDefaultLayoutActivity : DefaultLayoutActivity() {
     override fun onDestroy() {
         detachDefaultLayoutHsiWidgets()
 
+        disarmThermalMeasurement()
+
+        // Unregister system-service listeners FIRST and each on its own guard. The framework
+        // LocationManager keeps locationListener in a native global, so if a later teardown
+        // step throws and skips this removal, the listener pins the destroyed activity
+        // (~8.5 MB leak caught by LeakCanary). These must not depend on the block below.
+        try {
+            locationManager?.removeUpdates(locationListener)
+        } catch (e: Exception) {
+            Log.w(TAG, "Error removing location updates: ${e.message}")
+        }
+        try {
+            sensorManager?.unregisterListener(sensorListener)
+        } catch (e: Exception) {
+            Log.w(TAG, "Error unregistering sensor listener: ${e.message}")
+        }
+
         try {
             // Stop AutoSensing
             stopAutoSensing()
@@ -2154,7 +2203,84 @@ class WildBridgeDefaultLayoutActivity : DefaultLayoutActivity() {
                     postData = String(buffer)
                 }
 
-                val response = handleHttpRequest(method, uri, postData)
+                // Camera Capture is two-step. Capture only trips one shutter and returns a JSON
+                // descriptor naming the per-lens filenames the payload stored; the lens files stay
+                // on the SD card and are downloaded by name via /send/downloadMediaByName.
+                // Temperature-only read: NO shutter, NO download. Synchronously reads the
+                // highest temperature on the thermal feed and returns {"thermalMaxTemp": °C|null}.
+                if (method == "POST" && uri == "/send/captureTemperature") {
+                    WildBridgeFlightLogger.logCommand(uri, postData)
+                    val body: String = if (!ControlAuthority.authorizeControlCommand(source)) {
+                        "{\"error\":\"REJECTED: Safety Computer is in control.\"}"
+                    } else {
+                        val maxTemp = readThermalMaxTempNow()
+                        "{\"thermalMaxTemp\":${maxTemp ?: "null"}}"
+                    }
+                    val bodyBytes = body.toByteArray()
+                    writer.println("HTTP/1.1 200 OK")
+                    writer.println("Content-Type: application/json")
+                    writer.println("Content-Length: ${bodyBytes.size}")
+                    writer.println("Access-Control-Allow-Origin: *")
+                    writer.println()
+                    writer.print(body)
+                    writer.flush()
+                    clientSocket.close()
+                    return
+                }
+
+                if (method == "POST" && uri == "/send/captureThermalImage") {
+                    WildBridgeFlightLogger.logCommand(uri, postData)
+                    val body: String = if (!ControlAuthority.authorizeControlCommand(source)) {
+                        "{\"error\":\"REJECTED: Safety Computer is in control.\"}"
+                    } else {
+                        Payload.captureThermal(mediaVM) ?: "{\"error\":\"Failed to capture thermal image\"}"
+                    }
+                    val bodyBytes = body.toByteArray()
+                    writer.println("HTTP/1.1 200 OK")
+                    writer.println("Content-Type: application/json")
+                    writer.println("Content-Length: ${bodyBytes.size}")
+                    writer.println("Access-Control-Allow-Origin: *")
+                    writer.println()
+                    writer.print(body)
+                    writer.flush()
+                    clientSocket.close()
+                    return
+                }
+
+                // Download ANY file on the SD card by name: body is the filename. Resolves against
+                // the live media list (the card's own index). Returns binary image/jpeg written
+                // straight to the socket, bypassing the text-response path below.
+                if (method == "POST" && uri == "/send/downloadMediaByName") {
+                    WildBridgeFlightLogger.logCommand(uri, postData)
+                    val outputStream = clientSocket.getOutputStream()
+                    val fileName = postData.trim()
+                    if (fileName.isEmpty()) {
+                        Payload.sendErrorResponse(outputStream, "Expected body '<fileName>'")
+                    } else {
+                        Payload.sendMediaFileByName(mediaVM, fileName, outputStream)
+                    }
+                    clientSocket.close()
+                    return
+                }
+
+                // List every file on the SD card as JSON so a client can browse and pick any to
+                // download via /send/downloadMediaByName.
+                if (method == "POST" && uri == "/send/listMedia") {
+                    WildBridgeFlightLogger.logCommand(uri, postData)
+                    val body: String = Payload.listAllMedia(mediaVM)
+                    val bodyBytes = body.toByteArray()
+                    writer.println("HTTP/1.1 200 OK")
+                    writer.println("Content-Type: application/json")
+                    writer.println("Content-Length: ${bodyBytes.size}")
+                    writer.println("Access-Control-Allow-Origin: *")
+                    writer.println()
+                    writer.print(body)
+                    writer.flush()
+                    clientSocket.close()
+                    return
+                }
+
+                val response = handleHttpRequest(method, uri, postData, source)
 
                 writer.println("HTTP/1.1 200 OK")
                 writer.println("Content-Type: text/plain")

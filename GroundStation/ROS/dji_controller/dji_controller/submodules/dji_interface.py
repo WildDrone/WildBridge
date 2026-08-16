@@ -815,14 +815,20 @@ class DJIInterface:
         return self.requestSend(EP_ENABLE_VIRTUAL_STICK, "")
 
     def requestSendGotoYaw(self, yaw):
-        """Rotate to a specific yaw angle."""
+        """Rotate to a specific yaw angle.
+
+        Returns the int seq the app assigned (for isYawReached(seq)), or None if rejected.
+        """
         self.requestSendEnableVirtualStick()
-        return self.requestSend(EP_GOTO_YAW, f"{yaw}")
+        return self._parseSeq(self.requestSend(EP_GOTO_YAW, f"{yaw}"))
 
     def requestSendGotoAltitude(self, altitude):
-        """Navigate to a specific altitude."""
+        """Navigate to a specific altitude.
+
+        Returns the int seq the app assigned (for isAltitudeReached(seq)), or None if rejected.
+        """
         self.requestSendEnableVirtualStick()
-        return self.requestSend(EP_GOTO_ALTITUDE, f"{altitude}")
+        return self._parseSeq(self.requestSend(EP_GOTO_ALTITUDE, f"{altitude}"))
 
     def requestCameraStartRecording(self):
         """Start camera recording."""

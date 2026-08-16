@@ -7,6 +7,8 @@ This file was written as part of the WildDrone project and implements a ROS 2 no
 via the WildBridge app. The node handles both command reception and telemetry publishing.
 """
 
+import json
+
 import rclpy
 from rclpy.node import Node
 from rclpy.parameter import Parameter
@@ -413,6 +415,67 @@ class DjiNode(Node):
             self.get_logger().info("Camera recording stopped successfully.")
         else:
             self.get_logger().error("Failed to stop camera recording.")
+
+    def capture_callback(self, msg):
+        """Trip one shutter. Publishes the JSON capture descriptor (per-lens filenames)."""
+        self.get_logger().info("Received capture command.")
+        self.blocking_calls.submit(self._capture)
+
+    def _capture(self):
+        info = self.dji_interface.requestCapture()
+        if not info:
+            self.get_logger().error("Capture failed.")
+            self.capture_result_pub.publish(String(data='{"error":"capture failed"}'))
+            return
+        self.get_logger().info(f"Capture: {info}")
+        self.capture_result_pub.publish(String(data=json.dumps(info)))
+
+    def capture_temperature_callback(self, msg):
+        """Read the hottest point on the thermal feed (no shutter, no download)."""
+        self.get_logger().info("Received capture temperature command.")
+        response = self.dji_interface.requestCaptureTemperature()
+        try:
+            temp = json.loads(response).get("thermalMaxTemp")
+        except (ValueError, AttributeError):
+            temp = None
+        if temp is None:
+            self.get_logger().warning(f"No thermal temperature available: {response!r}")
+            return
+        self.thermal_max_temp_pub.publish(Float64(data=float(temp)))
+
+    def list_media_callback(self, msg):
+        """List the camera SD card. Publishes the JSON file list on camera/media_list."""
+        self.get_logger().info("Received list media command.")
+        self.blocking_calls.submit(self._list_media)
+
+    def _list_media(self):
+        files = self.dji_interface.listMedia()
+        if files is False:
+            self.get_logger().error("listMedia failed.")
+            return
+        self.get_logger().info(f"listMedia: {len(files)} file(s)")
+        self.media_list_pub.publish(String(data=json.dumps(files)))
+
+    def download_media_callback(self, msg: String):
+        """Download one file by its on-camera name. Publishes the saved path, '' on failure."""
+        self.get_logger().info(f"Received download media command: {msg.data}")
+        self.blocking_calls.submit(self._download_media, msg.data)
+
+    def _download_media(self, file_name):
+        path = self.dji_interface.downloadByName(file_name, out_dir=self.media_dir)
+        if path is None:
+            self.get_logger().error(f"Download failed: {file_name}")
+        self.download_result_pub.publish(String(data=path or ""))
+
+    def lrf_measure_callback(self, msg):
+        """Fire the laser range finder once. Publishes the raw JSON reading."""
+        self.get_logger().info("Received LRF measure command.")
+        reading = self.dji_interface.requestLRFMeasure()
+        self.lrf_measurement_pub.publish(String(data=json.dumps(reading)))
+
+    def drop_callback(self, msg):
+        self.get_logger().info("Received payload drop command.")
+        self.dji_interface.requestDrop()
 
     ##############################
     # Telemetry Publishers       #
