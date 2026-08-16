@@ -79,7 +79,7 @@ class WhipPublisher(
         mainHandler.removeCallbacksAndMessages(null)
         executor.shutdownNow()
         if (wasRunning) {
-            teardown()
+                teardown()
             Log.i(TAG, "WhipPublisher stopped")
         }
     }

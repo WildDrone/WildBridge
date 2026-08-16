@@ -219,10 +219,20 @@ class WildBridgeDefaultLayoutActivity : DefaultLayoutActivity() {
     // Phone Location
     private var locationManager: LocationManager? = null
     private var phoneLocation: Location? = null
-    private val locationListener = object : LocationListener {
+    // Static listener holding only a WeakReference to the activity. On some platforms the
+    // framework LocationManager keeps its LocationListenerTransport in a native global even
+    // after removeUpdates(); an anonymous listener's implicit outer reference would then pin
+    // the destroyed activity (LeakCanary: ~7.8 MB). A WeakReference cannot.
+    private val locationListener = PhoneLocationListener(this)
+
+    private class PhoneLocationListener(
+        activity: WildBridgeDefaultLayoutActivity
+    ) : LocationListener {
+        private val activityRef = WeakReference(activity)
         override fun onLocationChanged(location: Location) {
-            phoneLocation = location
-            refreshMockTelemetryMode()
+            val activity = activityRef.get() ?: return
+            activity.phoneLocation = location
+            activity.refreshMockTelemetryMode()
         }
         override fun onStatusChanged(provider: String?, status: Int, extras: Bundle?) {}
         override fun onProviderEnabled(provider: String) {}

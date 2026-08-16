@@ -78,6 +78,13 @@ open class TakeOffWidget @JvmOverloads constructor(
     private val decimalFormat = DecimalFormat("#.#")
     private var dialogType: DialogType? = null
 
+    /**
+     * Tracks whether the landing confirmation has already been auto-sent for the current
+     * landing, so we don't fire [performLandingConfirmationAction] on every state emission
+     * while the aircraft sits in WAITING_FOR_LANDING_CONFIRMATION.
+     */
+    private var autoLandingConfirmed = false
+
     private val widgetModel by lazy {
         TakeOffWidgetModel(
                 DJISDKModel.getInstance(),
@@ -656,10 +663,24 @@ open class TakeOffWidget @JvmOverloads constructor(
         updateImageAlpha()
 
         when (takeOffLandingState) {
+            // UNSAFE_TO_LAND is a genuine safety check (sensors think the ground isn't safe),
+            // so keep it manual and let the pilot decide.
             TakeOffLandingState.UNSAFE_TO_LAND -> showUnsafeToLandDialog()
-            TakeOffLandingState.WAITING_FOR_LANDING_CONFIRMATION -> showLandingConfirmationDialog()
+            // Auto-confirm the normal landing pause instead of showing the slider dialog.
+            // Guarded so we only send the confirmation once per landing.
+            TakeOffLandingState.WAITING_FOR_LANDING_CONFIRMATION -> {
+                if (!autoLandingConfirmed) {
+                    autoLandingConfirmed = true
+                    slidingDialog?.dismiss()
+                    addDisposable(performLandingConfirmationAction())
+                }
+            }
             TakeOffLandingState.READY_TO_TAKE_OFF,
-            TakeOffLandingState.TAKE_OFF_DISABLED -> slidingDialog?.dismiss()
+            TakeOffLandingState.TAKE_OFF_DISABLED -> {
+                autoLandingConfirmed = false
+                slidingDialog?.dismiss()
+            }
+            TakeOffLandingState.READY_TO_LAND -> autoLandingConfirmed = false
             else -> {
                 //do nothing
             }
