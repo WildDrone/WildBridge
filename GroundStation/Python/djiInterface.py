@@ -777,6 +777,10 @@ class DJIInterface:
     def requestCameraIsRecording(self):
         """Deprecated: Use isCameraRecording() instead."""
         return self.isCameraRecording()
+    
+    def requestDrop(self):
+        """Drop the payload."""
+        return self.requestSend(EP_PAYLOAD_DROP, "")
 
 if __name__ == '__main__':
     import time
