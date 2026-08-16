@@ -47,6 +47,8 @@ data class FrameMetadata(
     val batteryPercent: Int,
     val isFlying: Boolean,
     val flightMode: String,          // DJI flight mode string (e.g. "GPS", "ATTI", "SPORT", "TRIPOD")
+    val readyToTakeoff: Boolean = false,          // Derived: aircraft ready to take off / arm
+    val takeoffBlockReason: String = "UNKNOWN",   // FCMotorStartFailureError name, "NONE", or "UNKNOWN"
     val isManualOverrideActive: Boolean = false,  // True when pilot has taken manual RC control
     val detectedTargets: List<DetectedTarget> = emptyList()  // AI-detected targets from AutoSensing
 ) {
@@ -89,6 +91,8 @@ data class FrameMetadata(
             put("batteryPercent", batteryPercent)
             put("isFlying", isFlying)
             put("flightMode", flightMode)
+            put("readyToTakeoff", readyToTakeoff)
+            put("takeoffBlockReason", takeoffBlockReason)
             put("isManualOverrideActive", isManualOverrideActive)
             put("detectedTargets", JSONArray(detectedTargets.map { it.toJson() }))
         }
@@ -129,6 +133,8 @@ data class FrameMetadata(
                 batteryPercent = obj.optInt("batteryPercent", 0),
                 isFlying = obj.optBoolean("isFlying", false),
                 flightMode = obj.optString("flightMode", "UNKNOWN"),
+                readyToTakeoff = obj.optBoolean("readyToTakeoff", false),
+                takeoffBlockReason = obj.optString("takeoffBlockReason", "UNKNOWN"),
                 isManualOverrideActive = obj.optBoolean("isManualOverrideActive", false),
                 detectedTargets = DetectedTarget.fromJsonArray(obj.optJSONArray("detectedTargets") ?: JSONArray())
             )

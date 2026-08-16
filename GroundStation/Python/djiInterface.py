@@ -1,24 +1,18 @@
-"""
-WildBridge - DJI Interface Module
-
-A Python interface for controlling DJI drones through HTTP requests and TCP sockets,
-providing seamless integration for drone operations, telemetry retrieval, and video streaming.
-
-Authors: Edouard G.A. Rolland, Kilian Meier 
-Project: WildDrone
-Institution: University of Bristol, University of Southern Denmark (SDU)
-License: MIT
-
-For more information, visit: https://github.com/WildDrone/WildBridge
-"""
-
-import cv2
 import requests
 import ast
+import os
+import re
+import sys
+import time
+import cv2
 import json
 import socket
 import threading
-import time
+
+import math
+
+import matplotlib.pyplot as plt
+import matplotlib.animation as animation
 from datetime import datetime
 
 # Discovery Configuration
@@ -306,7 +300,15 @@ class DJIInterface:
     def getSatelliteCount(self):
         """Get GPS satellite count."""
         return self.getTelemetry().get("satelliteCount", -1)
-    
+
+    def isReadyToTakeoff(self):
+        """Whether the drone is ready to take off / arm (derived on the aircraft side)."""
+        return self.getTelemetry().get("readyToTakeoff", False)
+
+    def getTakeoffBlockReason(self):
+        """Reason the drone cannot take off: FCMotorStartFailureError name, 'NONE', or 'UNKNOWN'."""
+        return self.getTelemetry().get("takeoffBlockReason", "UNKNOWN")
+
     def getHomeLocation(self):
         """Get home location (latitude, longitude)."""
         return self.getTelemetry().get("homeLocation", {})
@@ -746,8 +748,6 @@ class DJIInterface:
         and wants to allow autonomous commands to work again.
         """
         return self.requestSend(EP_DEACTIVATE_MANUAL_OVERRIDE, "")
-
-    # ==================== Deprecated methods (kept for backward compatibility) ====================
     
     def requestSticks(self):
         """Deprecated: RC stick values are now available via getTelemetry()."""

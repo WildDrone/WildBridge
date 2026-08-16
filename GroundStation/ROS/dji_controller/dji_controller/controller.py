@@ -369,11 +369,13 @@ class DjiNode(Node):
 
     def goto_yaw_callback(self, msg):
         self.get_logger().info("Received goto yaw command.")
-        self.dji_interface.requestSendGotoYaw(msg.data)
+        seq = self.dji_interface.requestSendGotoYaw(msg.data)
+        self.yaw_ack_pub.publish(Int32(data=int(seq) if seq is not None else -1))
 
     def goto_altitude_callback(self, msg):
         self.get_logger().info("Received goto altitude command.")
-        self.dji_interface.requestSendGotoAltitude(msg.data)
+        seq = self.dji_interface.requestSendGotoAltitude(msg.data)
+        self.altitude_ack_pub.publish(Int32(data=int(seq) if seq is not None else -1))
 
     def gimbal_pitch_callback(self, msg):
         self.get_logger().info("Received gimbal pitch command.")
@@ -623,9 +625,14 @@ class DjiNode(Node):
 def main(args=None):
     rclpy.init(args=args)
     node = DjiNode()
-    rclpy.spin(node)
-    node.destroy_node()
-    rclpy.shutdown()
+    try:
+        rclpy.spin(node)
+    finally:
+        # __init__ returns early when the connection check fails, before the pool exists
+        if getattr(node, 'blocking_calls', None):
+            node.blocking_calls.shutdown(wait=False)
+        node.destroy_node()
+        rclpy.shutdown()
 
 
 if __name__ == '__main__':

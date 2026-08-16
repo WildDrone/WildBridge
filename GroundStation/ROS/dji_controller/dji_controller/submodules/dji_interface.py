@@ -16,6 +16,8 @@ import cv2
 import requests
 import ast
 import json
+import os
+import re
 import socket
 import threading
 import time
@@ -258,7 +260,7 @@ class DJIInterface:
     def __init__(self, IP_RC=""):
         if not IP_RC:
             print("No IP provided, attempting to discover drone...")
-            discovered_ip = discover_drone()
+            discovered_ip, _ = discover_drone()
             if discovered_ip:
                 self.IP_RC = discovered_ip
             else:
@@ -418,7 +420,15 @@ class DJIInterface:
     def getSatelliteCount(self):
         """Get GPS satellite count."""
         return self.getTelemetry().get("satelliteCount", -1)
-    
+
+    def isReadyToTakeoff(self):
+        """Whether the drone is ready to take off / arm (derived on the aircraft side)."""
+        return self.getTelemetry().get("readyToTakeoff", False)
+
+    def getTakeoffBlockReason(self):
+        """Reason the drone cannot take off: FCMotorStartFailureError name, 'NONE', or 'UNKNOWN'."""
+        return self.getTelemetry().get("takeoffBlockReason", "UNKNOWN")
+
     def getHomeLocation(self):
         """Get home location (latitude, longitude)."""
         return self.getTelemetry().get("homeLocation", {})
@@ -579,6 +589,14 @@ class DJIInterface:
     def requestSendGimbalYaw(self, yaw=0):
         """Set gimbal yaw angle."""
         return self.requestSend(EP_GIMBAL_SET_YAW, f"0,0,{yaw}")
+
+    def requestSendGimbalRelPitch(self, rel_pitch=0):
+        """Adjust gimbal pitch by a relative angle."""
+        return self.requestSend(EP_GIMBAL_SET_REL_PITCH, f"0,{rel_pitch},0")
+
+    def requestSendGimbalRelYaw(self, rel_yaw=0):
+        """Adjust gimbal yaw by a relative angle."""
+        return self.requestSend(EP_GIMBAL_SET_REL_YAW, f"0,0,{rel_yaw}")
 
     def requestSendZoomRatio(self, zoomRatio=1):
         """Set camera zoom ratio."""

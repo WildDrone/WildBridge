@@ -5,11 +5,15 @@ import dji.sdk.keyvalue.key.BatteryKey
 import dji.sdk.keyvalue.key.FlightControllerKey
 import dji.sdk.keyvalue.key.GimbalKey
 import dji.sdk.keyvalue.value.flightcontroller.FlightMode
+import dji.sdk.keyvalue.value.flightcontroller.FCMotorStartFailureError
+import dji.sdk.keyvalue.value.flightcontroller.GPSSignalLevel
 import dji.sdk.keyvalue.value.common.Attitude
 import dji.sdk.keyvalue.value.common.LocationCoordinate3D
 import dji.sdk.keyvalue.value.common.Velocity3D
 import dji.sampleV5.aircraft.controller.DroneController
 import dji.v5.manager.KeyManager
+import dji.v5.manager.diagnostic.DJIDeviceStatus
+import dji.v5.manager.diagnostic.DeviceStatusManager
 import dji.v5.ux.detection.DetectedTarget
 import dji.v5.et.create
 
@@ -39,6 +43,11 @@ object TelemetryProvider {
     private val batteryPercentKey = BatteryKey.KeyChargeRemainingInPercent.create()
     private val isFlyingKey = FlightControllerKey.KeyIsFlying.create()
     private val flightModeStringKey = FlightControllerKey.KeyFlightModeString.create()
+    private val areMotorsOnKey = FlightControllerKey.KeyAreMotorsOn.create()
+    private val connectionKey = FlightControllerKey.KeyConnection.create()
+    private val gpsSignalLevelKey = FlightControllerKey.KeyGPSSignalLevel.create()
+    private val notAllowMotorStartKey = FlightControllerKey.KeyNotAllowMotorStart.create()
+    private val takeoffFailureErrorKey = FlightControllerKey.KeyTakeoffFailureError.create()
 
     // ---- Cached values updated asynchronously by KeyManager listeners ----
     @Volatile private var cachedLocation = LocationCoordinate3D(0.0, 0.0, 0.0)
@@ -51,6 +60,11 @@ object TelemetryProvider {
     @Volatile private var cachedBatteryPercent = 0
     @Volatile private var cachedIsFlying = false
     @Volatile private var cachedFlightMode = "UNKNOWN"
+    @Volatile private var cachedMotorsOn = false
+    @Volatile private var cachedConnection = false
+    @Volatile private var cachedGpsLevel: GPSSignalLevel = GPSSignalLevel.UNKNOWN
+    @Volatile private var cachedNotAllowMotorStart: Boolean? = null
+    @Volatile private var cachedTakeoffFailure: FCMotorStartFailureError? = null
     @Volatile private var mockTelemetryEnabled = false
     @Volatile private var mockBaseLatitude = 55.6761
     @Volatile private var mockBaseLongitude = 12.5683
@@ -100,6 +114,36 @@ object TelemetryProvider {
         km.listen(flightModeStringKey, this) { _, v ->
             v?.let { cachedFlightMode = it }
         }
+        km.listen(areMotorsOnKey, this) { _, v ->
+            v?.let { cachedMotorsOn = it }
+        }
+        km.listen(connectionKey, this) { _, v ->
+            v?.let { cachedConnection = it }
+        }
+        km.listen(gpsSignalLevelKey, this) { _, v ->
+            v?.let { cachedGpsLevel = it }
+        }
+        km.listen(notAllowMotorStartKey, this) { _, v ->
+            cachedNotAllowMotorStart = v
+        }
+        km.listen(takeoffFailureErrorKey, this) { _, v ->
+            cachedTakeoffFailure = v
+        }
+    }
+
+    /**
+     * Derived take-off readiness. See [FrameMetadata.readyToTakeoff].
+     * Mirrors the DJI system-status banner: ready when it reads "Ready to Go (GPS)"
+     * ([DJIDeviceStatus.NORMAL]). getCurrentDJIDeviceStatus() is a cheap in-memory
+     * getter, so it is safe to call per frame.
+     */
+    private fun computeReadyToTakeoff(): Boolean =
+        DeviceStatusManager.getInstance().getCurrentDJIDeviceStatus() == DJIDeviceStatus.NORMAL
+
+    /** Reason the aircraft cannot take off, or "NONE" when ready. Mirrors the DJI status banner. */
+    private fun computeTakeoffBlockReason(): String {
+        val status = DeviceStatusManager.getInstance().getCurrentDJIDeviceStatus()
+        return if (status == DJIDeviceStatus.NORMAL) "NONE" else status.name
     }
 
     /**
@@ -222,6 +266,8 @@ object TelemetryProvider {
                 batteryPercent = mock.batteryPercent,
                 isFlying = mock.isFlying,
                 flightMode = mock.flightMode,
+                readyToTakeoff = false,
+                takeoffBlockReason = "MOCK_IN_FLIGHT",
                 isManualOverrideActive = false,
                 detectedTargets = currentDetectedTargets
             )
@@ -266,6 +312,8 @@ object TelemetryProvider {
             batteryPercent = cachedBatteryPercent,
             isFlying = cachedIsFlying,
             flightMode = cachedFlightMode,
+            readyToTakeoff = computeReadyToTakeoff(),
+            takeoffBlockReason = computeTakeoffBlockReason(),
             isManualOverrideActive = DroneController.isManualOverrideActive,
             detectedTargets = currentDetectedTargets
         )
