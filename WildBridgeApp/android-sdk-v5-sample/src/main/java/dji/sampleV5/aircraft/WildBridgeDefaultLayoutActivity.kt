@@ -2077,20 +2077,8 @@ class WildBridgeDefaultLayoutActivity : DefaultLayoutActivity() {
                         stopRecording.action()
                         "Received: camera stop recording"
                     }
-                    "/send/gotoWP" -> {
-                        if (DroneController.shouldRejectAutonomousCommand("gotoWP")) {
-                            return "REJECTED: Manual override active. Deactivate manual override first."
-                        }
-                        val cmd = postData.split(",")
-                        if (cmd.size < 3) return "Invalid input. Expected format: lat,lon,alt"
-                        val latitude = cmd[0].toDouble()
-                        val longitude = cmd[1].toDouble()
-                        val altitude = cmd[2].toDouble()
-                        DroneController.gotoWP(latitude, longitude, altitude)
-                        "Waypoint command received: Latitude=$latitude, Longitude=$longitude, Altitude=$altitude"
-                    }
-                    "/send/gotoWPwithPID" -> {
-                        if (DroneController.shouldRejectAutonomousCommand("gotoWPwithPID")) {
+                    "/send/gotoWaypointHoldHeading" -> {
+                        if (DroneController.shouldRejectAutonomousCommand("gotoWaypointHoldHeading")) {
                             return "REJECTED: Manual override active. Deactivate manual override first."
                         }
                         val cmd = postData.split(",")
@@ -2100,25 +2088,27 @@ class WildBridgeDefaultLayoutActivity : DefaultLayoutActivity() {
                         val altitude = cmd[2].toDouble()
                         val yaw = cmd[3].toDouble()
                         val maxSpeed = cmd[4].toDouble()
-                        DroneController.navigateToWaypointWithPID(latitude, longitude, altitude, yaw, maxSpeed)
-                        "Waypoint command received: Latitude=$latitude, Longitude=$longitude, Altitude=$altitude, Yaw=$yaw, MaxSpeed=$maxSpeed"
+                        val seq = DroneController.flyToWaypointHoldHeading(latitude, longitude, altitude, yaw, maxSpeed)
+                        "WAYPOINT_ACCEPTED seq=$seq Latitude=$latitude, Longitude=$longitude, Altitude=$altitude, Yaw=$yaw, MaxSpeed=$maxSpeed"
                     }
-                    "/send/navigateTrajectory" -> {
-                        if (DroneController.shouldRejectAutonomousCommand("navigateTrajectory")) {
+                    "/send/gotoWaypointNoseForward" -> {
+                        if (DroneController.shouldRejectAutonomousCommand("gotoWaypointNoseForward")) {
                             return "REJECTED: Manual override active. Deactivate manual override first."
                         }
-                        Log.d("DroneServer", "Received trajectory data: $postData")
-                        val segments = postData.split(";").map { it.trim() }.filter { it.isNotEmpty() }
-                        if (segments.isEmpty()) return "Invalid input. Expected at least one waypoint."
-                        val waypoints = mutableListOf<Triple<Double, Double, Double>>()
-                        for (i in 0 until segments.size) {
-                            val parts = segments[i].split(",").map { it.trim() }
-                            if (parts.size < 3) return "Invalid input at segment $i: expected lat,lon,alt"
-                            waypoints.add(Triple(parts[0].toDouble(), parts[1].toDouble(), parts[2].toDouble()))
-                        }
-                        Log.d("DroneServer", "Navigating trajectory with ${waypoints.size} waypoints")
-                        DroneController.navigateTrajectory(waypoints)
-                        "Trajectory command received. Waypoints=${waypoints.size}"
+                        // NOTE: nose-follows-path endpoint. During travel the drone faces its
+                        // direction of motion (heading is forced to bearing(current->waypoint)); the
+                        // yaw field is the FINAL arrival heading the drone rotates to in place once it
+                        // reaches the waypoint (Phase 3). Use /send/gotoWaypointHoldHeading if you need
+                        // the nose pointed at yaw *while* translating.
+                        val cmd = postData.split(",")
+                        if (cmd.size < 5) return "Invalid input. Expected format: lat,lon,alt,yaw,maxSpeed (yaw = final arrival heading)"
+                        val latitude = cmd[0].toDouble()
+                        val longitude = cmd[1].toDouble()
+                        val altitude = cmd[2].toDouble()
+                        val yaw = cmd[3].toDouble()  // final arrival heading (Phase 3); travel heading is auto
+                        val maxSpeed = cmd[4].toDouble()
+                        val seq = DroneController.flyToWaypointNoseForward(latitude, longitude, altitude, yaw, maxSpeed)
+                        "WAYPOINT_ACCEPTED seq=$seq Latitude=$latitude, Longitude=$longitude, Altitude=$altitude, FinalYaw=$yaw, MaxSpeed=$maxSpeed"
                     }
                     "/send/navigateTrajectoryDJINative" -> {
                         if (DroneController.shouldRejectAutonomousCommand("navigateTrajectoryDJINative")) {

@@ -58,20 +58,40 @@ def discover_drone(timeout=5.0):
     
     return None
 
+# Aircraft state endpoint suffixes
+# GETTER
+EP_BASE = "/"
+EP_SPEED = "/aircraft/speed"
+EP_HEADING = "/aircraft/heading"
+EP_ATTITUDE = "/aircraft/attitude"
+EP_LOCATION = "/aircraft/location"
+EP_GIMBAL_ATTITUDE = "/aircraft/gimbalAttitude"
+EP_ALL_STATES = "/aircraft/allStates"
+EP_STICK_VALUES = "/aircraft/rcStickValues"
+EP_YAW_REACHED = "/status/yawReached"
+EP_ALTITUDE_REACHED = "/status/altitudeReached"
+EP_WP_REACHED = "/status/waypointReached"
+EP_HOME_LOCATION = "/home/location"
+EP_CAMERA_IS_RECORDING = "/status/camera/isRecording"
+EP_CAPTURE_THERMAL_IMAGE = "/send/captureThermalImage"
+EP_CAPTURE_TEMPERATURE = "/send/captureTemperature"  # temperature-only read, no shutter
+
+# SETTER
 # HTTP POST Command Endpoints (port 8080)
 EP_STICK = "/send/stick"  # expects a formatted string: "<leftX>,<leftY>,<rightX>,<rightY>"
 EP_ZOOM = "/send/camera/zoom"
 EP_GIMBAL_SET_PITCH = "/send/gimbal/pitch"
 EP_GIMBAL_SET_YAW = "/send/gimbal/yaw"  # !!! This is the yaw joint angle !!!
+EP_GIMBAL_SET_REL_PITCH = "/send/gimbal/rel_pitch"
+EP_GIMBAL_SET_REL_YAW = "/send/gimbal/rel_yaw"
 EP_TAKEOFF = "/send/takeoff"
 EP_LAND = "/send/land"
 EP_RTH = "/send/RTH"
 EP_ENABLE_VIRTUAL_STICK = "/send/enableVirtualStick"
 EP_ABORT_MISSION = "/send/abortMission"
-EP_GOTO_WP = "/send/gotoWP"
+EP_ABORT_ALL = "/send/abortAll"
 EP_GOTO_YAW = "/send/gotoYaw"
-EP_GOTO_WP_PID = "/send/gotoWPwithPID"
-EP_GOTO_TRAJECTORY = "/send/navigateTrajectory"
+EP_GOTO_WP_NOSE_FORWARD = "/send/gotoWaypointNoseForward"
 EP_GOTO_ALTITUDE = "/send/gotoAltitude"
 EP_CAMERA_START_RECORDING = "/send/camera/startRecording"
 EP_CAMERA_STOP_RECORDING = "/send/camera/stopRecording"
@@ -80,10 +100,43 @@ EP_ABORT_DJI_NATIVE_MISSION = "/send/abort/DJIMission"
 EP_SET_RTH_ALTITUDE = "/send/setRTHAltitude"
 EP_DEACTIVATE_MANUAL_OVERRIDE = "/send/deactivateManualOverride"
 EP_GET_MANUAL_OVERRIDE = "/get/isManualOverrideActive"
+EP_LRF_MEASURE = "/send/lrf/measure"
+EP_LIST_MEDIA = "/send/listMedia"
+EP_DOWNLOAD_MEDIA_BY_NAME = "/send/downloadMediaByName"
+
+# The bridge identifies the three co-aligned lenses of one H20T shutter by these
+# exact names (no aliases). One shutter exposes all of them at once; the lens(es)
+# you pass select which are downloaded.
+LENS_KEYS = ("thermal", "wide", "zoom")
+
+
+def canonical_lenses(lenses):
+    """Normalize a lens selection into an ordered, de-duplicated list of lens names.
+
+    Accepts a single name ("wide"), a list/tuple, or a comma/space-separated string
+    ("thermal,zoom"). The only valid names are the members of LENS_KEYS — no aliases;
+    matching is case-insensitive. Output order follows LENS_KEYS. Raises ValueError on
+    an unknown lens name.
+    """
+    if isinstance(lenses, str):
+        lenses = [part for part in lenses.replace(",", " ").split() if part]
+    requested = set()
+    for name in lenses:
+        key = str(name).strip().lower()
+        if key not in LENS_KEYS:
+            raise ValueError(f"unknown lens {name!r}; valid: {', '.join(LENS_KEYS)}")
+        requested.add(key)
+    return [k for k in LENS_KEYS if k in requested]
+
 
 # PID Tuning
-EP_TUNING = "/send/gotoWPwithPIDtuning"
+EP_GOTO_WP_HOLD_HEADING = "/send/gotoWaypointHoldHeading"
+EP_PAYLOAD_DROP = "/send/drop"
 
+# Thermal Image handling
+SAVE_SUCCESS = "T_IMG_SAVE_SUCCESS"
+SAVE_FAILURE = "T_IMG_SAVE_FAILURE"
+CAP_FAILURE = "T_IMG_CAP_FAILURE"
 
 class DJIInterface:
     """
@@ -262,22 +315,63 @@ class DJIInterface:
     def getDistanceToHome(self):
         """Get distance to home in meters."""
         return self.getTelemetry().get("distanceToHome", 0.0)
-    
-    def isWaypointReached(self):
-        """Check if the current waypoint has been reached."""
-        return self.getTelemetry().get("waypointReached", False)
+
+    def getLRFTarget(self):
+        """Get the last LRF-locked target position (latitude, longitude, altitude)."""
+        return self.getTelemetry().get("lrfTarget")
+
+    def getWaypointSeq(self):
+        """Id of the waypoint the streamed 'waypointReached' currently refers to.
+
+        Mirrors DroneController._waypointSeq, incremented by the app for every
+        requestSendGoToWaypointNoseForward. Returns -1 if telemetry hasn't reported it yet.
+        """
+        return self.getTelemetry().get("waypointSeq", -1)
+
+    def isWaypointReached(self, seq=None):
+        """Check if a commanded waypoint has been reached."""
+        telemetry = self.getTelemetry()
+        reached = telemetry.get("waypointReached", False)
+        if seq is None:
+            return reached
+        return reached and telemetry.get("waypointSeq", -1) == seq
     
     def isIntermediaryWaypointReached(self):
         """Check if an intermediary waypoint has been reached."""
         return self.getTelemetry().get("intermediaryWaypointReached", False)
     
-    def isYawReached(self):
-        """Check if the target yaw has been reached."""
-        return self.getTelemetry().get("yawReached", False)
-    
-    def isAltitudeReached(self):
-        """Check if the target altitude has been reached."""
-        return self.getTelemetry().get("altitudeReached", False)
+    def getYawSeq(self):
+        """Id of the gotoYaw command the streamed 'yawReached' refers to (-1 if unknown)."""
+        return self.getTelemetry().get("yawSeq", -1)
+
+    def isYawReached(self, seq=None):
+        """Check if a commanded yaw has been reached.
+
+        'yawReached' latches until the next command, so pass the seq returned by
+        requestSendGotoYaw to require the streamed status belongs to that command.
+        seq=None keeps the legacy (race-prone) raw-flag read.
+        """
+        telemetry = self.getTelemetry()
+        reached = telemetry.get("yawReached", False)
+        if seq is None:
+            return reached
+        return reached and telemetry.get("yawSeq", -1) == seq
+
+    def getAltitudeSeq(self):
+        """Id of the gotoAltitude command the streamed 'altitudeReached' refers to (-1 if unknown)."""
+        return self.getTelemetry().get("altitudeSeq", -1)
+
+    def isAltitudeReached(self, seq=None):
+        """Check if a commanded altitude has been reached.
+
+        Pass the seq returned by requestSendGotoAltitude to avoid the stale-latch race.
+        seq=None keeps the legacy (race-prone) raw-flag read.
+        """
+        telemetry = self.getTelemetry()
+        reached = telemetry.get("altitudeReached", False)
+        if seq is None:
+            return reached
+        return reached and telemetry.get("altitudeSeq", -1) == seq
     
     def isCameraRecording(self):
         """Check if the camera is currently recording."""
@@ -398,52 +492,177 @@ class DJIInterface:
         self.requestAbortMission()
         return self.requestSend(EP_RTH, "")
 
-    def requestSendGoToWP(self, latitude, longitude, altitude):
-        """Navigate to a waypoint."""
-        return self.requestSend(EP_GOTO_WP, f"{latitude},{longitude},{altitude}")
+    def requestSendGoToWaypointNoseForward(self, latitude, longitude, altitude, yaw, speed: float = 20.0):
+        """Navigate to a waypoint with PID control (nose-follows-path, final-heading).
 
-    def requestSendGoToWPwithPID(self, latitude, longitude, altitude, yaw, speed: float = 5.0):
-        """Navigate to a waypoint with PID control.
-        
+        CONTRACT: during travel the drone faces its direction of motion — the bridge forces the
+        travel heading to bearing(current->waypoint). The `yaw` argument is the FINAL arrival
+        heading: once the drone reaches the waypoint it rotates in place to `yaw` (Phase 3), and
+        only then is the waypoint reported reached. If you instead need the nose pointed at `yaw`
+        *while* translating, use requestSendGoToWaypointHoldHeading, which projects the to-waypoint
+        vector into the body frame.
+
         Args:
             latitude: Target latitude
             longitude: Target longitude
             altitude: Target altitude
-            yaw: Target yaw angle
+            yaw: Final arrival heading (deg). Drone rotates to this in place after reaching the WP;
+                 it does NOT set the travel heading (that is auto = bearing to waypoint).
+            speed: Max speed in m/s (default 20.0)
+
+        Returns:
+            int: the sequence id the app assigned to this request (parsed from the
+                 "WAYPOINT_ACCEPTED seq=<n> ..." response). Pass it to
+                 isWaypointReached(seq) to avoid the stale-latch race.
+            None: if the command was rejected or the response had no seq.
+        """
+        response = self.requestSend(EP_GOTO_WP_NOSE_FORWARD, f"{latitude},{longitude},{altitude},{yaw},{speed}")
+        return self._parseSeq(response)
+
+    @staticmethod
+    def _parseSeq(response):
+        """Extract the integer seq from an '<X>_ACCEPTED seq=<n> ...' response, else None."""
+        match = re.search(r"seq=(\d+)", str(response))
+        return int(match.group(1)) if match else None
+    
+    def requestSendGoToWaypointHoldHeading(self, latitude, longitude, altitude, yaw, speed: float = 5.0):
+        """Navigate to a waypoint holding a fixed heading for the whole flight.
+
+        CONTRACT: the nose stays on `yaw` from start to arrival — the drone crabs sideways or
+        diagonally instead of turning to face where it is going. Use this when the payload must
+        keep looking at one bearing while repositioning. Tighter arrival tolerance than
+        requestSendGoToWaypointNoseForward, which turns the nose along the leg instead.
+
+        Args:
+            latitude, longitude, altitude: Target position
+            yaw: Heading (deg) held for the entire flight, not just on arrival
             speed: Max speed in m/s (default 5.0)
-        """
-        return self.requestSend(EP_GOTO_WP_PID, f"{latitude},{longitude},{altitude},{yaw},{speed}")
-    
-    def requestSendGoToWPwithPIDtuning(self, latitude, longitude, altitude, yaw, kp_pos, ki_pos, kd_pos, kp_yaw, ki_yaw, kd_yaw):
-        """Navigate to a waypoint with custom PID tuning parameters."""
-        return self.requestSend(EP_TUNING, f"{latitude},{longitude},{altitude},{yaw},{kp_pos},{ki_pos},{kd_pos},{kp_yaw},{ki_yaw},{kd_yaw}")
 
-    def requestSendNavigateTrajectory(self, waypoints, finalYaw):
+        Returns:
+            int: the seq id parsed from "WAYPOINT_ACCEPTED seq=<n> ...", or None if rejected.
         """
-        Navigate through a series of waypoints.
-        :param waypoints: A list of triples (latitude, longitude, altitude) for each waypoint.
-        :param finalYaw: The final yaw angle at the last waypoint.
-        :return: The response from the server.
+        response = self.requestSend(EP_GOTO_WP_HOLD_HEADING, f"{latitude},{longitude},{altitude},{yaw},{speed}")
+        return self._parseSeq(response)
+        
+
+    def requestCapture(self):
+        """Trigger ONE H20T shutter (no image download). Returns the capture descriptor.
+        Returns:
+            dict {"thermal": fn|None, "wide": fn|None, "zoom": fn|None} on success (fn is the
+            on-camera filename, None if that lens was not stored), else False.
+
+        Download any returned filename with downloadByName().
+        For the thermal max temperature (no shutter), use requestCaptureTemperature().
         """
-        self.requestSendEnableVirtualStick()
-        if not waypoints:
-            raise ValueError("No waypoints provided")
 
-        # Build the message
-        # All waypoints except the last: "lat,lon,alt"
-        # Last waypoint: "lat,lon,alt,yaw"
-        segments = []
-        for i, (lat, lon, alt) in enumerate(waypoints):
-            if i < len(waypoints) - 1:
-                # Intermediary waypoint: lat,lon,alt
-                segments.append(f"{lat},{lon},{alt}")
-            else:
-                # Last waypoint: lat,lon,alt,yaw
-                segments.append(f"{lat},{lon},{alt},{finalYaw}")
+        if self.IP_RC == "":
+            print("No IP_RC provided, cannot capture image")
+            return False
+        # Trip the shutter. The bridge returns a JSON descriptor naming the on-camera filename
+        # of each lens the H20T stored (no image yet).
+        try:
+            # Generous timeout: the very first capture after connect can be cold (the bridge builds
+            # the full SD-card list once), so allow well past the server's internal resolution cap.
+            response = requests.post(
+                self.baseCommandUrl + EP_CAPTURE_THERMAL_IMAGE, data="", timeout=60)
+        except requests.exceptions.RequestException as e:
+            print(f"Error capturing image: {e}")
+            return False
+        try:
+            info = response.json()
+        except ValueError:
+            print(f"Capture returned non-JSON: HTTP {response.status_code}, "
+                  f"body={response.text[:200]!r}")
+            return False
+        if info.get("error") or not info.get("thermal"):
+            print(f"Capture failed: {info}")
+            return False
+        return info
 
-        message = ";".join(segments)
-        return self.requestSend(EP_GOTO_TRAJECTORY, message)
-    
+    def requestCaptureTemperature(self):
+        """Read the highest temperature (deg C) on the thermal feed. No shutter, no download.
+
+        Returns the bridge's raw JSON response body, e.g. '{"thermalMaxTemp":21.5}'
+        (thermalMaxTemp is null if no radiometric value was available).
+        """
+        return self.requestSend(EP_CAPTURE_TEMPERATURE, "")
+
+    def listMedia(self):
+        """List every file on the camera's SD card (robust path — source of truth, not the
+        bounded recent-capture cache).
+
+        Returns:
+            list of dicts {"name": str, "index": int, "size": int, "type": str} on success,
+            else False.
+        """
+        if self.IP_RC == "":
+            print("No IP_RC provided, cannot list media")
+            return False
+        try:
+            response = requests.post(
+                self.baseCommandUrl + EP_LIST_MEDIA, data="", timeout=30)
+        except requests.exceptions.RequestException as e:
+            print(f"Error listing media: {e}")
+            return False
+        try:
+            info = response.json()
+        except ValueError:
+            print(f"listMedia returned non-JSON: HTTP {response.status_code}, "
+                  f"body={response.text[:200]!r}")
+            return False
+        return info.get("files", [])
+
+    def downloadByName(self, file_name, save_path=None, out_dir="."):
+        """Download ANY file from the SD card by its on-camera filename. Works for any file the
+        camera ever wrote, regardless of how many captures happened since — no dependence on the
+        bounded recent-capture cache.
+
+        Args:
+            file_name: the on-camera filename (e.g. from listMedia() or a capture descriptor).
+            save_path: full output path; defaults to out_dir/file_name.
+            out_dir: directory used when save_path is not given (created if missing).
+
+        Returns:
+            the saved path, or None on failure.
+        """
+        if self.IP_RC == "":
+            print("No IP_RC provided, cannot download image")
+            return None
+        if not file_name:
+            print("Download error: no file_name")
+            return None
+        if save_path is None:
+            os.makedirs(out_dir, exist_ok=True)
+            save_path = os.path.join(out_dir, file_name)
+        try:
+            response = requests.post(
+                self.baseCommandUrl + EP_DOWNLOAD_MEDIA_BY_NAME,
+                data=file_name, timeout=120)
+        except requests.exceptions.RequestException as e:
+            print(f"{file_name}: download error: {e}")
+            return None
+        content_type = response.headers.get("Content-Type", "")
+        if response.status_code != 200 or not content_type.startswith("image/"):
+            print(f"{file_name}: download failed (HTTP {response.status_code}, "
+                  f"Content-Type={content_type!r}, body={response.text[:200]!r})")
+            return None
+        with open(save_path, "wb") as f:
+            f.write(response.content)
+        print(f"{file_name} saved to: {save_path} ({len(response.content)} bytes)")
+        return save_path
+
+    def requestLRFMeasure(self):
+        """Fire the H20T laser range finder once and return its reading."""
+        response = self.requestSend(EP_LRF_MEASURE, "")
+        if not response:
+            return {"distance": None, "target": None, "state": None}
+        try:
+            print(response)
+            return json.loads(response)
+        except ValueError:
+            print(f"LRF: could not parse response: {response!r}")
+            return {"distance": None, "target": None, "state": None}  
+        
     def requestSendNavigateTrajectoryDJINative(self, waypoints, speed: float = 10.0):
         """
         Send waypoints to be executed using DJI's native waypoint mission system.
@@ -472,19 +691,34 @@ class DJIInterface:
         """Abort the current mission and disable virtual stick."""
         return self.requestSend(EP_ABORT_MISSION, "")
 
+    def requestAbortAll(self):
+        """Cancel any active PID control loop (controlLoopEnabled=false, activeLoopIsWaypoint=false).
+
+        Use before a tuning command to guarantee a COLD start so new distanceKp/maxHorizontalAccel
+        are re-captured — without this, a running loop would just hot-swap the target and keep the
+        gains it already has.
+        """
+        return self.requestSend(EP_ABORT_ALL, "")
+
     def requestSendEnableVirtualStick(self):
         """Enable virtual stick control mode."""
         return self.requestSend(EP_ENABLE_VIRTUAL_STICK, "")
 
     def requestSendGotoYaw(self, yaw):
-        """Rotate to a specific yaw angle."""
+        """Rotate to a specific yaw angle.
+
+        Returns the int seq the app assigned (for isYawReached(seq)), or None if rejected.
+        """
         self.requestSendEnableVirtualStick()
-        return self.requestSend(EP_GOTO_YAW, f"{yaw}")
+        return self._parseSeq(self.requestSend(EP_GOTO_YAW, f"{yaw}"))
 
     def requestSendGotoAltitude(self, altitude):
-        """Navigate to a specific altitude."""
+        """Navigate to a specific altitude.
+
+        Returns the int seq the app assigned (for isAltitudeReached(seq)), or None if rejected.
+        """
         self.requestSendEnableVirtualStick()
-        return self.requestSend(EP_GOTO_ALTITUDE, f"{altitude}")
+        return self._parseSeq(self.requestSend(EP_GOTO_ALTITUDE, f"{altitude}"))
 
     def requestCameraStartRecording(self):
         """Start camera recording."""
@@ -558,50 +792,15 @@ if __name__ == '__main__':
     
     print("\n" + "="*60)
     print("TCP Telemetry Socket Test - Press Ctrl+C to stop")
-    print("="*60 + "\n")
+    print("="*60 + "\n")    
     
-    try:
-        while True:
-            telemetry = dji.getTelemetry()
+    while True:
+        try:
+            telem = dji.getTelemetry()
+            print(telem)
+            time.sleep(1)
+        except KeyboardInterrupt:
+            print("Stopping telemetry stream...")
+            dji.stopTelemetryStream()
+            break
             
-            if telemetry:
-                # Clear screen effect by printing separator
-                print("-" * 60)
-                print(f"[{telemetry.get('timestamp', 'N/A')}]")
-                print(f"  Battery:     {dji.getBatteryLevel()}%")
-                print(f"  Satellites:  {dji.getSatelliteCount()}")
-                print(f"  Heading:     {dji.getHeading():.1f}°")
-                print(f"  Location:    {dji.getLocation()}")
-                print(f"  Altitude:    {dji.getLocation().get('altitude', 'N/A')} m")
-                print(f"  Speed:       {dji.getSpeed()}")
-                print(f"  Attitude:    {dji.getAttitude()}")
-                print(f"  Gimbal:      {dji.getGimbalAttitude()}")
-                print(f"  Home Set:    {dji.isHomeSet()}")
-                print(f"  Home Loc:    {dji.getHomeLocation()}")
-                print(f"  Dist Home:   {dji.getDistanceToHome():.1f} m")
-                print(f"  Recording:   {dji.isCameraRecording()}")
-                print(f"  WP Reached:  {dji.isWaypointReached()}")
-                print(f"  Yaw Reached: {dji.isYawReached()}")
-                print(f"  Alt Reached: {dji.isAltitudeReached()}")
-                print(f"  Flight Time: {dji.getRemainingFlightTime()} s remaining")
-                print(f"  Total Time:  {dji.getTotalTime()} s")
-                print(f"  Time to RTH: {dji.getTimeNeededToGoHome()} s")
-                print(f"  Time to Land:{dji.getTimeNeededToLand()} s")
-                print(f"  Max Radius:  {dji.getMaxRadiusCanFlyAndGoHome()} m")
-                print(f"  --- Battery Thresholds ---")
-                print(f"  Remaining:   {dji.getRemainingCharge()}%")
-                print(f"  Need Land:   {dji.getBatteryNeededToLand()}%")
-                print(f"  Need RTH:    {dji.getBatteryNeededToGoHome()}%")
-                print(f"  Low Batt:    {dji.getLowBatteryThreshold()}%")
-                print(f"  Serious Low: {dji.getSeriousLowBatteryThreshold()}%")
-                print(f"  Flight Mode: {dji.getFlightMode()}")
-                print(f"  Manual Override: {dji.isManualOverrideActive()}")
-            else:
-                print("Waiting for telemetry data...")
-            
-            time.sleep(0.1)  # Update every 500ms
-            
-    except KeyboardInterrupt:
-        print("\n\nStopping telemetry stream...")
-        dji.stopTelemetryStream()
-        print("Done.")
