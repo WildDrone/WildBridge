@@ -306,7 +306,7 @@ class DJIInterface:
         return self.getTelemetry().get("readyToTakeoff", False)
 
     def getTakeoffBlockReason(self):
-        """Reason the drone cannot take off: FCMotorStartFailureError name, 'NONE', or 'UNKNOWN'."""
+        """Reason the drone cannot take off: DJIDeviceStatus name, 'NONE', or 'UNKNOWN'."""
         return self.getTelemetry().get("takeoffBlockReason", "UNKNOWN")
 
     def getHomeLocation(self):
