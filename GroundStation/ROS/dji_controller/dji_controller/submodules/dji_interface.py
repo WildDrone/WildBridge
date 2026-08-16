@@ -881,12 +881,35 @@ class DJIInterface:
         """Deprecated: Use isCameraRecording() instead."""
         return self.isCameraRecording()
 
+    def requestDrop(self):
+        """Drop the payload."""
+        return self.requestSend(EP_PAYLOAD_DROP, "")
+
+
+def _selftest():
+    """Offline checks for the pure logic added here (no drone required)."""
+    assert canonical_lenses("thermal,zoom") == ["thermal", "zoom"]
+    assert canonical_lenses(["ZOOM", "wide", "zoom"]) == ["wide", "zoom"]
+    try:
+        canonical_lenses("rgb")
+        raise AssertionError("expected ValueError for unknown lens")
+    except ValueError:
+        pass
+    assert DJIInterface._parseSeq("WAYPOINT_ACCEPTED seq=42 lat=1") == 42
+    assert DJIInterface._parseSeq("REJECTED") is None
+    print("selftest OK")
+
+
 if __name__ == '__main__':
     import time
     import sys
     
     IP_RC = "10.102.252.30"  # REPLACE WITH YOUR RC IP
-    
+
+    if len(sys.argv) > 1 and sys.argv[1] == "selftest":
+        _selftest()
+        sys.exit(0)
+
     if len(sys.argv) > 1:
         IP_RC = sys.argv[1]
 

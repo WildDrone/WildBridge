@@ -299,7 +299,6 @@ class DJIInterface:
     def getZoomRatio(self):
         """Get camera zoom ratio."""
         return self.getTelemetry().get("zoomRatio", 1.0)
-    
     def getBatteryLevel(self):
         """Get battery level percentage."""
         return self.getTelemetry().get("batteryLevel", -1)
@@ -469,6 +468,14 @@ class DJIInterface:
         """Set gimbal yaw angle."""
         return self.requestSend(EP_GIMBAL_SET_YAW, f"0,0,{yaw}")
 
+    def requestSendGimbalRelPitch(self, rel_pitch=0):
+        """Adjust gimbal pitch by a relative angle."""
+        return self.requestSend(EP_GIMBAL_SET_REL_PITCH, f"0,{rel_pitch},0")
+    
+    def requestSendGimbalRelYaw(self, rel_yaw=0):
+        """Adjust gimbal yaw by a relative angle."""
+        return self.requestSend(EP_GIMBAL_SET_REL_YAW, f"0,0,{rel_yaw}")
+    
     def requestSendZoomRatio(self, zoomRatio=1):
         """Set camera zoom ratio."""
         return self.requestSend(EP_ZOOM, zoomRatio)

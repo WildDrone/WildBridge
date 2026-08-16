@@ -2571,6 +2571,50 @@ class WildBridgeDefaultLayoutActivity : DefaultLayoutActivity() {
                     "/get/autoSensing/targets" -> {
                         DetectedTarget.listToJsonArray(currentDetectedTargets).toString()
                     }
+                    // --- H20T Laser Range Finder (LRF) ---
+                    "/send/lrf/measure" -> {
+                        // Fire the laser and return distance + geo-reference + state as JSON.
+                        // distance and the target point are populated only when the laser locks
+                        // (state == NORMAL, which requires a GPS fix); other states return null
+                        // with the raw state.
+                        val info = Payload.takeFreshLrfReading()
+                        val state = info?.laserMeasureState
+                        val locked = state == LaserMeasureState.NORMAL
+                        val distance = if (locked) info?.distance else null
+                        val target = if (locked) info?.location3D?.takeIf {
+                            it.latitude != 0.0 || it.longitude != 0.0 || it.altitude != 0.0
+                        } else null
+
+                        // Export to telemtry
+                        if (locked && target != null) {
+                            lrfTargetLocation = target
+                        }
+                        
+                        val targetJson = if (target == null) "null"
+                            else "[${target.latitude}, ${target.longitude}, ${target.altitude}]"
+                        val stateJson = if (state == null) "null" else "\"$state\""
+                        "{\"distance\": ${distance ?: "null"}, \"target\": $targetJson, \"state\": $stateJson}"
+                    }
+                    // --- Payload drop (release servo) ---
+                    "/send/drop" -> {
+                        // The detected control profile carries the payload index and the drop
+                        // widget indices (RIGHT + Unlock 3 / All_Down 5 on the M300 SkyPort payload;
+                        // PORT_3 + SWITCH 0 / BUTTON 1 elsewhere; null where no droppable payload
+                        // exists). dropPayload pulses the unlock SWITCH then the release BUTTON.
+                        val profile = DroneControlProfiles.activeProfile()
+                        val indexType = profile.payloadIndexType
+                        if (indexType == null) {
+                            "REJECTED: ${profile.displayName} has no payload drop port configured."
+                        } else if (Payload.dropPayload(
+                                payloadWidgetVM, indexType,
+                                profile.dropArmSwitchIndex, profile.dropReleaseButtonIndex
+                            )
+                        ) {
+                            "Payload dropped on $indexType"
+                        } else {
+                            "Payload drop failed"
+                        }
+                    }
                     else -> "Not Found: $uri"
                 }
             } catch (e: Exception) {

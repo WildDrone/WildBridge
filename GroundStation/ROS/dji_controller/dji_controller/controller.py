@@ -383,6 +383,14 @@ class DjiNode(Node):
         self.get_logger().info("Received gimbal yaw command.")
         self.dji_interface.requestSendGimbalYaw(msg.data)
 
+    def gimbal_rel_pitch_callback(self, msg):
+        self.get_logger().info("Received gimbal relative pitch command.")
+        self.dji_interface.requestSendGimbalRelPitch(msg.data)
+
+    def gimbal_rel_yaw_callback(self, msg):
+        self.get_logger().info("Received gimbal relative yaw command.")
+        self.dji_interface.requestSendGimbalRelYaw(msg.data)
+
     def zoom_ratio_callback(self, msg):
         self.get_logger().info("Received zoom ratio command.")
         self.dji_interface.requestSendZoomRatio(msg.data)
