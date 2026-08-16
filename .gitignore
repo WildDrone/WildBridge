@@ -39,6 +39,7 @@ __pycache__/
 .venv/
 venv/
 *.egg-info/
+GroundStation/Python/capture_*/
 
 # Misc
 *.pt
@@ -58,6 +59,7 @@ venv/
 /GroundStation/__pycache__
 
 /GroundStation/cameraCalibrations
+GroundStation/Python/trials
 
 # Android build outputs
 **/build/
@@ -71,3 +73,6 @@ diagnose_network.py
 # Documentation generated during development
 DISCOVERY_IMPROVEMENTS.md
 ANDROID_FIX_REQUIRED.md
+
+# Developer-local editor config (absolute paths differ per machine)
+.vscode/settings.json
