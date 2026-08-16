@@ -40,11 +40,15 @@ import android.hardware.SensorManager
 import android.net.wifi.WifiManager
 import android.os.BatteryManager
 import androidx.core.app.ActivityCompat
+import dji.sampleV5.aircraft.controller.ControlAuthority
 import dji.sampleV5.aircraft.controller.DroneController
+import dji.sampleV5.aircraft.controller.Payload
 import dji.v5.ux.detection.DetectedTarget
 import dji.v5.ux.detection.DetectionOverlayView
 import dji.sampleV5.aircraft.logger.WildBridgeFlightLogger
 import dji.sampleV5.aircraft.models.BasicAircraftControlVM
+import dji.sampleV5.aircraft.models.MediaVM
+import dji.sampleV5.aircraft.models.PayloadWidgetVM
 import dji.sampleV5.aircraft.models.VirtualStickVM
 import dji.sampleV5.aircraft.server.TelemetryServer
 import dji.sampleV5.aircraft.webrtc.WebRTCMediaOptions
@@ -184,6 +188,8 @@ class WildBridgeDefaultLayoutActivity : DefaultLayoutActivity() {
     // ViewModels for drone control
     private lateinit var basicAircraftControlVM: BasicAircraftControlVM
     private lateinit var virtualStickVM: VirtualStickVM
+    private lateinit var mediaVM: MediaVM
+    private lateinit var payloadWidgetVM: PayloadWidgetVM
     
     // Servers
     private var httpServer: SimpleHttpServer? = null
@@ -381,6 +387,14 @@ class WildBridgeDefaultLayoutActivity : DefaultLayoutActivity() {
         
         // Initialize DroneController
         DroneController.init(basicAircraftControlVM, virtualStickVM)
+
+        mediaVM = ViewModelProvider(this)[MediaVM::class.java]
+        mediaVM.init()
+        mediaVM.setStorage(CameraStorageLocation.SDCARD)
+        mediaVM.setComponentIndex(ComponentIndexType.LEFT_OR_MAIN)
+
+        // PayloadWidgetVM drives the payload-release servo for the /send/drop endpoint.
+        payloadWidgetVM = ViewModelProvider(this)[PayloadWidgetVM::class.java]
 
         // Start listening for RC stick inputs (needed for manual override detection)
         virtualStickVM.listenRCStick()

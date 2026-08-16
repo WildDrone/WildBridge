@@ -21,6 +21,7 @@ import dji.v5.utils.common.LogUtils
 import dji.sampleV5.aircraft.util.ToastUtils
 import dji.sdk.keyvalue.value.camera.CameraStorageLocation
 import dji.sdk.keyvalue.value.common.EmptyMsg
+import dji.sdk.keyvalue.value.file.FileListRequestTimeOrderType
 import dji.v5.common.error.DJICommonError
 import dji.v5.utils.common.ContextUtil
 import dji.v5.utils.common.DiskUtil
@@ -30,6 +31,8 @@ import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
 import java.util.ArrayList
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 
 /**
  * @author feel.feng
@@ -42,7 +45,13 @@ class MediaVM : DJIViewModel() {
     var isPlayBack = MutableLiveData<Boolean>()
     var componentIndex = MutableLiveData<ComponentIndexType>()
 
+    // Guards init() so its listeners register only once per ViewModel lifetime; reset in
+    // destroy() so re-entering a media screen re-registers them.
+    private var initialized = false
+
     fun init() {
+        if (initialized) return
+        initialized = true
         addMediaFileListStateListener()
         mediaFileListData.value = MediaDataCenter.getInstance().mediaManager.mediaFileListData
         MediaDataCenter.getInstance().mediaManager.addMediaFileListStateListener { mediaFileListState ->
@@ -55,6 +64,7 @@ class MediaVM : DJIViewModel() {
     }
 
     fun destroy() {
+        initialized = false
         KeyManager.getInstance().cancelListen(this);
         removeAllFileListStateListener()
 
@@ -76,6 +86,50 @@ class MediaVM : DJIViewModel() {
                     LogUtils.e(logTag, "fetch failed$error")
                 }
             })
+    }
+
+    // Pull the file list and BLOCK until the camera signals the refresh is done — either the
+    // MediaFileListState reaches UP_TO_DATE or the pull's own completion callback fires, whichever
+    // comes first. Returns the fresh list straight from the media manager. Event-driven: the wait
+    // ends on the SDK's completion signal, not a fixed delay. [timeoutMs] is only a safety cap so a
+    // stalled link can't block the worker forever. Call from a worker thread.
+    //
+    // [count] caps how many files to fetch (-1 = the whole card); pair with [orderType] = NEW_FIRST
+    // to fetch only the newest few, which is far cheaper than the whole list once the card is full.
+    // Order/list contents never affect this app's correctness (callers filter by fileIndex), so the
+    // defaults reproduce the original full-list pull.
+    fun pullAndAwait(
+        timeoutMs: Long,
+        count: Int = -1,
+        orderType: FileListRequestTimeOrderType? = null
+    ): List<MediaFile> {
+        val manager = MediaDataCenter.getInstance().mediaManager
+        val latch = CountDownLatch(1)
+        val stateListener = MediaFileListStateListener { state ->
+            if (state == MediaFileListState.UP_TO_DATE) latch.countDown()
+        }
+        manager.addMediaFileListStateListener(stateListener)
+        try {
+            // Issue the pull on the main looper (matches how the rest of the app drives the SDK),
+            // then block the calling worker on the latch.
+            android.os.Handler(android.os.Looper.getMainLooper()).post {
+                val builder = PullMediaFileListParam.Builder().mediaFileIndex(-1).count(count)
+                if (orderType != null) builder.orderType(orderType)
+                manager.pullMediaFileListFromCamera(
+                    builder.build(),
+                    object : CommonCallbacks.CompletionCallback {
+                        override fun onSuccess() { latch.countDown() }
+                        override fun onFailure(error: IDJIError) { latch.countDown() }
+                    }
+                )
+            }
+            latch.await(timeoutMs, TimeUnit.MILLISECONDS)
+        } catch (e: InterruptedException) {
+            Thread.currentThread().interrupt()
+        } finally {
+            manager.removeMediaFileListStateListener(stateListener)
+        }
+        return manager.mediaFileListData?.data ?: emptyList()
     }
 
     private fun addMediaFileListStateListener() {
@@ -176,8 +230,33 @@ class MediaVM : DJIViewModel() {
             CallbackUtils.onFailure(callback, DJICommonError.FACTORY.build(DJICommonError.DISCONNECTED))
             return
         }
-        RxUtil.setValue(createKey<CameraMode>(CameraKey.KeyCameraMode, index), CameraMode.PHOTO_NORMAL)
-            .andThen(RxUtil.performActionWithOutResult(createKey(CameraKey.KeyStartShootPhoto, index)))
+        val modeKey = createKey<CameraMode>(CameraKey.KeyCameraMode, index)
+        val shoot = RxUtil.performActionWithOutResult(createKey(CameraKey.KeyStartShootPhoto, index))
+        // Switching VIDEO->PHOTO on the camera costs a couple of seconds. We no longer restore
+        // video after a capture, so the camera is usually already in PHOTO_NORMAL from a prior
+        // shot — skip the redundant mode set in that case and shoot straight away.
+        val capture =
+            if (KeyManager.getInstance().getValue(modeKey) == CameraMode.PHOTO_NORMAL) shoot
+            else RxUtil.setValue(modeKey, CameraMode.PHOTO_NORMAL).andThen(shoot)
+        capture
+            .subscribe({ CallbackUtils.onSuccess(callback) }
+            ) { throwable: Throwable ->
+                CallbackUtils.onFailure(
+                    callback,
+                    (throwable as RxError).djiError
+                )
+            }
+    }
+
+    // Restore the camera to video mode (takePhoto switches it to PHOTO_NORMAL), so the
+    // live feed isn't left in photo mode after a capture.
+    fun setVideoMode(callback: CommonCallbacks.CompletionCallback) {
+        val index = componentIndex.value
+        if (index == null) {
+            CallbackUtils.onFailure(callback, DJICommonError.FACTORY.build(DJICommonError.DISCONNECTED))
+            return
+        }
+        RxUtil.setValue(createKey<CameraMode>(CameraKey.KeyCameraMode, index), CameraMode.VIDEO_NORMAL)
             .subscribe({ CallbackUtils.onSuccess(callback) }
             ) { throwable: Throwable ->
                 CallbackUtils.onFailure(
