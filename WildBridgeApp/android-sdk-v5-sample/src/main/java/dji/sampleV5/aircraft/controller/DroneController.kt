@@ -128,6 +128,21 @@ object DroneController {
     }
     // ==================== End Manual Override ====================
 
+    /**
+     * Called by [ControlAuthority] when the Safety Computer seizes control.
+     * Kills any autonomous control loop the Pilot Computer started and drops virtual stick so
+     * the aircraft holds position until the Safety Computer issues its own commands.
+     *
+     * This does NOT latch manual override: Pilot/Safety authority is a separate, software axis
+     * from the physical RC manual-override latch.
+     */
+    fun onSafetyTakeover() {
+        cancelActiveControlLoop()
+        virtualStickVM?.disableVirtualStick(object : CommonCallbacks.CompletionCallback {
+            override fun onSuccess() { }
+            override fun onFailure(error: IDJIError) { }
+        })
+    }
 
     // ==================== Drone Status ====================
     /**
