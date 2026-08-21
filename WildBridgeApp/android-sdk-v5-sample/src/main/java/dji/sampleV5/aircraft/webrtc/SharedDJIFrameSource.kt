@@ -1,7 +1,11 @@
 package dji.sampleV5.aircraft.webrtc
 
 import android.util.Log
+import dji.sdk.keyvalue.key.ProductKey
 import dji.sdk.keyvalue.value.common.ComponentIndexType
+import dji.sdk.keyvalue.value.product.ProductType
+import dji.v5.et.create
+import dji.v5.et.get
 import dji.v5.manager.datacenter.MediaDataCenter
 import dji.v5.manager.interfaces.ICameraStreamManager
 import org.webrtc.CapturerObserver
@@ -32,6 +36,15 @@ class SharedDJIFrameSource(
             ComponentIndexType.FPV,
             ComponentIndexType.RIGHT,
             ComponentIndexType.UP
+        )
+
+        // Payload/accessory ports (PORT_1..PORT_8) are never video cameras — they carry
+        // non-imaging payloads such as a hook on a multi-port aircraft (e.g. M400). The SDK
+        // still lists them in the available-camera set, so we exclude them from auto-selection;
+        // otherwise the last-resort `first()` could bind the video stream to a payload port and
+        // the bridge shows no camera. Drop one here if it ever genuinely carries a camera.
+        private val NON_CAMERA_INDICES = setOf(
+            ComponentIndexType.PORT_4
         )
     }
 
@@ -101,13 +114,21 @@ class SharedDJIFrameSource(
      *  2. Any entry from CAMERA_PREFERENCE that is present, in order.
      *  3. The first entry in the list as a last resort.
      */
+    // Only the M400 exposes payload ports (a hook etc.) that pollute the camera list; other
+    // aircraft are left untouched. Read live so it tracks the currently connected drone.
+    private fun isMatrice400(): Boolean =
+        ProductKey.KeyProductType.create().get(ProductType.UNKNOWN) == ProductType.DJI_MATRICE_400
+
     private fun pickCameraIndex(available: List<ComponentIndexType>): ComponentIndexType? {
-        if (available.isEmpty()) return null
-        if (available.contains(preferredCameraIndex)) return preferredCameraIndex
+        // On the M400, drop payload/accessory ports (e.g. a hook on PORT_4) so they can never be
+        // selected. Other aircraft keep the full list unchanged.
+        val cameras = if (isMatrice400()) available.filterNot { it in NON_CAMERA_INDICES } else available
+        if (cameras.isEmpty()) return null
+        if (cameras.contains(preferredCameraIndex)) return preferredCameraIndex
         for (candidate in CAMERA_PREFERENCE) {
-            if (available.contains(candidate)) return candidate
+            if (cameras.contains(candidate)) return candidate
         }
-        return available.first()
+        return cameras.first()
     }
 
     @Synchronized

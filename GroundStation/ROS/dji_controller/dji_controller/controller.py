@@ -7,6 +7,8 @@ This file was written as part of the WildDrone project and implements a ROS 2 no
 via the WildBridge app. The node handles both command reception and telemetry publishing.
 """
 
+import json
+
 import rclpy
 from rclpy.node import Node
 from rclpy.parameter import Parameter
@@ -70,12 +72,8 @@ class DjiNode(Node):
 
         # Subscribers for drone commands with specific messages
         self.create_subscription(
-            Float64MultiArray, 'command/goto_waypoint', self.goto_waypoint_callback, 10)
-        self.create_subscription(
-            Float64MultiArray, 'command/goto_waypoint_pid_tuning', self.goto_waypoint_pid_tuning_callback, 10)
+            Float64MultiArray, 'command/goto_waypoint_nose_forward', self.goto_waypoint_nose_forward_callback, 10)
 
-        self.create_subscription(
-            String, 'command/goto_trajectory', self.goto_trajectory_callback, 10)
         self.create_subscription(
             String, 'command/goto_trajectory_dji_native', self.goto_trajectory_dji_native_callback, 10)
 
@@ -96,11 +94,33 @@ class DjiNode(Node):
         self.create_subscription(
             Float64MultiArray, 'command/stick', self.stick_callback, 10)
 
+        self.create_subscription(
+            Float64, 'command/gimbal_rel_pitch', self.gimbal_rel_pitch_callback, 10)
+        self.create_subscription(
+            Float64, 'command/gimbal_rel_yaw', self.gimbal_rel_yaw_callback, 10)
+
+        self.create_subscription(
+            Float64MultiArray, 'command/goto_waypoint_hold_heading', self.goto_waypoint_hold_heading_callback, 10)
+
         # Subscribers for camera commands
         self.create_subscription(
             Empty, 'command/camera/start_recording', self.start_recording_callback, 10)
         self.create_subscription(
             Empty, 'command/camera/stop_recording', self.stop_recording_callback, 10)
+        self.create_subscription(
+            Empty, 'command/camera/capture', self.capture_callback, 10)
+        self.create_subscription(
+            Empty, 'command/camera/capture_temperature', self.capture_temperature_callback, 10)
+        self.create_subscription(
+            Empty, 'command/camera/list_media', self.list_media_callback, 10)
+        self.create_subscription(
+            String, 'command/camera/download_media', self.download_media_callback, 10)
+
+        # Payload / LRF commands
+        self.create_subscription(
+            Empty, 'command/lrf/measure', self.lrf_measure_callback, 10)
+        self.create_subscription(
+            Empty, 'command/drop', self.drop_callback, 10)
 
         # Publishers for telemetry
         self.speed_pub = self.create_publisher(Float64, 'speed', 10)
@@ -172,6 +192,43 @@ class DjiNode(Node):
         # Manual override publisher
         self.manual_override_pub = self.create_publisher(
             Bool, 'manual_override_active', 10)
+
+        # Command sequence ids streamed back with the *_reached flags. Compare against the
+        # seq acked on command_ack/* to know which command a reached flag belongs to.
+        self.waypoint_seq_pub = self.create_publisher(Int32, 'waypoint_seq', 10)
+        self.yaw_seq_pub = self.create_publisher(Int32, 'yaw_seq', 10)
+        self.altitude_seq_pub = self.create_publisher(Int32, 'altitude_seq', 10)
+
+        # Seq the app assigned to the command we just sent (-1 if it was rejected)
+        self.waypoint_ack_pub = self.create_publisher(Int32, 'command_ack/waypoint_seq', 10)
+        self.yaw_ack_pub = self.create_publisher(Int32, 'command_ack/yaw_seq', 10)
+        self.altitude_ack_pub = self.create_publisher(Int32, 'command_ack/altitude_seq', 10)
+
+        # LRF / thermal / media result publishers
+        self.lrf_target_pub = self.create_publisher(NavSatFix, 'lrf/target', 10)
+        self.lrf_measurement_pub = self.create_publisher(String, 'lrf/measurement', 10)
+        self.thermal_max_temp_pub = self.create_publisher(
+            Float64, 'camera/thermal_max_temp', 10)
+        self.capture_result_pub = self.create_publisher(
+            String, 'camera/capture_result', 10)
+        self.media_list_pub = self.create_publisher(String, 'camera/media_list', 10)
+        self.download_result_pub = self.create_publisher(
+            String, 'camera/download_result', 10)
+
+        # Takeoff readiness
+        self.ready_to_takeoff_pub = self.create_publisher(Bool, 'ready_to_takeoff', 10)
+        self.takeoff_block_reason_pub = self.create_publisher(
+            String, 'takeoff_block_reason', 10)
+
+        # Capture / listMedia / download block for up to 2 minutes on the HTTP call, so they run
+        # off the executor thread — otherwise they stall the 20 Hz telemetry timer.
+        # ponytail: single worker serializes them, which is what the camera wants anyway.
+        self.blocking_calls = ThreadPoolExecutor(max_workers=1)
+
+        # Directory downloaded media is written to
+        self.declare_parameter('media_dir', 'media')
+        self.media_dir = self.get_parameter(
+            'media_dir').get_parameter_value().string_value
 
         # Timer to publish telemetry at regular intervals
         # Publish every 1/20 second (50ms)
@@ -254,11 +311,12 @@ class DjiNode(Node):
         self.get_logger().info("Received deactivate manual override command.")
         self.dji_interface.requestDeactivateManualOverride()
 
-    def goto_waypoint_callback(self, msg: Float64MultiArray):
-        """Navigate to waypoint with PID control.
+    def goto_waypoint_nose_forward_callback(self, msg: Float64MultiArray):
+        """Navigate to waypoint nose-first: the drone turns to face the leg, flies forward, then
+        rotates in place to `yaw` on arrival (so `yaw` is the FINAL heading, not the travel one).
         Expected: [lat, lon, alt, yaw] or [lat, lon, alt, yaw, speed]
         """
-        self.get_logger().info("Received goto waypoint command.")
+        self.get_logger().info("Received goto waypoint (nose forward) command.")
         data = msg.data
         if len(data) >= 4:
             latitude, longitude, altitude, yaw = data[:4]
@@ -269,42 +327,26 @@ class DjiNode(Node):
             self.get_logger().warning('Received an array with fewer than 4 elements.')
             return
 
-        self.dji_interface.requestSendGoToWPwithPID(
+        seq = self.dji_interface.requestSendGoToWaypointNoseForward(
             latitude, longitude, altitude, yaw, speed)
+        self.waypoint_ack_pub.publish(Int32(data=int(seq) if seq is not None else -1))
 
-    def goto_waypoint_pid_tuning_callback(self, msg: Float64MultiArray):
-        """Navigate to waypoint with custom PID tuning parameters.
-        Expected: [lat, lon, alt, yaw, kp_pos, ki_pos, kd_pos, kp_yaw, ki_yaw, kd_yaw]
+    def goto_waypoint_hold_heading_callback(self, msg: Float64MultiArray):
+        """Navigate to waypoint holding `yaw` for the whole flight (body-frame projection), so the
+        drone crabs sideways instead of turning to face where it is going.
+        Expected: [lat, lon, alt, yaw] or [lat, lon, alt, yaw, speed]
         """
-        self.get_logger().info("Received goto waypoint with PID tuning command.")
+        self.get_logger().info("Received goto waypoint (hold heading) command.")
         data = msg.data
-        if len(data) >= 10:
-            lat, lon, alt, yaw, kp_pos, ki_pos, kd_pos, kp_yaw, ki_yaw, kd_yaw = data[:10]
-            self.get_logger().info(
-                f'Waypoint: ({lat}, {lon}, {alt}), Yaw: {yaw}, PID_pos: ({kp_pos}, {ki_pos}, {kd_pos}), PID_yaw: ({kp_yaw}, {ki_yaw}, {kd_yaw})')
-            self.dji_interface.requestSendGoToWPwithPIDtuning(
-                lat, lon, alt, yaw, kp_pos, ki_pos, kd_pos, kp_yaw, ki_yaw, kd_yaw)
-        else:
-            self.get_logger().warning('Received an array with fewer than 10 elements for PID tuning.')
-
-    def goto_trajectory_callback(self, msg: String):
-        """Navigate through a trajectory.
-        Expected format: list of (lat, lon, alt) tuples with optional final yaw.
-        Example: "[(lat1,lon1,alt1), (lat2,lon2,alt2), ...], finalYaw" or
-                 "[(lat1,lon1,alt1), (lat2,lon2,alt2), ...]"
-        """
-        self.get_logger().info("Received goto trajectory command.")
-        data = ast.literal_eval(msg.data)
-        
-        # Handle both formats: just waypoints list, or (waypoints, finalYaw) tuple
-        if isinstance(data, tuple) and len(data) == 2:
-            waypoints, finalYaw = data
-        else:
-            waypoints = data
-            finalYaw = 0.0  # Default yaw if not provided
-        
-        self.get_logger().info(f"Received waypoints: {waypoints}, finalYaw: {finalYaw}")
-        self.dji_interface.requestSendNavigateTrajectory(waypoints, finalYaw)
+        if len(data) < 4:
+            self.get_logger().warning('Received an array with fewer than 4 elements.')
+            return
+        latitude, longitude, altitude, yaw = data[:4]
+        speed = data[4] if len(data) >= 5 else 5.0  # Default 5 m/s
+        self.get_logger().info(
+            f'HoldHeading: lat={latitude}, lon={longitude}, alt={altitude}, yaw={yaw}, speed={speed}')
+        self.dji_interface.requestSendGoToWaypointHoldHeading(
+            latitude, longitude, altitude, yaw, speed)
 
     def goto_trajectory_dji_native_callback(self, msg: String):
         """Navigate using DJI's native waypoint mission system.
@@ -327,11 +369,13 @@ class DjiNode(Node):
 
     def goto_yaw_callback(self, msg):
         self.get_logger().info("Received goto yaw command.")
-        self.dji_interface.requestSendGotoYaw(msg.data)
+        seq = self.dji_interface.requestSendGotoYaw(msg.data)
+        self.yaw_ack_pub.publish(Int32(data=int(seq) if seq is not None else -1))
 
     def goto_altitude_callback(self, msg):
         self.get_logger().info("Received goto altitude command.")
-        self.dji_interface.requestSendGotoAltitude(msg.data)
+        seq = self.dji_interface.requestSendGotoAltitude(msg.data)
+        self.altitude_ack_pub.publish(Int32(data=int(seq) if seq is not None else -1))
 
     def gimbal_pitch_callback(self, msg):
         self.get_logger().info("Received gimbal pitch command.")
@@ -340,6 +384,14 @@ class DjiNode(Node):
     def gimbal_yaw_callback(self, msg):
         self.get_logger().info("Received gimbal yaw command.")
         self.dji_interface.requestSendGimbalYaw(msg.data)
+
+    def gimbal_rel_pitch_callback(self, msg):
+        self.get_logger().info("Received gimbal relative pitch command.")
+        self.dji_interface.requestSendGimbalRelPitch(msg.data)
+
+    def gimbal_rel_yaw_callback(self, msg):
+        self.get_logger().info("Received gimbal relative yaw command.")
+        self.dji_interface.requestSendGimbalRelYaw(msg.data)
 
     def zoom_ratio_callback(self, msg):
         self.get_logger().info("Received zoom ratio command.")
@@ -373,6 +425,67 @@ class DjiNode(Node):
             self.get_logger().info("Camera recording stopped successfully.")
         else:
             self.get_logger().error("Failed to stop camera recording.")
+
+    def capture_callback(self, msg):
+        """Trip one shutter. Publishes the JSON capture descriptor (per-lens filenames)."""
+        self.get_logger().info("Received capture command.")
+        self.blocking_calls.submit(self._capture)
+
+    def _capture(self):
+        info = self.dji_interface.requestCapture()
+        if not info:
+            self.get_logger().error("Capture failed.")
+            self.capture_result_pub.publish(String(data='{"error":"capture failed"}'))
+            return
+        self.get_logger().info(f"Capture: {info}")
+        self.capture_result_pub.publish(String(data=json.dumps(info)))
+
+    def capture_temperature_callback(self, msg):
+        """Read the hottest point on the thermal feed (no shutter, no download)."""
+        self.get_logger().info("Received capture temperature command.")
+        response = self.dji_interface.requestCaptureTemperature()
+        try:
+            temp = json.loads(response).get("thermalMaxTemp")
+        except (ValueError, AttributeError):
+            temp = None
+        if temp is None:
+            self.get_logger().warning(f"No thermal temperature available: {response!r}")
+            return
+        self.thermal_max_temp_pub.publish(Float64(data=float(temp)))
+
+    def list_media_callback(self, msg):
+        """List the camera SD card. Publishes the JSON file list on camera/media_list."""
+        self.get_logger().info("Received list media command.")
+        self.blocking_calls.submit(self._list_media)
+
+    def _list_media(self):
+        files = self.dji_interface.listMedia()
+        if files is False:
+            self.get_logger().error("listMedia failed.")
+            return
+        self.get_logger().info(f"listMedia: {len(files)} file(s)")
+        self.media_list_pub.publish(String(data=json.dumps(files)))
+
+    def download_media_callback(self, msg: String):
+        """Download one file by its on-camera name. Publishes the saved path, '' on failure."""
+        self.get_logger().info(f"Received download media command: {msg.data}")
+        self.blocking_calls.submit(self._download_media, msg.data)
+
+    def _download_media(self, file_name):
+        path = self.dji_interface.downloadByName(file_name, out_dir=self.media_dir)
+        if path is None:
+            self.get_logger().error(f"Download failed: {file_name}")
+        self.download_result_pub.publish(String(data=path or ""))
+
+    def lrf_measure_callback(self, msg):
+        """Fire the laser range finder once. Publishes the raw JSON reading."""
+        self.get_logger().info("Received LRF measure command.")
+        reading = self.dji_interface.requestLRFMeasure()
+        self.lrf_measurement_pub.publish(String(data=json.dumps(reading)))
+
+    def drop_callback(self, msg):
+        self.get_logger().info("Received payload drop command.")
+        self.dji_interface.requestDrop()
 
     ##############################
     # Telemetry Publishers       #
@@ -483,6 +596,28 @@ class DjiNode(Node):
             self.manual_override_pub.publish(
                 Bool(data=telemetry.get('isManualOverrideActive', False)))
 
+            # Command sequence ids the *_reached flags above refer to
+            self.waypoint_seq_pub.publish(
+                Int32(data=int(telemetry.get('waypointSeq', -1))))
+            self.yaw_seq_pub.publish(Int32(data=int(telemetry.get('yawSeq', -1))))
+            self.altitude_seq_pub.publish(
+                Int32(data=int(telemetry.get('altitudeSeq', -1))))
+
+            # Takeoff readiness
+            self.ready_to_takeoff_pub.publish(
+                Bool(data=telemetry.get('readyToTakeoff', False)))
+            self.takeoff_block_reason_pub.publish(
+                String(data=telemetry.get('takeoffBlockReason', 'UNKNOWN')))
+
+            # Last LRF-locked target (only published once the LRF has locked something)
+            lrf_target = telemetry.get('lrfTarget')
+            if lrf_target:
+                self.lrf_target_pub.publish(NavSatFix(
+                    latitude=float(lrf_target.get('latitude', 0.0)),
+                    longitude=float(lrf_target.get('longitude', 0.0)),
+                    altitude=float(lrf_target.get('altitude', 0.0))
+                ))
+
         except Exception as e:
             self.get_logger().error(f"Error while publishing states: {e}")
 
@@ -490,9 +625,14 @@ class DjiNode(Node):
 def main(args=None):
     rclpy.init(args=args)
     node = DjiNode()
-    rclpy.spin(node)
-    node.destroy_node()
-    rclpy.shutdown()
+    try:
+        rclpy.spin(node)
+    finally:
+        # __init__ returns early when the connection check fails, before the pool exists
+        if getattr(node, 'blocking_calls', None):
+            node.blocking_calls.shutdown(wait=False)
+        node.destroy_node()
+        rclpy.shutdown()
 
 
 if __name__ == '__main__':

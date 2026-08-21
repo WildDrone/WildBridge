@@ -104,6 +104,25 @@
                 app:layout_constraintStart_toStartOf="parent"
                 app:layout_constraintTop_toTopOf="parent" />
 
+            <!-- Safety authority banner (shown only when safety computer has control) -->
+            <TextView
+                android:id="@+id/text_control_authority"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:background="#88000000"
+                android:paddingHorizontal="16dp"
+                android:paddingVertical="8dp"
+                android:text="SAFETY COMPUTER IN CONTROL"
+                android:textColor="#FFF44336"
+                android:visibility="gone"
+                android:textSize="26sp"
+                android:textStyle="bold"
+                app:layout_constraintBottom_toBottomOf="parent"
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintTop_toTopOf="parent"
+                tools:ignore="HardcodedText" />
+
             <dji.v5.ux.core.widget.fpv.FPVWidget
                 android:id="@+id/widget_secondary_fpv"
                 android:layout_width="@dimen/uxsdk_mini_map_width"

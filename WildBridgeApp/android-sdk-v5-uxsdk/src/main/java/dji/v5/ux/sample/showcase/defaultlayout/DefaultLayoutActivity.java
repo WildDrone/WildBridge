@@ -40,8 +40,12 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.constraintlayout.widget.ConstraintLayout;
 import androidx.core.view.GravityCompat;
 import androidx.drawerlayout.widget.DrawerLayout;
+import dji.sdk.keyvalue.key.KeyTools;
+import dji.sdk.keyvalue.key.ProductKey;
 import dji.sdk.keyvalue.value.common.CameraLensType;
 import dji.sdk.keyvalue.value.common.ComponentIndexType;
+import dji.sdk.keyvalue.value.product.ProductType;
+import dji.v5.manager.KeyManager;
 import dji.v5.manager.datacenter.MediaDataCenter;
 import dji.v5.manager.interfaces.ICameraStreamManager;
 import dji.v5.network.DJINetworkManager;
@@ -308,6 +312,13 @@ public class DefaultLayoutActivity extends AppCompatActivity {
 
         ArrayList<ComponentIndexType> cameraList = new ArrayList<>(availableCameraList);
 
+        // On the M400, PORT_4 carries a non-camera payload (e.g. a hook). The SDK still lists it,
+        // so drop it here or the FPV widget could bind to it and show no video. Other aircraft are
+        // left untouched.
+        if (isMatrice400()) {
+            cameraList.remove(ComponentIndexType.PORT_4);
+        }
+
         //没有数据
         if (cameraList.isEmpty()) {
             secondaryFPVWidget.setVisibility(View.GONE);
@@ -316,7 +327,7 @@ public class DefaultLayoutActivity extends AppCompatActivity {
 
         //仅一路数据
         if (cameraList.size() == 1) {
-            primaryFpvWidget.updateVideoSource(availableCameraList.get(0));
+            primaryFpvWidget.updateVideoSource(cameraList.get(0));
             secondaryFPVWidget.setVisibility(View.GONE);
             return;
         }
@@ -344,13 +355,19 @@ public class DefaultLayoutActivity extends AppCompatActivity {
         } else if (cameraList.contains(ComponentIndexType.PORT_2)) {
             return ComponentIndexType.PORT_2;
         } else if (cameraList.contains(ComponentIndexType.PORT_3)) {
-            return ComponentIndexType.PORT_4;
+            return ComponentIndexType.PORT_3;
         } else if (cameraList.contains(ComponentIndexType.PORT_4)) {
             return ComponentIndexType.PORT_4;
         } else if (cameraList.contains(ComponentIndexType.VISION_ASSIST)) {
             return ComponentIndexType.VISION_ASSIST;
         }
         return defaultSource;
+    }
+
+    // True when the connected aircraft is a DJI Matrice 400. Read live so it tracks reconnects.
+    private boolean isMatrice400() {
+        ProductType type = KeyManager.getInstance().getValue(KeyTools.createKey(ProductKey.KeyProductType));
+        return type == ProductType.DJI_MATRICE_400;
     }
 
     private void onCameraSourceUpdated(ComponentIndexType devicePosition, CameraLensType lensType) {

@@ -32,6 +32,7 @@ import android.view.Menu
 import android.view.MenuItem
 import android.view.Surface
 import android.view.TextureView
+import android.view.View
 import android.view.ViewGroup
 import androidx.appcompat.app.AlertDialog
 import android.hardware.SensorEvent
@@ -40,11 +41,15 @@ import android.hardware.SensorManager
 import android.net.wifi.WifiManager
 import android.os.BatteryManager
 import androidx.core.app.ActivityCompat
+import dji.sampleV5.aircraft.controller.ControlAuthority
 import dji.sampleV5.aircraft.controller.DroneController
+import dji.sampleV5.aircraft.controller.Payload
 import dji.v5.ux.detection.DetectedTarget
 import dji.v5.ux.detection.DetectionOverlayView
 import dji.sampleV5.aircraft.logger.WildBridgeFlightLogger
 import dji.sampleV5.aircraft.models.BasicAircraftControlVM
+import dji.sampleV5.aircraft.models.MediaVM
+import dji.sampleV5.aircraft.models.PayloadWidgetVM
 import dji.sampleV5.aircraft.models.VirtualStickVM
 import dji.sampleV5.aircraft.server.TelemetryServer
 import dji.sampleV5.aircraft.webrtc.WebRTCMediaOptions
@@ -68,16 +73,27 @@ import dji.sdk.keyvalue.value.camera.CameraMode
 import dji.sdk.keyvalue.value.camera.CameraStorageInfos
 import dji.sdk.keyvalue.value.camera.CameraStorageLocation
 import dji.sdk.keyvalue.value.camera.SDCardLoadState
+import dji.sdk.keyvalue.value.camera.LaserMeasureState
+import dji.sdk.keyvalue.value.camera.ThermalTemperatureMeasureMode
+import dji.sdk.keyvalue.value.common.CameraLensType
 import dji.sdk.keyvalue.value.flightcontroller.FlightMode
+import dji.sdk.keyvalue.value.flightcontroller.FCMotorStartFailureError
+import dji.sdk.keyvalue.value.flightcontroller.GPSSignalLevel
 import dji.sdk.keyvalue.value.flightcontroller.LowBatteryRTHInfo
 import dji.sdk.keyvalue.value.gimbal.GimbalAngleRotation
 import dji.sdk.keyvalue.value.gimbal.GimbalAngleRotationMode
+import dji.sdk.keyvalue.key.RemoteControllerKey
 import dji.sdk.keyvalue.value.product.ProductType
+import dji.v5.manager.datacenter.MediaDataCenter
+import dji.v5.manager.interfaces.ICameraStreamManager
 import dji.v5.et.action
 import dji.v5.et.create
+import dji.v5.et.createCamera
 import dji.v5.et.get
 import dji.v5.et.set
 import dji.v5.manager.KeyManager
+import dji.v5.manager.diagnostic.DJIDeviceStatus
+import dji.v5.manager.diagnostic.DeviceStatusManager
 import dji.v5.ux.core.util.DataProcessor
 import dji.v5.ux.sample.showcase.defaultlayout.DefaultLayoutActivity
 import dji.v5.manager.intelligent.AutoSensingInfo
@@ -125,11 +141,14 @@ class WildBridgeDefaultLayoutActivity : DefaultLayoutActivity() {
 
     companion object {
         private const val TAG = "WildBridgeDefaultLayout"
+        private const val TAG_THERMAL = "WildBridgeThermal"
         private const val HTTP_PORT = 8080
         private const val TELEMETRY_PORT = 8081
         private const val MEDIAMTX_WHIP_PORT = 8889  // mediamtx WebRTC port for WHIP publish
         private const val PREF_DRONE_NAME = "drone_name"
         private const val PREF_MEDIAMTX_SERVER = "mediamtx_server"
+        private const val SAFETY_TOKEN = "98"
+        private const val SAFETY_TOKEN_HEADER = "X-Safety-Token:"
         private const val PREF_WEBRTC_FPS = "webrtc_fps"
         private const val PREF_WEBRTC_RESOLUTION = "webrtc_resolution"
         private const val PREF_MOCK_VIDEO_ENABLED = "mock_video_enabled"
@@ -170,6 +189,8 @@ class WildBridgeDefaultLayoutActivity : DefaultLayoutActivity() {
     // ViewModels for drone control
     private lateinit var basicAircraftControlVM: BasicAircraftControlVM
     private lateinit var virtualStickVM: VirtualStickVM
+    private lateinit var mediaVM: MediaVM
+    private lateinit var payloadWidgetVM: PayloadWidgetVM
     
     // Servers
     private var httpServer: SimpleHttpServer? = null
@@ -198,10 +219,20 @@ class WildBridgeDefaultLayoutActivity : DefaultLayoutActivity() {
     // Phone Location
     private var locationManager: LocationManager? = null
     private var phoneLocation: Location? = null
-    private val locationListener = object : LocationListener {
+    // Static listener holding only a WeakReference to the activity. On some platforms the
+    // framework LocationManager keeps its LocationListenerTransport in a native global even
+    // after removeUpdates(); an anonymous listener's implicit outer reference would then pin
+    // the destroyed activity (LeakCanary: ~7.8 MB). A WeakReference cannot.
+    private val locationListener = PhoneLocationListener(this)
+
+    private class PhoneLocationListener(
+        activity: WildBridgeDefaultLayoutActivity
+    ) : LocationListener {
+        private val activityRef = WeakReference(activity)
         override fun onLocationChanged(location: Location) {
-            phoneLocation = location
-            refreshMockTelemetryMode()
+            val activity = activityRef.get() ?: return
+            activity.phoneLocation = location
+            activity.refreshMockTelemetryMode()
         }
         override fun onStatusChanged(provider: String?, status: Int, extras: Bundle?) {}
         override fun onProviderEnabled(provider: String) {}
@@ -296,7 +327,9 @@ class WildBridgeDefaultLayoutActivity : DefaultLayoutActivity() {
     private val lowBatteryKey = KeyTools.createKey(FlightControllerKey.KeyLowBatteryWarningThreshold)
     private val timeNeededToLandKey = KeyTools.createKey(FlightControllerKey.KeyLowBatteryRTHInfo)
 
-    private val gimbalKey: DJIKey.ActionKey<GimbalAngleRotation, EmptyMsg> = GimbalKey.KeyRotateByAngle.create()
+    // var, not val: on the M400 these are rebound to LEFT_OR_MAIN once the main-camera video is up
+    // (see rebindGimbalKeysForM400). Other aircraft keep the default no-index binding.
+    private var gimbalKey: DJIKey.ActionKey<GimbalAngleRotation, EmptyMsg> = GimbalKey.KeyRotateByAngle.create()
     private val zoomKey: DJIKey<Double> = CameraKey.KeyCameraZoomRatios.create()
     private val startRecording: DJIKey.ActionKey<EmptyMsg, EmptyMsg> = CameraKey.KeyStartRecord.create()
     private val stopRecording: DJIKey.ActionKey<EmptyMsg, EmptyMsg> = CameraKey.KeyStopRecord.create()
@@ -304,8 +337,8 @@ class WildBridgeDefaultLayoutActivity : DefaultLayoutActivity() {
 
     private val location3DKey: DJIKey<LocationCoordinate3D> = FlightControllerKey.KeyAircraftLocation3D.create()
     private val satelliteCountKey: DJIKey<Int> = FlightControllerKey.KeyGPSSatelliteCount.create()
-    private val gimbalAttitudeKey: DJIKey<Attitude> = GimbalKey.KeyGimbalAttitude.create()
-    private val gimbalJointAttitudeKey: DJIKey<Attitude> = GimbalKey.KeyGimbalJointAttitude.create()
+    private var gimbalAttitudeKey: DJIKey<Attitude> = GimbalKey.KeyGimbalAttitude.create()
+    private var gimbalJointAttitudeKey: DJIKey<Attitude> = GimbalKey.KeyGimbalJointAttitude.create()
     private val compassHeadKey: DJIKey<Double> = FlightControllerKey.KeyCompassHeading.create()
     private val homeLocationKey: DJIKey<LocationCoordinate2D> = FlightControllerKey.KeyHomeLocation.create()
     private val flightSpeedKey: DJIKey<Velocity3D> = FlightControllerKey.KeyAircraftVelocity.create()
@@ -316,6 +349,12 @@ class WildBridgeDefaultLayoutActivity : DefaultLayoutActivity() {
     private val batteryKey: DJIKey<Int> = BatteryKey.KeyChargeRemainingInPercent.create()
     private val flightModeKey: DJIKey<FlightMode> = FlightControllerKey.KeyFlightMode.create()
     private val isFlyingKey: DJIKey<Boolean> = FlightControllerKey.KeyIsFlying.create()
+    private val areMotorsOnKey: DJIKey<Boolean> = FlightControllerKey.KeyAreMotorsOn.create()
+    private val gpsSignalLevelKey: DJIKey<GPSSignalLevel> = FlightControllerKey.KeyGPSSignalLevel.create()
+    // Tier-1 enrich keys: present in SDK jar but absent from public API docs.
+    // May return null on some aircraft/firmware -> treated as "not blocking".
+    private val notAllowMotorStartKey: DJIKey<Boolean> = FlightControllerKey.KeyNotAllowMotorStart.create()
+    private val takeoffFailureErrorKey: DJIKey<FCMotorStartFailureError> = FlightControllerKey.KeyTakeoffFailureError.create()
 
     /**
      * Pre-built telemetry JSON string, refreshed via KeyManager listeners whenever
@@ -324,11 +363,14 @@ class WildBridgeDefaultLayoutActivity : DefaultLayoutActivity() {
      */
     @Volatile private var cachedTelemetryJson: String = "{}"
 
+    @Volatile private var lrfTargetLocation: LocationCoordinate3D? = null
+
     private val productTypeKey: DJIKey<ProductType> = ProductKey.KeyProductType.create()
     private val flightControllerConnectionKey: DJIKey<Boolean> = FlightControllerKey.KeyConnection.create()
     private val cameraModeKey: DJIKey<CameraMode> = KeyTools.createKey(CameraKey.KeyCameraMode, ComponentIndexType.LEFT_OR_MAIN)
     private val cameraStorageLocationKey: DJIKey<CameraStorageLocation> = KeyTools.createKey(CameraKey.KeyCameraStorageLocation, ComponentIndexType.LEFT_OR_MAIN)
     private val cameraStorageInfosKey: DJIKey<CameraStorageInfos> = KeyTools.createKey(CameraKey.KeyCameraStorageInfos, ComponentIndexType.LEFT_OR_MAIN)
+    private var thermalArmed = false
 
     private data class DroneStorageStatus(
         val label: String,
@@ -363,6 +405,14 @@ class WildBridgeDefaultLayoutActivity : DefaultLayoutActivity() {
         // Initialize DroneController
         DroneController.init(basicAircraftControlVM, virtualStickVM)
 
+        mediaVM = ViewModelProvider(this)[MediaVM::class.java]
+        mediaVM.init()
+        mediaVM.setStorage(CameraStorageLocation.SDCARD)
+        mediaVM.setComponentIndex(ComponentIndexType.LEFT_OR_MAIN)
+
+        // PayloadWidgetVM drives the payload-release servo for the /send/drop endpoint.
+        payloadWidgetVM = ViewModelProvider(this)[PayloadWidgetVM::class.java]
+
         // Start listening for RC stick inputs (needed for manual override detection)
         virtualStickVM.listenRCStick()
 
@@ -381,8 +431,14 @@ class WildBridgeDefaultLayoutActivity : DefaultLayoutActivity() {
         // Setup drone status indicator
         setupDroneStatusView()
 
-        // Initialize LocationManager
-        locationManager = getSystemService(Context.LOCATION_SERVICE) as LocationManager
+        // Setup Pilot/Safety authority banner
+        setupControlAuthorityBanner()
+
+        // Initialize LocationManager from the APPLICATION context. The framework can keep the
+        // LocationManager's transport in a native global after removeUpdates(); if the manager
+        // were bound to the activity context, its mContext would then pin the destroyed activity
+        // (LeakCanary). The application context is process-scoped, so it cannot leak the activity.
+        locationManager = applicationContext.getSystemService(Context.LOCATION_SERVICE) as LocationManager
         startLocationUpdates()
 
         // Initialize Phone Sensors & Managers
@@ -459,6 +515,44 @@ class WildBridgeDefaultLayoutActivity : DefaultLayoutActivity() {
 
     // ==================== End Mode Toggle ====================
 
+    // ==================== Pilot / Safety Authority ====================
+
+    /**
+     * Classify an incoming HTTP request by its X-Safety-Token header.
+     * A request is [ControlAuthority.Source.SAFETY] only when a safety token is configured AND
+     * the request presents exactly that token; otherwise it is the Pilot Computer.
+     */
+    private fun classifyCommandSource(presentedToken: String?): ControlAuthority.Source {
+        return if (presentedToken == SAFETY_TOKEN)
+            ControlAuthority.Source.SAFETY
+        else
+            ControlAuthority.Source.PILOT
+    }
+
+    private fun setupControlAuthorityBanner() {
+        ControlAuthority.listener = object : ControlAuthority.Listener {
+            override fun onAuthorityChanged(authority: ControlAuthority.Authority) {
+                mainHandler.post { updateControlAuthorityBanner(authority) }
+            }
+        }
+        updateControlAuthorityBanner(ControlAuthority.active)
+    }
+
+    private fun updateControlAuthorityBanner(authority: ControlAuthority.Authority) {
+        val tv = findViewById<TextView>(R.id.text_control_authority) ?: return
+        when (authority) {
+            // ponytail: pilot control is the normal state, no banner needed
+            ControlAuthority.Authority.PILOT -> tv.visibility = View.GONE
+            ControlAuthority.Authority.SAFETY -> {
+                tv.text = "SAFETY COMPUTER IN CONTROL"
+                tv.setTextColor(0xFFF44336.toInt())  // red
+                tv.visibility = View.VISIBLE
+            }
+        }
+    }
+
+    // ==================== End Pilot / Safety Authority ====================
+
     private fun buildWebRTCOptions(): WebRTCMediaOptions {
         val preset = getWebRTCResolutionPreset()
         return if (preset == StreamResolutionPreset.AUTO) {
@@ -491,6 +585,141 @@ class WildBridgeDefaultLayoutActivity : DefaultLayoutActivity() {
 
     private fun shouldAllowMockVideo(): Boolean = !aircraftConnected
 
+    // ===== M400: rebind gimbal keys to PORT_3 once the PORT_3 camera video is up =====
+    // The no-index gimbal keys can resolve to the wrong gimbal on the multi-port M400. We wait for
+    // the first frame on the PORT_3 camera (proof that gimbal/camera is live), then recreate the
+    // gimbal keys bound explicitly to PORT_3 and enable RC-stick gimbal control. One-shot per connection.
+    @Volatile
+    private var gimbalKeysReboundForM400 = false
+    @Volatile
+    private var mainCamFrameDetectorRegistered = false
+
+    private val cameraStreamManager: ICameraStreamManager
+        get() = MediaDataCenter.getInstance().cameraStreamManager
+
+    @Volatile private var lastDetectedFrameWidth = 0
+    @Volatile private var lastDetectedFrameHeight = 0
+
+    // One-shot frame listener: the first frame on PORT_3 triggers the rebind, then detaches.
+    private val mainCamFirstFrameListener = object : ICameraStreamManager.CameraFrameListener {
+        override fun onFrame(
+            frameData: ByteArray, offset: Int, length: Int,
+            width: Int, height: Int, format: ICameraStreamManager.FrameFormat
+        ) {
+            lastDetectedFrameWidth = width
+            lastDetectedFrameHeight = height
+            mainHandler.post { onMainCameraFirstFrame() }
+        }
+    }
+
+    private fun isMatrice400(): Boolean =
+        ProductKey.KeyProductType.create().get(ProductType.UNKNOWN) == ProductType.DJI_MATRICE_400
+
+    private fun registerMainCamFrameDetector() {
+        if (mainCamFrameDetectorRegistered || gimbalKeysReboundForM400) return
+        runCatching {
+            // FPVWidget renders PORT_3 via a surface (hardware path) which does NOT trigger the YUV
+            // frame callback. Explicitly enable the stream so addFrameListener actually gets frames.
+            cameraStreamManager.enableStream(ComponentIndexType.PORT_3, true)
+            cameraStreamManager.addFrameListener(
+                ComponentIndexType.PORT_3,
+                ICameraStreamManager.FrameFormat.NV21,
+                mainCamFirstFrameListener
+            )
+            mainCamFrameDetectorRegistered = true
+            Log.i(TAG, "PORT_3 frame detector armed (stream enabled)")
+        }.onFailure {
+            Log.w(TAG, "Could not register PORT_3 frame detector: ${it.message}")
+        }
+    }
+
+    private fun unregisterMainCamFrameDetector() {
+        if (!mainCamFrameDetectorRegistered) return
+        runCatching { cameraStreamManager.removeFrameListener(mainCamFirstFrameListener) }
+        mainCamFrameDetectorRegistered = false
+    }
+
+    // First frame on the main camera arrived. Detach the detector, then rebind on M400 only.
+    private fun onMainCameraFirstFrame() {
+        // Dedupe: several frames may have queued before the first post ran. Only the first proceeds.
+        if (!mainCamFrameDetectorRegistered) return
+        unregisterMainCamFrameDetector()
+
+        val m400 = isMatrice400()
+        Log.i(TAG, "PORT_3 first frame ${lastDetectedFrameWidth}x${lastDetectedFrameHeight} (M400=$m400)")
+
+        if (gimbalKeysReboundForM400 || !m400) return
+        gimbalKeysReboundForM400 = true
+
+        // Wait 10s after the first frame before touching the gimbal — the gimbal/payload may still be
+        // initialising on PORT_3 right after the stream comes up; issuing acquire/enable too early
+        // is unreliable. The one-shot flag above already prevents a second scheduling.
+        mainHandler.postDelayed({ initialiseM400Gimbal() }, 10000)
+    }
+
+    // M400-only: rebind the gimbal keys to PORT_3 and point the RC at the PORT_3 gimbal so the
+    // physical dial/sticks drive it. Called 10s after the first PORT_3 frame.
+    private fun initialiseM400Gimbal() {
+        gimbalKey = GimbalKey.KeyRotateByAngle.create(ComponentIndexType.PORT_3)
+        gimbalAttitudeKey = GimbalKey.KeyGimbalAttitude.create(ComponentIndexType.PORT_3)
+        gimbalJointAttitudeKey = GimbalKey.KeyGimbalJointAttitude.create(ComponentIndexType.PORT_3)
+        Log.i(TAG, "M400: rebound gimbal keys to PORT_3 (10s after first PORT_3 video frame)")
+
+        // M400 is single-operator and this RC already owns gimbal authority, but the RC defaults to
+        // controlling the wrong gimbal so the dial does nothing. KeyControllingGimbal selects which
+        // gimbal the physical dial/sticks drive; point it at PORT_3 (the payload camera in view).
+        val current = RemoteControllerKey.KeyControllingGimbal.create().get()
+        Log.i(TAG, "M400: RC controllingGimbal before=$current -> setting PORT_3")
+        RemoteControllerKey.KeyControllingGimbal.create().set(
+            ComponentIndexType.PORT_3,
+            onSuccess = { Log.i(TAG, "M400: RC now controlling PORT_3 gimbal") },
+            onFailure = { error -> Log.e(TAG, "M400: set controllingGimbal failed: ${error.description()}") }
+        )
+    }
+
+    private fun thermalCameraIndex(): ComponentIndexType =
+        if (isMatrice400()) ComponentIndexType.PORT_3 else ComponentIndexType.LEFT_OR_MAIN
+
+    private fun armThermalMeasurement() {
+        if (thermalArmed) return
+        thermalArmed = true
+        val idx = thermalCameraIndex()
+        val lens = CameraLensType.CAMERA_LENS_THERMAL
+        Log.i(TAG_THERMAL, "Arming thermal measurement on camera index=$idx lens=THERMAL")
+
+        CameraKey.KeyThermalTemperatureDataEnabled.createCamera(idx, lens).set(true,
+            onSuccess = { Log.i(TAG_THERMAL, "ThermalTemperatureDataEnabled=true OK") },
+            onFailure = { e -> Log.e(TAG_THERMAL, "set TemperatureDataEnabled failed: ${e.description()}") })
+
+        CameraKey.KeyThermalTemperatureMeasureMode.createCamera(idx, lens).set(ThermalTemperatureMeasureMode.REGION,
+            onSuccess = {
+                Log.i(TAG_THERMAL, "MeasureMode=REGION OK; setting full-frame area")
+                CameraKey.KeyThermalRegionMetersureArea.createCamera(idx, lens).set(DoubleRect(0.0, 0.0, 1.0, 1.0),
+                    onSuccess = { Log.i(TAG_THERMAL, "Region area=full-frame OK") },
+                    onFailure = { e -> Log.e(TAG_THERMAL, "set Region area failed: ${e.description()}") })
+            },
+            onFailure = { e -> Log.e(TAG_THERMAL, "set MeasureMode failed: ${e.description()}") })
+    }
+
+    private fun disarmThermalMeasurement() {
+        thermalArmed = false
+    }
+
+    private fun readThermalMaxTempNow(): Double? {
+        // Make sure the pipeline is armed even if capture is the very first thermal action.
+        armThermalMeasurement()
+        return runCatching {
+            val idx = thermalCameraIndex()
+            val lens = CameraLensType.CAMERA_LENS_THERMAL
+            val globalMax = CameraKey.KeyThermalGlobalMaxTemperature.createCamera(idx, lens).get()
+            val regionMax = CameraKey.KeyThermalRegionMetersureTemperature.createCamera(idx, lens).get()?.maxAreaTemperature
+            val maxTemp = globalMax ?: regionMax
+            Log.i(TAG_THERMAL, "[capture read] idx=$idx globalMax=$globalMax regionMax=$regionMax -> $maxTemp")
+            maxTemp
+        }.onFailure { Log.e(TAG_THERMAL, "[capture read] error: ${it.message}", it) }.getOrNull()
+    }
+    // ==================== End Thermal max-temperature readout ====================
+
     private fun setupAircraftConnectionListener() {
         aircraftConnected = flightControllerConnectionKey.get(true)
         applyAircraftConnectionState(aircraftConnected)
@@ -503,6 +732,24 @@ class WildBridgeDefaultLayoutActivity : DefaultLayoutActivity() {
 
     private fun applyAircraftConnectionState(isConnected: Boolean) {
         aircraftConnected = isConnected
+        // Warm the media list on connect so the first photo capture isn't cold (the first
+        // whole-card fetch is slow and otherwise blows past the capture client's timeout).
+        if (isConnected) {
+            if (::mediaVM.isInitialized) Payload.warmUpMedia(mediaVM)
+            // NOTE: the PORT_3 frame detector is armed from applyDetectedDroneProfile (once the
+            // product resolves to M400 and PORT_3 is actually streaming), NOT here — at the connect
+            // edge the product is still UNRECOGNIZED and PORT_3 has no stream yet.
+            // Arm the thermal radiometric pipeline once the product type + PORT_3 payload have
+            // had time to come up, so the on-demand read at capture time is warm. This is a
+            // one-shot setup (enable temp data + region metering), not a continuous stream.
+            mainHandler.postDelayed({ armThermalMeasurement() }, 8000)
+        } else {
+            Payload.resetMediaWarmup()
+            // Reset for the next connection so a reconnect (or a different drone) rebinds again.
+            unregisterMainCamFrameDetector()
+            gimbalKeysReboundForM400 = false
+            disarmThermalMeasurement()
+        }
         if (isConnected && sharedPreferences.getBoolean(PREF_MOCK_VIDEO_ENABLED, false)) {
             sharedPreferences.edit().putBoolean(PREF_MOCK_VIDEO_ENABLED, false).apply()
             webRTCStreamer?.setMockVideoEnabled(false)
@@ -645,12 +892,20 @@ class WildBridgeDefaultLayoutActivity : DefaultLayoutActivity() {
     private fun applyDetectedDroneProfile(productType: ProductType) {
         val controlProfile = DroneControlProfiles.fromProductType(productType)
         val controlLabel = when (controlProfile) {
+            DroneControlProfile.MATRICE_300_RTK -> "CTRL M300"
             DroneControlProfile.MATRICE_350_RTK -> "CTRL M350"
+            DroneControlProfile.MATRICE_400 -> "CTRL M400"
             DroneControlProfile.MINI_4_PRO -> "CTRL MINI4"
             DroneControlProfile.MAVIC_3_ENTERPRISE -> "CTRL MAVIC3"
         }
         findViewById<TextView>(R.id.text_control_profile)?.text = controlLabel
         Log.i(TAG, "Detected product $productType -> using ${controlProfile.displayName} profile")
+
+        // M400 resolved (and PORT_3 should be streaming by now): arm the PORT_3 frame detector that
+        // rebinds the gimbal keys + enables RC-stick gimbal control. Guarded one-shot per connection.
+        if (productType == ProductType.DJI_MATRICE_400) {
+            registerMainCamFrameDetector()
+        }
     }
 
     private fun updateWebRTCMetricsView(metrics: WebRTCStreamMetrics) {
@@ -1360,6 +1615,23 @@ class WildBridgeDefaultLayoutActivity : DefaultLayoutActivity() {
     override fun onDestroy() {
         detachDefaultLayoutHsiWidgets()
 
+        disarmThermalMeasurement()
+
+        // Unregister system-service listeners FIRST and each on its own guard. The framework
+        // LocationManager keeps locationListener in a native global, so if a later teardown
+        // step throws and skips this removal, the listener pins the destroyed activity
+        // (~8.5 MB leak caught by LeakCanary). These must not depend on the block below.
+        try {
+            locationManager?.removeUpdates(locationListener)
+        } catch (e: Exception) {
+            Log.w(TAG, "Error removing location updates: ${e.message}")
+        }
+        try {
+            sensorManager?.unregisterListener(sensorListener)
+        } catch (e: Exception) {
+            Log.w(TAG, "Error unregistering sensor listener: ${e.message}")
+        }
+
         try {
             // Stop AutoSensing
             stopAutoSensing()
@@ -1380,11 +1652,7 @@ class WildBridgeDefaultLayoutActivity : DefaultLayoutActivity() {
             // Unregister mDNS service
             unregisterMdnsService()
 
-            // Stop location updates
-            locationManager?.removeUpdates(locationListener)
-
-            // Stop sensor updates
-            sensorManager?.unregisterListener(sensorListener)
+            // (location + sensor listeners already unregistered at the top of onDestroy)
 
             // Release Multicast Lock
             if (multicastLock?.isHeld == true) {
@@ -1394,9 +1662,21 @@ class WildBridgeDefaultLayoutActivity : DefaultLayoutActivity() {
             // Cancel key listeners
             KeyManager.getInstance().cancelListen(this)
 
+            // Detach the M400 main-camera first-frame detector if still registered
+            unregisterMainCamFrameDetector()
+
+            // Cancel H20T payload (LRF + thermal) key listeners
+            Payload.destroy()
+
+            // Release MediaVM (thermal capture) listeners and media manager
+            if (::mediaVM.isInitialized) {
+                mediaVM.destroy()
+            }
+
             // Clean up DroneController listeners and resources
             DroneController.manualOverrideListener = null
             DroneController.droneStatusListener = null
+            ControlAuthority.listener = null
             DroneController.destroy()
 
             // Close the active flight log if the app is killed mid-flight
@@ -1783,6 +2063,21 @@ class WildBridgeDefaultLayoutActivity : DefaultLayoutActivity() {
     private fun getCameraHybridFocalLength(): Int = cameraHybridFocalLengthKey.get(-1)
     private fun getBatteryLevel(): Int = batteryKey.get(-1)
     private fun getFlightMode(): FlightMode = flightModeKey.get(FlightMode.UNKNOWN)
+
+    /**
+     * Whether the aircraft is ready to take off / arm.
+     *
+     * Mirrors the DJI system-status banner: ready when it reads "Ready to Go (GPS)",
+     * i.e. [DJIDeviceStatus.NORMAL]. Any other status counts as not ready.
+     */
+    private fun isReadyToTakeoff(): Boolean =
+        DeviceStatusManager.getInstance().getCurrentDJIDeviceStatus() == DJIDeviceStatus.NORMAL
+
+    /** Reason the aircraft cannot take off, or "NONE" when ready. Mirrors the DJI status banner. */
+    private fun getTakeoffBlockReason(): String {
+        val status = DeviceStatusManager.getInstance().getCurrentDJIDeviceStatus()
+        return if (status == DJIDeviceStatus.NORMAL) "NONE" else status.name
+    }
     private fun getTimeNeededToGoHome(): Int = goHomeAssessmentProcessor.value.timeNeededToGoHome
     private fun getTimeNeededToLand(): Int = timeNeededToLandProcessor.value
 
@@ -1822,7 +2117,7 @@ class WildBridgeDefaultLayoutActivity : DefaultLayoutActivity() {
             val phoneLocationJson = """{"latitude":$phoneLat,"longitude":$phoneLon,"heading":$phoneHeading,"pressure":$phonePressure,"battery":$phoneBattery,"wifiRssi":$wifiRssi}"""
             val webRtcJson = lastWebRTCMetrics.toTelemetryJson()
 
-            return """{"droneName":"$droneName","speed":${mock.velocity},"heading":${mock.heading},"attitude":${mock.attitude},"location":${mock.location},"phoneLocation":$phoneLocationJson,"webRtc":$webRtcJson,"gimbalAttitude":${mock.gimbalAttitude},"gimbalJointAttitude":${mock.gimbalAttitude},"zoomFl":24,"hybridFl":24,"opticalFl":24,"zoomRatio":1.0,"batteryLevel":${mock.batteryPercent},"satelliteCount":${mock.satelliteCount},"homeLocation":{"latitude":${mock.location.latitude},"longitude":${mock.location.longitude}},"distanceToHome":0.0,"waypointReached":false,"intermediaryWaypointReached":false,"yawReached":true,"altitudeReached":true,"isRecording":true,"homeSet":true,"remainingFlightTime":1320,"timeNeededToGoHome":45,"timeNeededToLand":18,"totalTime":63,"maxRadiusCanFlyAndGoHome":900,"remainingCharge":${mock.batteryPercent},"batteryNeededToLand":12,"batteryNeededToGoHome":18,"seriousLowBatteryThreshold":10,"lowBatteryThreshold":20,"flightMode":"${mock.flightMode}","isManualOverrideActive":false,"autoSensingActive":$isAutoSensingActive,"detectedTargets":${DetectedTarget.listToJsonArray(currentDetectedTargets)}}"""
+            return """{"droneName":"$droneName","speed":${mock.velocity},"heading":${mock.heading},"attitude":${mock.attitude},"location":${mock.location},"lrfTarget":${lrfTargetLocation?.toString() ?: "null"},"phoneLocation":$phoneLocationJson,"webRtc":$webRtcJson,"gimbalAttitude":${mock.gimbalAttitude},"gimbalJointAttitude":${mock.gimbalAttitude},"zoomFl":24,"hybridFl":24,"opticalFl":24,"zoomRatio":1.0,"batteryLevel":${mock.batteryPercent},"satelliteCount":${mock.satelliteCount},"homeLocation":{"latitude":${mock.location.latitude},"longitude":${mock.location.longitude}},"distanceToHome":0.0,"waypointReached":false,"waypointSeq":0,"intermediaryWaypointReached":false,"yawReached":true,"yawSeq":0,"altitudeReached":true,"altitudeSeq":0,"isRecording":true,"homeSet":true,"remainingFlightTime":1320,"timeNeededToGoHome":45,"timeNeededToLand":18,"totalTime":63,"maxRadiusCanFlyAndGoHome":900,"remainingCharge":${mock.batteryPercent},"batteryNeededToLand":12,"batteryNeededToGoHome":18,"seriousLowBatteryThreshold":10,"lowBatteryThreshold":20,"flightMode":"${mock.flightMode}","readyToTakeoff":false,"takeoffBlockReason":"MOCK_IN_FLIGHT","isManualOverrideActive":false,"autoSensingActive":$isAutoSensingActive,"detectedTargets":${DetectedTarget.listToJsonArray(currentDetectedTargets)}}"""
         }
 
         val goHomeInfo = goHomeAssessmentProcessor.value
@@ -1844,12 +2139,17 @@ class WildBridgeDefaultLayoutActivity : DefaultLayoutActivity() {
             homeLocation.latitude, homeLocation.longitude
         )
         val waypointReached = DroneController.isWaypointReached()
+        val waypointSeq = DroneController.getWaypointSeq()
         val intermediaryWaypointReached = DroneController.isIntermediaryWaypointReached()
         val yawReached = DroneController.isYawReached()
+        val yawSeq = DroneController.getYawSeq()
         val altitudeReached = DroneController.isAltitudeReached()
+        val altitudeSeq = DroneController.getAltitudeSeq()
         val isRecording = isRecordingKey.get()
         val homeSet = isHomeSet()
         val flightMode = getFlightMode().name
+        val readyToTakeoff = isReadyToTakeoff()
+        val takeoffBlockReason = getTakeoffBlockReason()
 
         val remainingCharge = chargeRemainingProcessor.value
         val batteryNeededToLand = goHomeInfo.batteryPercentNeededToLand
@@ -1871,8 +2171,9 @@ class WildBridgeDefaultLayoutActivity : DefaultLayoutActivity() {
         
         val phoneLocationJson = """{"latitude":$phoneLat,"longitude":$phoneLon,"heading":$phoneHeading,"pressure":$phonePressure,"battery":$phoneBattery,"wifiRssi":$wifiRssi}"""
         val webRtcJson = lastWebRTCMetrics.toTelemetryJson()
+        val lrfTargetJson = lrfTargetLocation?.toString() ?: "null"
 
-        return """{"droneName":"$droneName","speed":$speed,"heading":$heading,"attitude":$attitude,"location":$location,"phoneLocation":$phoneLocationJson,"webRtc":$webRtcJson,"gimbalAttitude":$gimbalAttitude,"gimbalJointAttitude":$gimbalJointAttitude,"zoomFl":$zoomFl,"hybridFl":$hybridFl,"opticalFl":$opticalFl,"zoomRatio":$zoomRatio,"batteryLevel":$batteryLevel,"satelliteCount":$satelliteCount,"homeLocation":$homeLocation,"distanceToHome":$distanceToHome,"waypointReached":$waypointReached,"intermediaryWaypointReached":$intermediaryWaypointReached,"yawReached":$yawReached,"altitudeReached":$altitudeReached,"isRecording":$isRecording,"homeSet":$homeSet,"remainingFlightTime":$remainingFlightTime,"timeNeededToGoHome":$timeNeededToGoHome,"timeNeededToLand":$timeNeededToLand,"totalTime":$totalTime,"maxRadiusCanFlyAndGoHome":$maxRadiusCanFlyAndGoHome,"remainingCharge":$remainingCharge,"batteryNeededToLand":$batteryNeededToLand,"batteryNeededToGoHome":$batteryNeededToGoHome,"seriousLowBatteryThreshold":$seriousLowBatteryThreshold,"lowBatteryThreshold":$lowBatteryThreshold,"flightMode":"$flightMode","isManualOverrideActive":${DroneController.isManualOverrideActive},"autoSensingActive":$isAutoSensingActive,"detectedTargets":${DetectedTarget.listToJsonArray(currentDetectedTargets)}}"""
+        return """{"droneName":"$droneName","speed":$speed,"heading":$heading,"attitude":$attitude,"location":$location,"lrfTarget":$lrfTargetJson,"phoneLocation":$phoneLocationJson,"webRtc":$webRtcJson,"gimbalAttitude":$gimbalAttitude,"gimbalJointAttitude":$gimbalJointAttitude,"zoomFl":$zoomFl,"hybridFl":$hybridFl,"opticalFl":$opticalFl,"zoomRatio":$zoomRatio,"batteryLevel":$batteryLevel,"satelliteCount":$satelliteCount,"homeLocation":$homeLocation,"distanceToHome":$distanceToHome,"waypointReached":$waypointReached,"waypointSeq":$waypointSeq,"intermediaryWaypointReached":$intermediaryWaypointReached,"yawReached":$yawReached,"yawSeq":$yawSeq,"altitudeReached":$altitudeReached,"altitudeSeq":$altitudeSeq,"isRecording":$isRecording,"homeSet":$homeSet,"remainingFlightTime":$remainingFlightTime,"timeNeededToGoHome":$timeNeededToGoHome,"timeNeededToLand":$timeNeededToLand,"totalTime":$totalTime,"maxRadiusCanFlyAndGoHome":$maxRadiusCanFlyAndGoHome,"remainingCharge":$remainingCharge,"batteryNeededToLand":$batteryNeededToLand,"batteryNeededToGoHome":$batteryNeededToGoHome,"seriousLowBatteryThreshold":$seriousLowBatteryThreshold,"lowBatteryThreshold":$lowBatteryThreshold,"flightMode":"$flightMode","readyToTakeoff":$readyToTakeoff,"takeoffBlockReason":"$takeoffBlockReason","isManualOverrideActive":${DroneController.isManualOverrideActive},"autoSensingActive":$isAutoSensingActive,"detectedTargets":${DetectedTarget.listToJsonArray(currentDetectedTargets)}}"""
     }
 
     // ==================== HTTP Server ====================
@@ -1929,12 +2230,19 @@ class WildBridgeDefaultLayoutActivity : DefaultLayoutActivity() {
                 val uri = parts[1]
 
                 var contentLength = 0
+                var safetyToken: String? = null
                 var line: String?
                 while (reader.readLine().also { line = it } != null && line!!.isNotEmpty()) {
                     if (line!!.startsWith("Content-Length:", ignoreCase = true)) {
                         contentLength = line!!.substring(15).trim().toIntOrNull() ?: 0
+                    } else if (line!!.startsWith(SAFETY_TOKEN_HEADER, ignoreCase = true)) {
+                        safetyToken = line!!.substring(SAFETY_TOKEN_HEADER.length).trim()
                     }
                 }
+
+                // A request is from the Safety Computer iff it carries the configured token.
+                // Everything else (including a token mismatch) is treated as the Pilot Computer.
+                val source = classifyCommandSource(safetyToken)
 
                 var postData = ""
                 if (method == "POST" && contentLength > 0) {
@@ -1943,7 +2251,84 @@ class WildBridgeDefaultLayoutActivity : DefaultLayoutActivity() {
                     postData = String(buffer)
                 }
 
-                val response = handleHttpRequest(method, uri, postData)
+                // Camera Capture is two-step. Capture only trips one shutter and returns a JSON
+                // descriptor naming the per-lens filenames the payload stored; the lens files stay
+                // on the SD card and are downloaded by name via /send/downloadMediaByName.
+                // Temperature-only read: NO shutter, NO download. Synchronously reads the
+                // highest temperature on the thermal feed and returns {"thermalMaxTemp": °C|null}.
+                if (method == "POST" && uri == "/send/captureTemperature") {
+                    WildBridgeFlightLogger.logCommand(uri, postData)
+                    val body: String = if (!ControlAuthority.authorizeControlCommand(source)) {
+                        "{\"error\":\"REJECTED: Safety Computer is in control.\"}"
+                    } else {
+                        val maxTemp = readThermalMaxTempNow()
+                        "{\"thermalMaxTemp\":${maxTemp ?: "null"}}"
+                    }
+                    val bodyBytes = body.toByteArray()
+                    writer.println("HTTP/1.1 200 OK")
+                    writer.println("Content-Type: application/json")
+                    writer.println("Content-Length: ${bodyBytes.size}")
+                    writer.println("Access-Control-Allow-Origin: *")
+                    writer.println()
+                    writer.print(body)
+                    writer.flush()
+                    clientSocket.close()
+                    return
+                }
+
+                if (method == "POST" && uri == "/send/captureThermalImage") {
+                    WildBridgeFlightLogger.logCommand(uri, postData)
+                    val body: String = if (!ControlAuthority.authorizeControlCommand(source)) {
+                        "{\"error\":\"REJECTED: Safety Computer is in control.\"}"
+                    } else {
+                        Payload.captureThermal(mediaVM) ?: "{\"error\":\"Failed to capture thermal image\"}"
+                    }
+                    val bodyBytes = body.toByteArray()
+                    writer.println("HTTP/1.1 200 OK")
+                    writer.println("Content-Type: application/json")
+                    writer.println("Content-Length: ${bodyBytes.size}")
+                    writer.println("Access-Control-Allow-Origin: *")
+                    writer.println()
+                    writer.print(body)
+                    writer.flush()
+                    clientSocket.close()
+                    return
+                }
+
+                // Download ANY file on the SD card by name: body is the filename. Resolves against
+                // the live media list (the card's own index). Returns binary image/jpeg written
+                // straight to the socket, bypassing the text-response path below.
+                if (method == "POST" && uri == "/send/downloadMediaByName") {
+                    WildBridgeFlightLogger.logCommand(uri, postData)
+                    val outputStream = clientSocket.getOutputStream()
+                    val fileName = postData.trim()
+                    if (fileName.isEmpty()) {
+                        Payload.sendErrorResponse(outputStream, "Expected body '<fileName>'")
+                    } else {
+                        Payload.sendMediaFileByName(mediaVM, fileName, outputStream)
+                    }
+                    clientSocket.close()
+                    return
+                }
+
+                // List every file on the SD card as JSON so a client can browse and pick any to
+                // download via /send/downloadMediaByName.
+                if (method == "POST" && uri == "/send/listMedia") {
+                    WildBridgeFlightLogger.logCommand(uri, postData)
+                    val body: String = Payload.listAllMedia(mediaVM)
+                    val bodyBytes = body.toByteArray()
+                    writer.println("HTTP/1.1 200 OK")
+                    writer.println("Content-Type: application/json")
+                    writer.println("Content-Length: ${bodyBytes.size}")
+                    writer.println("Access-Control-Allow-Origin: *")
+                    writer.println()
+                    writer.print(body)
+                    writer.flush()
+                    clientSocket.close()
+                    return
+                }
+
+                val response = handleHttpRequest(method, uri, postData, source)
 
                 writer.println("HTTP/1.1 200 OK")
                 writer.println("Content-Type: text/plain")
@@ -1961,9 +2346,14 @@ class WildBridgeDefaultLayoutActivity : DefaultLayoutActivity() {
             }
         }
 
-        private fun handleHttpRequest(method: String, uri: String, postData: String): String {
+        private fun handleHttpRequest(
+            method: String,
+            uri: String,
+            postData: String,
+            source: ControlAuthority.Source
+        ): String {
             return when (method) {
-                "POST" -> handlePostRequest(uri, postData)
+                "POST" -> handlePostRequest(uri, postData, source)
                 "GET" -> handleGetRequest(uri)
                 "OPTIONS" -> "OK"
                 else -> "Method Not Allowed"
@@ -1980,9 +2370,29 @@ class WildBridgeDefaultLayoutActivity : DefaultLayoutActivity() {
             }
         }
 
-        private fun handlePostRequest(uri: String, postData: String): String {
+        private fun handlePostRequest(
+            uri: String,
+            postData: String,
+            source: ControlAuthority.Source
+        ): String {
             return try {
                 Log.i("DroneServer", "POST $uri with data: $postData")
+
+                // --- Pilot/Safety authority gate ---
+                // Explicit return of control to the Pilot — Safety Computer only.
+                if (uri == "/releaseSafetyControl") {
+                    return if (ControlAuthority.releaseSafetyControl(source))
+                        "Safety control released. Pilot Computer is back in control."
+                    else
+                        "REJECTED: only the Safety Computer can release safety control."
+                }
+                // Every drone-control command (/send/*) goes through the authority latch:
+                // the first Safety command seizes persistent control; Pilot commands are
+                // rejected while the Safety Computer holds it.
+                if (uri.startsWith("/send/") && !ControlAuthority.authorizeControlCommand(source)) {
+                    return "REJECTED: Safety Computer is in control. Pilot commands are blocked."
+                }
+
                 when (uri) {
                     "/send/takeoff" -> {
                         DroneController.startTakeOff()
@@ -2007,6 +2417,30 @@ class WildBridgeDefaultLayoutActivity : DefaultLayoutActivity() {
                         val ry = cmd[3].toFloat()
                         DroneController.setStick(lx, ly, rx, ry)
                         "Received: leftX: $lx, leftY: $ly, rightX: $rx, rightY: $ry"
+                    }
+                    "/send/gimbal/rel_pitch" -> {
+                        val cmd = postData.split(",")
+                        val roll = cmd[0].toDouble()
+                        val pitch = cmd[1].toDouble()
+                        val yaw = cmd[2].toDouble()
+                        val rot = GimbalAngleRotation(
+                            GimbalAngleRotationMode.RELATIVE_ANGLE,
+                            pitch, 0.0, 0.0, false, true, false, 0.1, false, 0
+                        )
+                        gimbalKey.action(rot)
+                        "Received: relative pitch: $pitch"
+                    }
+                    "/send/gimbal/rel_yaw" -> {
+                        val cmd = postData.split(",")
+                        val roll = cmd[0].toDouble()
+                        val pitch = cmd[1].toDouble()
+                        val yaw = cmd[2].toDouble()
+                        val rot = GimbalAngleRotation(
+                            GimbalAngleRotationMode.RELATIVE_ANGLE,
+                            0.0, 0.0, yaw, true, true, false, 0.1, false, 0
+                        )
+                        gimbalKey.action(rot)
+                        "Received: relative yaw: $yaw"
                     }
                     "/send/gimbal/pitch" -> {
                         val cmd = postData.split(",")
@@ -2037,16 +2471,16 @@ class WildBridgeDefaultLayoutActivity : DefaultLayoutActivity() {
                             return "REJECTED: Manual override active. Deactivate manual override first."
                         }
                         val yaw = postData.split(",")[0].toDouble()
-                        DroneController.gotoYaw(yaw)
-                        "Received: yaw: $yaw"
+                        val seq = DroneController.gotoYaw(yaw)
+                        "YAW_ACCEPTED seq=$seq yaw: $yaw"
                     }
                     "/send/gotoAltitude" -> {
                         if (DroneController.shouldRejectAutonomousCommand("gotoAltitude")) {
                             return "REJECTED: Manual override active. Deactivate manual override first."
                         }
                         val targetAltitude = postData.split(",")[0].toDouble()
-                        DroneController.gotoAltitude(targetAltitude)
-                        "Received: Altitude: $targetAltitude"
+                        val seq = DroneController.gotoAltitude(targetAltitude)
+                        "ALTITUDE_ACCEPTED seq=$seq Altitude: $targetAltitude"
                     }
                     "/send/camera/zoom" -> {
                         val targetZoom = postData.toDouble()
@@ -2077,20 +2511,8 @@ class WildBridgeDefaultLayoutActivity : DefaultLayoutActivity() {
                         stopRecording.action()
                         "Received: camera stop recording"
                     }
-                    "/send/gotoWP" -> {
-                        if (DroneController.shouldRejectAutonomousCommand("gotoWP")) {
-                            return "REJECTED: Manual override active. Deactivate manual override first."
-                        }
-                        val cmd = postData.split(",")
-                        if (cmd.size < 3) return "Invalid input. Expected format: lat,lon,alt"
-                        val latitude = cmd[0].toDouble()
-                        val longitude = cmd[1].toDouble()
-                        val altitude = cmd[2].toDouble()
-                        DroneController.gotoWP(latitude, longitude, altitude)
-                        "Waypoint command received: Latitude=$latitude, Longitude=$longitude, Altitude=$altitude"
-                    }
-                    "/send/gotoWPwithPID" -> {
-                        if (DroneController.shouldRejectAutonomousCommand("gotoWPwithPID")) {
+                    "/send/gotoWaypointHoldHeading" -> {
+                        if (DroneController.shouldRejectAutonomousCommand("gotoWaypointHoldHeading")) {
                             return "REJECTED: Manual override active. Deactivate manual override first."
                         }
                         val cmd = postData.split(",")
@@ -2100,25 +2522,27 @@ class WildBridgeDefaultLayoutActivity : DefaultLayoutActivity() {
                         val altitude = cmd[2].toDouble()
                         val yaw = cmd[3].toDouble()
                         val maxSpeed = cmd[4].toDouble()
-                        DroneController.navigateToWaypointWithPID(latitude, longitude, altitude, yaw, maxSpeed)
-                        "Waypoint command received: Latitude=$latitude, Longitude=$longitude, Altitude=$altitude, Yaw=$yaw, MaxSpeed=$maxSpeed"
+                        val seq = DroneController.flyToWaypointHoldHeading(latitude, longitude, altitude, yaw, maxSpeed)
+                        "WAYPOINT_ACCEPTED seq=$seq Latitude=$latitude, Longitude=$longitude, Altitude=$altitude, Yaw=$yaw, MaxSpeed=$maxSpeed"
                     }
-                    "/send/navigateTrajectory" -> {
-                        if (DroneController.shouldRejectAutonomousCommand("navigateTrajectory")) {
+                    "/send/gotoWaypointNoseForward" -> {
+                        if (DroneController.shouldRejectAutonomousCommand("gotoWaypointNoseForward")) {
                             return "REJECTED: Manual override active. Deactivate manual override first."
                         }
-                        Log.d("DroneServer", "Received trajectory data: $postData")
-                        val segments = postData.split(";").map { it.trim() }.filter { it.isNotEmpty() }
-                        if (segments.isEmpty()) return "Invalid input. Expected at least one waypoint."
-                        val waypoints = mutableListOf<Triple<Double, Double, Double>>()
-                        for (i in 0 until segments.size) {
-                            val parts = segments[i].split(",").map { it.trim() }
-                            if (parts.size < 3) return "Invalid input at segment $i: expected lat,lon,alt"
-                            waypoints.add(Triple(parts[0].toDouble(), parts[1].toDouble(), parts[2].toDouble()))
-                        }
-                        Log.d("DroneServer", "Navigating trajectory with ${waypoints.size} waypoints")
-                        DroneController.navigateTrajectory(waypoints)
-                        "Trajectory command received. Waypoints=${waypoints.size}"
+                        // NOTE: nose-follows-path endpoint. During travel the drone faces its
+                        // direction of motion (heading is forced to bearing(current->waypoint)); the
+                        // yaw field is the FINAL arrival heading the drone rotates to in place once it
+                        // reaches the waypoint (Phase 3). Use /send/gotoWaypointHoldHeading if you need
+                        // the nose pointed at yaw *while* translating.
+                        val cmd = postData.split(",")
+                        if (cmd.size < 5) return "Invalid input. Expected format: lat,lon,alt,yaw,maxSpeed (yaw = final arrival heading)"
+                        val latitude = cmd[0].toDouble()
+                        val longitude = cmd[1].toDouble()
+                        val altitude = cmd[2].toDouble()
+                        val yaw = cmd[3].toDouble()  // final arrival heading (Phase 3); travel heading is auto
+                        val maxSpeed = cmd[4].toDouble()
+                        val seq = DroneController.flyToWaypointNoseForward(latitude, longitude, altitude, yaw, maxSpeed)
+                        "WAYPOINT_ACCEPTED seq=$seq Latitude=$latitude, Longitude=$longitude, Altitude=$altitude, FinalYaw=$yaw, MaxSpeed=$maxSpeed"
                     }
                     "/send/navigateTrajectoryDJINative" -> {
                         if (DroneController.shouldRejectAutonomousCommand("navigateTrajectoryDJINative")) {
@@ -2180,6 +2604,50 @@ class WildBridgeDefaultLayoutActivity : DefaultLayoutActivity() {
                     }
                     "/get/autoSensing/targets" -> {
                         DetectedTarget.listToJsonArray(currentDetectedTargets).toString()
+                    }
+                    // --- H20T Laser Range Finder (LRF) ---
+                    "/send/lrf/measure" -> {
+                        // Fire the laser and return distance + geo-reference + state as JSON.
+                        // distance and the target point are populated only when the laser locks
+                        // (state == NORMAL, which requires a GPS fix); other states return null
+                        // with the raw state.
+                        val info = Payload.takeFreshLrfReading()
+                        val state = info?.laserMeasureState
+                        val locked = state == LaserMeasureState.NORMAL
+                        val distance = if (locked) info?.distance else null
+                        val target = if (locked) info?.location3D?.takeIf {
+                            it.latitude != 0.0 || it.longitude != 0.0 || it.altitude != 0.0
+                        } else null
+
+                        // Export to telemtry
+                        if (locked && target != null) {
+                            lrfTargetLocation = target
+                        }
+                        
+                        val targetJson = if (target == null) "null"
+                            else "[${target.latitude}, ${target.longitude}, ${target.altitude}]"
+                        val stateJson = if (state == null) "null" else "\"$state\""
+                        "{\"distance\": ${distance ?: "null"}, \"target\": $targetJson, \"state\": $stateJson}"
+                    }
+                    // --- Payload drop (release servo) ---
+                    "/send/drop" -> {
+                        // The detected control profile carries the payload index and the drop
+                        // widget indices (RIGHT + Unlock 3 / All_Down 5 on the M300 SkyPort payload;
+                        // PORT_3 + SWITCH 0 / BUTTON 1 elsewhere; null where no droppable payload
+                        // exists). dropPayload pulses the unlock SWITCH then the release BUTTON.
+                        val profile = DroneControlProfiles.activeProfile()
+                        val indexType = profile.payloadIndexType
+                        if (indexType == null) {
+                            "REJECTED: ${profile.displayName} has no payload drop port configured."
+                        } else if (Payload.dropPayload(
+                                payloadWidgetVM, indexType,
+                                profile.dropArmSwitchIndex, profile.dropReleaseButtonIndex
+                            )
+                        ) {
+                            "Payload dropped on $indexType"
+                        } else {
+                            "Payload drop failed"
+                        }
                     }
                     else -> "Not Found: $uri"
                 }

@@ -1,5 +1,6 @@
 package dji.sampleV5.aircraft.models
 
+import android.util.Log
 import androidx.lifecycle.MutableLiveData
 import dji.sampleV5.aircraft.data.DJIToastResult
 import dji.sdk.keyvalue.value.payload.WidgetValue
@@ -22,8 +23,12 @@ import dji.v5.manager.aircraft.payload.listener.PayloadWidgetInfoListener
  * Copyright (c) 2022, DJI All Rights Reserved.
  */
 class PayloadWidgetVM : DJIViewModel() {
+    private val TAG = "PayloadWidgetVM"
     private lateinit var payloadIndexType: PayloadIndexType
-    private val payloadManagerMap = PayloadCenter.getInstance().payloadManager
+    // Fetch the live manager map on each access. Caching it at construction (the VM is built
+    // in the host activity's onCreate, before any payload has connected) can capture an empty
+    // map so no manager is ever found for the target index.
+    private val payloadManagerMap get() = PayloadCenter.getInstance().payloadManager
     val payloadBasicInfo = MutableLiveData<PayloadBasicInfo>()
     val payloadWidgetInfo = MutableLiveData<PayloadWidgetInfo>()
 
@@ -33,19 +38,22 @@ class PayloadWidgetVM : DJIViewModel() {
     }
 
     fun setWidgetValue(value: WidgetValue) {
-        for ((key, payloadManager) in payloadManagerMap) {
-            if (key == payloadIndexType) {
-                payloadManager.setWidgetValue(value, object : CommonCallbacks.CompletionCallback {
-                    override fun onSuccess() {
-                        sendToastMsg(DJIToastResult.success("setWidgetValue success"))
-                    }
-
-                    override fun onFailure(error: IDJIError) {
-                        sendToastMsg(DJIToastResult.failed(error.toString()))
-                    }
-                })
-            }
+        val map = payloadManagerMap
+        val payloadManager = map[payloadIndexType]
+        if (payloadManager == null) {
+            Log.e(TAG, "setWidgetValue: no payload manager for index=$payloadIndexType (available=${map.keys})")
+            return
         }
+        payloadManager.setWidgetValue(value, object : CommonCallbacks.CompletionCallback {
+            override fun onSuccess() {
+                sendToastMsg(DJIToastResult.success("setWidgetValue success"))
+            }
+
+            override fun onFailure(error: IDJIError) {
+                Log.e(TAG, "setWidgetValue failed (type=${value.type} idx=${value.index} val=${value.value}): $error")
+                sendToastMsg(DJIToastResult.failed(error.toString()))
+            }
+        })
     }
 
     fun initListener(payloadIndexType: PayloadIndexType) {
@@ -70,6 +78,10 @@ class PayloadWidgetVM : DJIViewModel() {
 
     override fun onCleared() {
         super.onCleared()
+        // payloadIndexType is only set in initListener(); if the VM is cleared before any
+        // listener was registered (e.g. activity destroyed without ever calling /send/drop),
+        // there is nothing to unregister and the lateinit would otherwise throw.
+        if (!::payloadIndexType.isInitialized) return
         val iPayloadManager = payloadManagerMap[payloadIndexType]
         iPayloadManager?.removePayloadWidgetInfoListener(payloadWidgetInfoListener)
         iPayloadManager?.removePayloadBasicInfoListener(payloadBasicInfoListener)

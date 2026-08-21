@@ -14,18 +14,28 @@ class PID(
 ) {
     private var integral = 0.0
     private var previousError = 0.0
+    private var hasPreviousError = false
 
-    fun update(error: Double): Double {
+    fun reset() {
+        integral = 0.0
+        previousError = 0.0
+        hasPreviousError = false
+    }
+
+    /** Update using the fixed nominal timestep supplied at construction. */
+    fun update(error: Double): Double = update(error, dt)
+
+    fun update(error: Double, dtSec: Double): Double {
         // Proportional term
         val p = kp * error
 
-        // Derivative term
-        val derivative = if (dt != 0.0) (error - previousError) / dt else 0.0
+        val derivative = if (hasPreviousError && dtSec != 0.0) (error - previousError) / dtSec else 0.0
         val d = kd * derivative
         previousError = error
+        hasPreviousError = true
 
         // Integral term with anti-windup
-        integral += error * dt
+        integral += error * dtSec
 
         // Calculate output before applying integral term
         var output = p + d
